@@ -38,8 +38,7 @@ services:
       trap exit TERM; 
       while :; do
         echo \"$$(date): Starting certificate renewal check...\";
-        certbot renew --webroot --webroot-path=/var/www/html \
-          --post-hook 'docker service update --force reverse-proxy_reverse-proxy';
+        certbot renew --webroot --webroot-path=/var/www/html --deploy-hook 'docker service update --force reverse-proxy_reverse-proxy';
         echo \"$$(date): Renewal check complete. Next check in 24 hours.\";
         sleep 24h & wait $$!;
       done;"
