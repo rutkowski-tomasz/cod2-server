@@ -1,0 +1,6 @@
+hetzner_cloud_token                 = "XXX"
+ubuntu_user_ssh_public_key          = "ssh-ed25519 XXX"
+server_name                         = "my-server"
+cod2_binaries_aws_access_key_id     = "AKIXXX"
+cod2_binaries_aws_secret_access_key = "XXX"
+cod2_binaries_aws_s3_bucket_name    = "cod2-binaries"

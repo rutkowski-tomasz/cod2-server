@@ -1,0 +1,39 @@
+name: pma Continuous Integration
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'services/pma/**'
+      - '.github/workflows/pma.yml'
+  workflow_dispatch:
+
+env:
+  WorkingDir: services/pma
+  StackName: pma
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy ${{ env.StackName }}
+        working-directory: ${{ env.WorkingDir}}
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/key
+          chmod 600 ~/.ssh/key
+          echo "Host *
+            StrictHostKeyChecking no" > ~/.ssh/config
+
+          ssh-agent bash -c '
+            ssh-add ~/.ssh/key
+            docker context create temp --docker "host=ssh://${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" && docker context use temp
+            docker stack deploy -c compose.yml ${{ env.StackName }}
+            docker context rm temp -f
+          '
+   
+          rm -f ~/.ssh/key

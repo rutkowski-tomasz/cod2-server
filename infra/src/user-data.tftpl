@@ -1,0 +1,76 @@
+#cloud-config
+
+ssh_pwauth: false
+ssh:
+  emit_keys_to_console: false
+
+users:
+  - name: ubuntu
+    groups: [docker]
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    shell: /bin/bash
+    lock_passwd: true
+    ssh_authorized_keys:
+      - ${ubuntu_user_ssh_public_key}
+
+disable_root: true
+
+packages:
+  - zip # required for nl-cod2-library
+  - unzip
+  - iptables-persistent
+  - net-tools
+
+runcmd:
+  - echo "Create required directories..."
+  - mkdir -p /home/ubuntu/cod2/main/1_0
+  - mkdir -p /home/ubuntu/cod2/main/1_2
+  - mkdir -p /home/ubuntu/cod2/main/1_3
+  - mkdir -p /home/ubuntu/cod2/library
+  - mkdir -p /home/ubuntu/cod2/servers
+  - mkdir -p /home/ubuntu/reverse-proxy/www
+  - mkdir -p /home/ubuntu/reverse-proxy/certs
+  - chown -R ubuntu:ubuntu /home/ubuntu
+
+  - echo "Set up Docker Swarm..."
+  - docker swarm init
+  - docker network create --driver overlay --attachable stack_network || true
+  - usermod -aG docker ubuntu
+
+  - echo "Configure IP forwarding for CoD2..."
+  - echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
+  - sysctl -p
+
+  - echo "Configure iptables for CoD2 server ports..."
+  - PUBLIC_IP=$(curl -s https://api.ipify.org)
+  - echo "PUBLIC_IP=$PUBLIC_IP"
+  - iptables -t nat -A PREROUTING -d $PUBLIC_IP -p udp -m udp --dport 28960:28999 -j DNAT --to-destination 127.0.0.1:28960-28999
+  - iptables -t nat -A POSTROUTING -s 172.0.0.0/8 -d 127.0.0.1 -j MASQUERADE
+  - netfilter-persistent save
+
+  - |
+    echo "Download CoD2 files from S3 if credentials provided..."
+    if [ -n "${cod2_binaries_aws_access_key_id}" ] && [ -n "${cod2_binaries_aws_secret_access_key}" ]; then
+      snap install aws-cli --classic
+      cd /home/ubuntu/cod2
+      echo "Pulling from s3://${cod2_binaries_aws_s3_bucket_name} in ${cod2_binaries_aws_s3_bucket_region}"
+      sudo -u ubuntu AWS_ACCESS_KEY_ID=${cod2_binaries_aws_access_key_id} \
+      AWS_SECRET_ACCESS_KEY=${cod2_binaries_aws_secret_access_key} \
+      AWS_DEFAULT_REGION=${cod2_binaries_aws_s3_bucket_region} \
+        aws s3 sync s3://${cod2_binaries_aws_s3_bucket_name} /home/ubuntu/cod2/main
+    fi
+
+  - |
+    echo "Setup base files for different CoD2 versions..."
+    if [ -f /home/ubuntu/cod2/main/1_0/iw_00.iwd ]; then
+      if [ -d /home/ubuntu/cod2/main/1_2/ ]; then
+        sudo -u ubuntu cp /home/ubuntu/cod2/main/1_0/* /home/ubuntu/cod2/main/1_2/
+      fi
+      if [ -d /home/ubuntu/cod2/main/1_3/ ]; then
+        sudo -u ubuntu cp /home/ubuntu/cod2/main/1_0/* /home/ubuntu/cod2/main/1_3/
+      fi
+    fi
+
+  - chown -R ubuntu:ubuntu /home/ubuntu/cod2
+
+final_message: "Setup completed."

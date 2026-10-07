@@ -1,0 +1,58 @@
+version: "3.9"
+
+services:
+  reverse-proxy:
+    image: nginx:1.23.4-alpine
+    volumes:
+      - /home/ubuntu/reverse-proxy/certs:/etc/letsencrypt
+      - /home/ubuntu/reverse-proxy/www:/var/www/html
+      - /home/ubuntu/cod2/servers:/mnt/servers
+    configs:
+      - source: nginx
+        target: /etc/nginx/nginx.conf
+    ports:
+      - target: 443
+        published: 443
+        protocol: tcp
+      - target: 80
+        published: 80
+        protocol: tcp
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 5s
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+  
+  certbot-renew:
+    image: certbot/certbot:latest
+    volumes:
+      - /home/ubuntu/reverse-proxy/certs:/etc/letsencrypt
+      - /home/ubuntu/reverse-proxy/www:/var/www/html
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    entrypoint: "/bin/sh"
+    command: >
+      -c "apk add --no-cache docker-cli &&
+      trap exit TERM; 
+      while :; do
+        echo \"$$(date): Starting certificate renewal check...\";
+        certbot renew --webroot --webroot-path=/var/www/html --deploy-hook 'docker service update --force reverse-proxy_reverse-proxy';
+        echo \"$$(date): Renewal check complete. Next check in 24 hours.\";
+        sleep 24h & wait $$!;
+      done;"
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 10s
+
+configs:
+  nginx:
+    external: true
+    name: nginx_static
+
+networks:
+  default:
+    name: stack_network
+    external: true

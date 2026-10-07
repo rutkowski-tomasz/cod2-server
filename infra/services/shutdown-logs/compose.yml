@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  shutdown-logs:
+    image: alpine:latest
+    configs:
+      - source: shutdown_logs_script
+        target: /shutdown_logs.sh
+        mode: 0755
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    environment:
+      - SHUTDOWN_LOGS_DISCORD_WEBHOOK=${SHUTDOWN_LOGS_DISCORD_WEBHOOK}
+    volumes:
+      - shutdown_logs_data:/var/run/shutdown-logs
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    entrypoint: |
+      sh -c '
+      apk add --no-cache curl jq docker-cli &&
+      echo "*/15 * * * * /bin/sh /shutdown_logs.sh" > /etc/crontabs/root && 
+      crond -f -d 8
+      '
+
+configs:
+  shutdown_logs_script:
+    external: true
+    name: shutdown_logs_script_static
+
+volumes:
+  shutdown_logs_data:
+
+networks:
+  default:
+    name: stack_network
+    external: true

@@ -1,0 +1,56 @@
+version: "3.9"
+
+services:
+  initial-nginx:
+    image: nginx:1.23.4-alpine
+    volumes:
+      - /home/ubuntu/reverse-proxy/www:/var/www/html
+    configs:
+      - source: nginx-http-only
+        target: /etc/nginx/nginx.conf
+    ports:
+      - target: 80
+        published: 80
+        protocol: tcp
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+    
+  cert-init:
+    image: certbot/certbot:latest
+    volumes:
+      - /home/ubuntu/reverse-proxy/certs:/etc/letsencrypt
+      - /home/ubuntu/reverse-proxy/www:/var/www/html
+    environment:
+      - LETS_ENCRYPT_DOMAINS=${LETS_ENCRYPT_DOMAINS}
+      - LETS_ENCRYPT_EMAIL=${LETS_ENCRYPT_EMAIL}
+    depends_on:
+      - initial-nginx
+    entrypoint: /bin/sh
+    command: >
+      -c "
+      mkdir -p /var/www/html/.well-known/acme-challenge &&
+      chmod -R 755 /var/www/html &&
+      sleep 10 &&
+      certbot certonly --webroot --webroot-path=/var/www/html \\
+        --email $${LETS_ENCRYPT_EMAIL} \\
+        --domains $${LETS_ENCRYPT_DOMAINS//,/ -d } \\
+        --agree-tos --no-eff-email \\
+        --force-renewal \\
+        --non-interactive
+      "
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+
+configs:
+  nginx-http-only:
+    external: true
+    name: nginx_http_only
+
+networks:
+  default:
+    name: stack_network
+    external: true

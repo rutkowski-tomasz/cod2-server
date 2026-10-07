@@ -1,0 +1,47 @@
+name: db Continuous Integration
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'services/db/**'
+      - '.github/workflows/db.yml'
+  workflow_dispatch:
+
+env:
+  WorkingDir: services/db
+  StackName: db
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy ${{ env.StackName }}
+        working-directory: ${{ env.WorkingDir}}
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/key
+          chmod 600 ~/.ssh/key
+          echo "Host *
+            StrictHostKeyChecking no" > ~/.ssh/config
+
+          ssh-agent bash -c '
+            ssh-add ~/.ssh/key
+            docker context create temp --docker "host=ssh://${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" && docker context use temp
+
+            docker service rm ${{ env.StackName }}_backup || true
+            docker config rm backup_script_static || true
+            docker config create backup_script_static backup.sh
+
+            DB_ROOT_PASSWORD=${{ secrets.DB_ROOT_PASSWORD }} \
+            DB_BACKUP_AWS_ACCESS_KEY=${{ secrets.DB_BACKUP_AWS_ACCESS_KEY }} \
+            DB_BACKUP_AWS_SECRET_ACCESS_KEY=${{ secrets.DB_BACKUP_AWS_SECRET_ACCESS_KEY }} \
+              docker stack deploy -c compose.yml ${{ env.StackName }}
+            docker context rm temp -f
+          '
+   
+          rm -f ~/.ssh/key
