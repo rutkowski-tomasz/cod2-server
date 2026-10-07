@@ -198,7 +198,7 @@ if [ -d extra ]; then
 	for F in *.cpp;
 	do
 		echo "###### COMPILE $1 EXTRA: $F #####"
-		$cc $debug $options $constants -c $F -o ../objects_$1/${F%.cpp}.opp;
+		$cc $debug $options -I.. $constants -c $F -o ../objects_$1/${F%.cpp}.opp;
 	done
 	cd ..
 fi

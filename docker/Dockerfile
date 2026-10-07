@@ -61,7 +61,7 @@ RUN git init -q /libcod \
 COPY libcod/extra /libcod/code/extra
 
 WORKDIR /libcod/code
-COPY docker/doit.sh doit.sh
+COPY libcod/doit.sh doit.sh
 
 ARG cod2_patch="0"
 ARG mysql_variant="1"

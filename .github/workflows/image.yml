@@ -5,6 +5,9 @@ on:
     paths:
       - "libcod/**"
       - "docker/**"
+      - "!docker/**.md"
+      - "!libcod/**.md"
+      - "!libcod/dev.sh"
       - ".github/workflows/image.yml"
   push:
     branches:
@@ -12,6 +15,9 @@ on:
     paths:
       - "libcod/**"
       - "docker/**"
+      - "!docker/**.md"
+      - "!libcod/**.md"
+      - "!libcod/dev.sh"
       - ".github/workflows/image.yml"
   workflow_dispatch:
     inputs:

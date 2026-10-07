@@ -2,13 +2,13 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-if [ -e upstream ]; then
-    echo "libcod/upstream already exists, remove it first" >&2
+if [ -e zk_libcod ]; then
+    echo "libcod/zk_libcod already exists, remove it first" >&2
     exit 1
 fi
 
-git init -q upstream
-git -C upstream fetch -q --depth 1 https://github.com/ibuddieat/zk_libcod.git "$(cat UPSTREAM)"
-git -C upstream checkout -q FETCH_HEAD
-git -C upstream apply ../hooks.patch
-ln -s ../../extra upstream/code/extra
+git init -q zk_libcod
+git -C zk_libcod fetch -q --depth 1 https://github.com/ibuddieat/zk_libcod.git "$(cat UPSTREAM)"
+git -C zk_libcod checkout -q FETCH_HEAD
+git -C zk_libcod apply ../hooks.patch
+ln -s ../../extra zk_libcod/code/extra

@@ -1,1 +1,4 @@
-infra
+*
+!libcod
+!docker
+libcod/zk_libcod

@@ -1,15 +1,15 @@
 # Utils
 
 - `hashHex = sha256(input, [iterations])` - Returns deterministic SHA-256 as a lowercase 64-character hex string. `iterations` is optional and defaults to `1`; when `iterations > 1`, each additional round hashes the previous 64-char hex output. Supports account hashing flows like `sha256(saltHex + password + pepper, iterations)`.
-- `collapseColors(<string>)`
-- `stripColors(<string>)`
+- `result = collapseColors(string)`
+- `result = stripColors(string)`
 
 # Weapons
 
 - `slotId = player getCurrentSlotId()` - Returns current slot ID (0=none, 1=primary, 2=primaryb); returns `undefined` if the entity is not a player.
 - `weaponId = player getCurrentWeaponId()` - Returns current weapon ID; returns `undefined` if the entity is not a player.
 - `weaponId = player getWeaponIdInSlotId(slotId)` - Returns weapon ID in slot (may be `0` if empty); returns `undefined` if the entity is not a player, the arg is wrong type, or the slot ID is invalid.
-- `slotId = player getSlotIdClipAmmo(slotId)` - Returns clip ammo for the weapon in the slot; returns `0` if slot is invalid, empty, or has no clip; returns `undefined` if the entity is not a player or the arg is wrong type.
+- `clip = player getSlotIdClipAmmo(slotId)` - Returns clip ammo for the weapon in the slot; returns `0` if slot is invalid, empty, or has no clip; returns `undefined` if the entity is not a player or the arg is wrong type.
 - `ammo = player getSlotIdAmmo(slotId)` - Returns ammo for the weapon in the slot (clip-only weapons return clip ammo); returns `0` if slot is invalid, empty, or has no ammo type; returns `undefined` if the entity is not a player or the arg is wrong type.
 - `clip = player getWeaponIdClipAmmo(weaponId)` - Returns clip ammo for weapon ID; returns `0` if the weapon has no clip; returns `undefined` if the entity is not a player, the arg is wrong type, or the weapon ID is invalid.
 - `ammo = player getWeaponIdAmmo(weaponId)` - Returns ammo for weapon ID (clip-only weapons return clip ammo); returns `0` if the weapon has no ammo type; returns `undefined` if the entity is not a player, the arg is wrong type, or the weapon ID is invalid.
