@@ -53,8 +53,8 @@ volumes:
 
 configs:
   backup_script:
-    external: true
-    name: backup_script_static
+    name: backup_script_${BACKUP_SCRIPT_HASH}
+    file: backup.sh
 
 networks:
   default:

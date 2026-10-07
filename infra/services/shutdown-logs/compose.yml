@@ -29,8 +29,8 @@ services:
 
 configs:
   shutdown_logs_script:
-    external: true
-    name: shutdown_logs_script_static
+    name: shutdown_logs_script_${SHUTDOWN_LOGS_SCRIPT_HASH}
+    file: shutdown_logs.sh
 
 volumes:
   shutdown_logs_data:

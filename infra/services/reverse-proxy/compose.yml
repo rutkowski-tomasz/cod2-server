@@ -49,8 +49,8 @@ services:
 
 configs:
   nginx:
-    external: true
-    name: nginx_static
+    name: nginx_${NGINX_CONF_HASH}
+    file: nginx.conf
 
 networks:
   default:

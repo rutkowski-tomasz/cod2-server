@@ -2,7 +2,7 @@ name: shutdown-logs Continuous Integration
 
 on:
   push:
-    branches: ['**']
+    branches: [master]
     paths:
       - 'infra/services/shutdown-logs/**'
       - '.github/workflows/infra-shutdown-logs.yml'
@@ -30,15 +30,13 @@ jobs:
             StrictHostKeyChecking no" > ~/.ssh/config
 
           ssh-agent bash -c '
+            set -e
             ssh-add ~/.ssh/key
             docker context create temp --docker "host=ssh://${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" && docker context use temp
 
-            docker service rm ${{ env.StackName }}_${{ env.StackName }} || true
-            docker config rm shutdown_logs_script_static || true
-            docker config create shutdown_logs_script_static shutdown_logs.sh
-
+            SHUTDOWN_LOGS_SCRIPT_HASH=$(sha256sum shutdown_logs.sh | cut -c1-12) \
             SHUTDOWN_LOGS_DISCORD_WEBHOOK=${{ secrets.SHUTDOWN_LOGS_DISCORD_WEBHOOK }} \
-              docker stack deploy -c compose.yml ${{ env.StackName }}
+              docker stack deploy --resolve-image changed -c compose.yml ${{ env.StackName }}
             docker context rm temp -f
           '
    

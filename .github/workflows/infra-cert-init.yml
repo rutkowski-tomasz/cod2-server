@@ -25,6 +25,7 @@ jobs:
             StrictHostKeyChecking no" > ~/.ssh/config
 
           ssh-agent bash -c '
+            set -e
             ssh-add ~/.ssh/key
             docker context create temp --docker "host=ssh://${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" && docker context use temp
 
