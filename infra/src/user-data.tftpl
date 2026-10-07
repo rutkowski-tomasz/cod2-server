@@ -20,6 +20,7 @@ packages:
   - unzip
   - iptables-persistent
   - net-tools
+  - git-lfs
 
 runcmd:
   - echo "Create required directories..."
@@ -49,15 +50,15 @@ runcmd:
   - netfilter-persistent save
 
   - |
-    echo "Download CoD2 files from S3 if credentials provided..."
-    if [ -n "${cod2_binaries_aws_access_key_id}" ] && [ -n "${cod2_binaries_aws_secret_access_key}" ]; then
-      snap install aws-cli --classic
-      cd /home/ubuntu/cod2
-      echo "Pulling from s3://${cod2_binaries_aws_s3_bucket_name} in ${cod2_binaries_aws_s3_bucket_region}"
-      sudo -u ubuntu AWS_ACCESS_KEY_ID=${cod2_binaries_aws_access_key_id} \
-      AWS_SECRET_ACCESS_KEY=${cod2_binaries_aws_secret_access_key} \
-      AWS_DEFAULT_REGION=${cod2_binaries_aws_s3_bucket_region} \
-        aws s3 sync s3://${cod2_binaries_aws_s3_bucket_name} /home/ubuntu/cod2/main
+    echo "Download CoD2 files from git repository if URL provided..."
+    if [ -n "${cod2_binaries_git_url}" ]; then
+      GIT_LFS_SKIP_SMUDGE=1 git clone --depth 1 "${cod2_binaries_git_url}" /tmp/cod2-binaries
+      cd /tmp/cod2-binaries
+      git lfs pull --include "1_0/iw_*,1_0/localized_english_*,1_3/iw_*"
+      cp 1_0/iw_*.iwd 1_0/localized_english_*.iwd /home/ubuntu/cod2/main/1_0/
+      cp 1_3/iw_*.iwd /home/ubuntu/cod2/main/1_3/
+      cd /
+      rm -rf /tmp/cod2-binaries
     fi
 
   - |
