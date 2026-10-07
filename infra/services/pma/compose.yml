@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  pma:
+    image: phpmyadmin/phpmyadmin
+    environment:
+      PMA_HOST: db
+
+networks:
+  default:
+    name: stack_network
+    external: true

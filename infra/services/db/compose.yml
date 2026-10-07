@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  db:
+    image: mariadb:10.11
+    volumes:
+      - type: volume
+        source: db_volume
+        target: /var/lib/mysql
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    ports:
+      - target: 3306
+        published: 3307
+        protocol: tcp
+
+  backup:
+    image: alpine:latest
+    configs:
+      - source: backup_script
+        target: /backup.sh
+        mode: 0755
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1028M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    environment:
+      - DB_USER=root
+      - DB_PASSWORD=${DB_ROOT_PASSWORD}
+      - DB_HOST=db
+      - DB_PORT=3306
+      - S3_BUCKET=nl-db-backup
+      - S3_STORAGE_CLASS=ONEZONE_IA
+      - AWS_ACCESS_KEY=${DB_BACKUP_AWS_ACCESS_KEY}
+      - AWS_SECRET_KEY=${DB_BACKUP_AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=eu-central-1
+      - DATABASES=cod2_zom nl
+    depends_on:
+      - db
+    entrypoint: |
+      sh -c '
+      apk add --no-cache mariadb-client gzip aws-cli
+      echo "0 3 * * * /bin/sh /backup.sh" > /etc/crontabs/root && 
+      crond -f -d 8
+      '
+
+volumes:
+  db_volume: {}
+
+configs:
+  backup_script:
+    external: true
+    name: backup_script_static
+
+networks:
+  default:
+    name: stack_network
+    external: true
