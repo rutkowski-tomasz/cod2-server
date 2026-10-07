@@ -2,9 +2,17 @@ name: Build and Publish Image
 
 on:
   pull_request:
+    paths:
+      - "libcod/**"
+      - "docker/**"
+      - ".github/workflows/image.yml"
   push:
     branches:
       - master
+    paths:
+      - "libcod/**"
+      - "docker/**"
+      - ".github/workflows/image.yml"
   workflow_dispatch:
     inputs:
       publish:
@@ -19,7 +27,7 @@ concurrency:
 env:
   COD2_PATCH: "3"
   MYSQL_VARIANT: "1"
-  LIBCOD_REPO_URL: "https://github.com/nl-squad/libcod.git"
+  LIBCOD_REPO_URL: "https://github.com/ibuddieat/zk_libcod"
 
 jobs:
   build:
@@ -55,7 +63,7 @@ jobs:
 
           if [ -n "$last_tag" ]; then
             range="${last_tag}..HEAD"
-            if git log --pretty=%B "${range}" | grep -qE 'BREAKING CHANGE|^[a-zA-Z]+(\([^)]+\))?!:'; then
+            if git log --pretty=%B "${range}" -- libcod docker | grep -qE 'BREAKING CHANGE|^[a-zA-Z]+(\([^)]+\))?!:'; then
               bump="major"
               version="$((major + 1)).0"
             fi
@@ -76,21 +84,7 @@ jobs:
           suffix=""
           tags=""
 
-          libcod_commit="$(git ls-remote "${LIBCOD_REPO_URL}" HEAD | awk '{print $1}')"
-          if [ -z "$libcod_commit" ]; then
-            echo "Failed to read libcod_commit from libcod repo" >&2
-            exit 1
-          fi
-
-          libcod_commit_message="$(
-            git -c advice.detachedHead=false clone --depth 1 --no-tags "${LIBCOD_REPO_URL}" /tmp/libcod-meta >/dev/null 2>&1 && \
-            git -C /tmp/libcod-meta log -1 --pretty=%s
-          )"
-          if [ -z "$libcod_commit_message" ]; then
-            echo "Failed to read libcod_commit_message from libcod repo" >&2
-            exit 1
-          fi
-          rm -rf /tmp/libcod-meta
+          libcod_commit="$(cat libcod/UPSTREAM)"
 
           tags="${image}:${version}${suffix}"
           tags="${tags},${image}:latest${suffix}"
@@ -103,7 +97,6 @@ jobs:
           echo "push=${push}" >> "$GITHUB_OUTPUT"
           echo "tags=${tags}" >> "$GITHUB_OUTPUT"
           echo "libcod_commit=${libcod_commit}" >> "$GITHUB_OUTPUT"
-          echo "libcod_commit_message=${libcod_commit_message}" >> "$GITHUB_OUTPUT"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "image=${image}" >> "$GITHUB_OUTPUT"
           echo "suffix=${suffix}" >> "$GITHUB_OUTPUT"
@@ -119,7 +112,7 @@ jobs:
             for tag in "${tag_list[@]}"; do
               echo "  - \`${tag}\`"
             done
-            echo "- 🧬 libcod: [${{ steps.build_meta.outputs.libcod_commit }}](${{ env.LIBCOD_REPO_URL }}/commit/${{ steps.build_meta.outputs.libcod_commit }}) - \`${{ steps.build_meta.outputs.libcod_commit_message }}\`"
+            echo "- 🧬 zk_libcod: [${{ steps.build_meta.outputs.libcod_commit }}](${{ env.LIBCOD_REPO_URL }}/commit/${{ steps.build_meta.outputs.libcod_commit }}) + \`libcod/\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Login to GHCR
@@ -134,7 +127,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile
+          file: ./docker/Dockerfile
           push: ${{ steps.build_meta.outputs.push == 'true' }}
           tags: ${{ steps.build_meta.outputs.tags }}
           labels: |
@@ -143,13 +136,10 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ steps.build_meta.outputs.version }}
             io.cod2.libcod.commit=${{ steps.build_meta.outputs.libcod_commit }}
-            io.cod2.libcod.commit_message=${{ steps.build_meta.outputs.libcod_commit_message }}
             io.cod2.libcod.repo=${{ env.LIBCOD_REPO_URL }}
           build-args: |
             cod2_patch=${{ env.COD2_PATCH }}
             mysql_variant=${{ env.MYSQL_VARIANT }}
-            libcod_url=${{ env.LIBCOD_REPO_URL }}
-            libcod_commit=${{ steps.build_meta.outputs.libcod_commit }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

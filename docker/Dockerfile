@@ -52,16 +52,16 @@ RUN if [ "$enable_speex" = "true" ]; then \
         speexenc --version; \
     fi
 
-# compile libcod
-ARG libcod_url
-ARG libcod_commit
-
-RUN git clone ${libcod_url} \
-    && cd libcod \
-    && if [ -n "$libcod_commit" ]; then git checkout ${libcod_commit}; fi
+# compile libcod: upstream zk_libcod at the pinned commit, plus our patch and extra files
+COPY libcod/UPSTREAM libcod/hooks.patch /tmp/
+RUN git init -q /libcod \
+    && git -C /libcod fetch -q --depth 1 https://github.com/ibuddieat/zk_libcod.git "$(cat /tmp/UPSTREAM)" \
+    && git -C /libcod checkout -q FETCH_HEAD \
+    && git -C /libcod apply /tmp/hooks.patch
+COPY libcod/extra /libcod/code/extra
 
 WORKDIR /libcod/code
-COPY ./doit.sh doit.sh
+COPY docker/doit.sh doit.sh
 
 ARG cod2_patch="0"
 ARG mysql_variant="1"
@@ -82,8 +82,8 @@ RUN useradd -u ${uid} -g ${group} -s /bin/sh -d /cod2 ${user}
 WORKDIR /cod2
 RUN ls -lh /libcod/code/bin/libcod2_1_${cod2_patch}.so
 RUN cp /libcod/code/bin/libcod2_1_${cod2_patch}.so libcod.so
-COPY ./cod2_lnxded/1_${cod2_patch} cod2_lnxded
-COPY healthcheck.sh entrypoint.sh ./
+COPY docker/cod2_lnxded/1_${cod2_patch} cod2_lnxded
+COPY docker/healthcheck.sh docker/entrypoint.sh ./
 
 # pre-create volume directories
 RUN mkdir -p /cod2/main
