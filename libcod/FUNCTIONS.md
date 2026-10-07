@@ -30,9 +30,16 @@
 - `isSuccess = graphRemoveAll()` - Returns `true`.
 - `nodeId = graphAddNode(graphId, origin, [type], [nodeId])` - Returns node ID; returns `undefined` if graph does not exist, node ID already exists, or (FSA) graph hit max nodes.
 - `properties = graphGetNodeProperties(graphId, nodeId)` - Returns array with `origin` and `type`; returns `undefined` if graph or node does not exist.
+- `origin = graphGetNodeOrigin(graphId, nodeId)` - Returns node origin; returns `undefined` if graph or node does not exist.
+- `isSuccess = graphSetNodeOrigin(graphId, nodeId, origin)` - Returns `true` and resets the cost of every edge to and from the node to the edge's 3D length, overwriting custom costs; returns `undefined` if graph or node does not exist.
+- `isSuccess = graphSetNodeType(graphId, nodeId, type)` - Returns `true`; returns `undefined` if graph or node does not exist.
+- `nodeIds = graphGetNodeIdsAccessibleFrom(graphId, nodeId)` - Returns array of node IDs that the node has an edge to; returns `undefined` if graph or node does not exist.
+- `nodeIds = graphGetNodeIdsAccessibleTo(graphId, nodeId)` - Returns array of node IDs that have an edge to the node; returns `undefined` if graph or node does not exist.
+- `nodeIds = graphGetAllNodes(graphId, [origin], [maxDistSq])` - Returns array of node IDs; if `origin` is given, only nodes whose squared distance to it is at most `maxDistSq` (no limit if `maxDistSq` is omitted); returns `undefined` if graph does not exist.
 - `isSuccess = graphRemoveNode(graphId, nodeId)` - Returns `true` if removed, `false` if node not found; returns `undefined` if graph does not exist.
 - `isSuccess = graphAddEdge(graphId, fromNodeId, toNodeId, [type], [cost])` - Returns `true` on success; returns `undefined` if graph does not exist, start/end missing, edge already exists, start=end, or (FSA) start node hit max edges.
 - `properties = graphGetEdgeProperties(graphId, fromNodeId, toNodeId)` - Returns array with `start`, `end`, `type`, `cost`; returns `undefined` if graph/start/end/edge not found.
+- `edges = graphGetAllEdges(graphId)` - Returns array of edges, each an array with `start`, `end`, `type`, `cost`; returns `undefined` if graph does not exist.
 - `isSuccess = graphSetEdgeType(graphId, fromNodeId, toNodeId, type)` - Returns `true` if updated, `false` if edge not found; returns `undefined` if graph/start/end not found.
 - `type = graphGetEdgeType(graphId, fromNodeId, toNodeId)` - Returns edge type; returns `undefined` if graph/start/end/edge not found.
 - `isSuccess = graphRemoveEdge(graphId, fromNodeId, toNodeId)` - Returns `true` if removed, `false` if edge not found; returns `undefined` if graph/start/end not found or (FSA) start has no edges.
