@@ -1,16 +1,16 @@
-name: shutdown-logs Continuous Integration
+name: pma Continuous Integration
 
 on:
   push:
     branches: ['**']
     paths:
-      - 'services/shutdown-logs/**'
-      - '.github/workflows/shutdown-logs.yml'
+      - 'infra/services/pma/**'
+      - '.github/workflows/infra-pma.yml'
   workflow_dispatch:
 
 env:
-  WorkingDir: services/shutdown-logs
-  StackName: shutdown-logs
+  WorkingDir: infra/services/pma
+  StackName: pma
 
 jobs:
   deploy:
@@ -32,13 +32,7 @@ jobs:
           ssh-agent bash -c '
             ssh-add ~/.ssh/key
             docker context create temp --docker "host=ssh://${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" && docker context use temp
-
-            docker service rm ${{ env.StackName }}_${{ env.StackName }} || true
-            docker config rm shutdown_logs_script_static || true
-            docker config create shutdown_logs_script_static shutdown_logs.sh
-
-            SHUTDOWN_LOGS_DISCORD_WEBHOOK=${{ secrets.SHUTDOWN_LOGS_DISCORD_WEBHOOK }} \
-              docker stack deploy -c compose.yml ${{ env.StackName }}
+            docker stack deploy -c compose.yml ${{ env.StackName }}
             docker context rm temp -f
           '
    

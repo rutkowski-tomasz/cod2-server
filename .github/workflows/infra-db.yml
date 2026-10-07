@@ -1,16 +1,16 @@
-name: reverse-proxy Continuous Integration
+name: db Continuous Integration
 
 on:
   push:
     branches: ['**']
     paths:
-      - 'services/reverse-proxy/**'
-      - '.github/workflows/reverse-proxy.yml'
+      - 'infra/services/db/**'
+      - '.github/workflows/infra-db.yml'
   workflow_dispatch:
 
 env:
-  WorkingDir: services/reverse-proxy
-  StackName: reverse-proxy
+  WorkingDir: infra/services/db
+  StackName: db
 
 jobs:
   deploy:
@@ -33,10 +33,14 @@ jobs:
             ssh-add ~/.ssh/key
             docker context create temp --docker "host=ssh://${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" && docker context use temp
 
-            docker config rm nginx_static 2>/dev/null || true
-            docker config create nginx_static nginx.conf
+            docker service rm ${{ env.StackName }}_backup || true
+            docker config rm backup_script_static || true
+            docker config create backup_script_static backup.sh
 
-            docker stack deploy -c compose.yml ${{ env.StackName }}
+            DB_ROOT_PASSWORD=${{ secrets.DB_ROOT_PASSWORD }} \
+            DB_BACKUP_AWS_ACCESS_KEY=${{ secrets.DB_BACKUP_AWS_ACCESS_KEY }} \
+            DB_BACKUP_AWS_SECRET_ACCESS_KEY=${{ secrets.DB_BACKUP_AWS_SECRET_ACCESS_KEY }} \
+              docker stack deploy -c compose.yml ${{ env.StackName }}
             docker context rm temp -f
           '
    

@@ -1,7 +1,7 @@
 # 🌎 cod2-as-code
 CoD2 in minutes
 
-Setting up Call of Duty 2 server requires a lot of configuration and can be a pain. Use this repo to automate process of provisioning and configuring. It utilizes terraform and does everything for you. The CoD2 server will be launched inside docker. The docker image used is maintained here: [cod2-docker](https://github.com/rutkowski-tomasz/cod2-docker).
+Setting up Call of Duty 2 server requires a lot of configuration and can be a pain. Use this repo to automate process of provisioning and configuring. It utilizes terraform and does everything for you. The CoD2 server will be launched inside docker. The docker image used is maintained here: [docker](../docker).
 
 Thanks a lot to whole [killtube.org](https://killtube.org/) community for open-source developing. 🥰
 
@@ -49,6 +49,7 @@ To get the reverse-proxy (fastdl and phpmyadmin) working remember to configure D
 
 ```sh
 ssh-keygen -t ed25519 -f ~/.ssh/mykey -N "" # Generate key
+cd infra
 cp src/terraform.tfvars.example src/terraform.tfvars # Copy example vars
 code src/terraform.tfvars # Edit vars
 terraform apply

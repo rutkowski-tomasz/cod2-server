@@ -1,11 +1,16 @@
-name: cert-init Continuous Integration
+name: shutdown-logs Continuous Integration
 
 on:
+  push:
+    branches: ['**']
+    paths:
+      - 'infra/services/shutdown-logs/**'
+      - '.github/workflows/infra-shutdown-logs.yml'
   workflow_dispatch:
 
 env:
-  WorkingDir: services/cert-init
-  StackName: cert-init
+  WorkingDir: infra/services/shutdown-logs
+  StackName: shutdown-logs
 
 jobs:
   deploy:
@@ -28,12 +33,11 @@ jobs:
             ssh-add ~/.ssh/key
             docker context create temp --docker "host=ssh://${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" && docker context use temp
 
-            docker service rm ${{ env.StackName }}_initial-nginx || true
-            docker config rm nginx_http_only 2>/dev/null || true
-            docker config create nginx_http_only nginx.conf
+            docker service rm ${{ env.StackName }}_${{ env.StackName }} || true
+            docker config rm shutdown_logs_script_static || true
+            docker config create shutdown_logs_script_static shutdown_logs.sh
 
-            LETS_ENCRYPT_EMAIL=${{ secrets.LETS_ENCRYPT_EMAIL }} \
-            LETS_ENCRYPT_DOMAINS=${{ vars.LETS_ENCRYPT_DOMAINS }} \
+            SHUTDOWN_LOGS_DISCORD_WEBHOOK=${{ secrets.SHUTDOWN_LOGS_DISCORD_WEBHOOK }} \
               docker stack deploy -c compose.yml ${{ env.StackName }}
             docker context rm temp -f
           '
