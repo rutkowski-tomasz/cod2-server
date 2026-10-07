@@ -24,11 +24,10 @@ Thanks a lot to whole [killtube.org](https://killtube.org/) community for open-s
 # 📝 Pre-requirements
 
 - terraform CLI
-- AWS account (`aws_access_key_id` + `aws_secret_access_key` with S3 reader permission) 
-- CoD2 server files uploaded to S3, bucket should look like this:
+- CoD2 server files in a git repository with Git LFS, and a token that can read it. The repository should look like this:
 
 ```
-S3 bucket
+git repository
 ├── 1_0
 │   ├── iw_00.iwd
 │   ├── iw_01.iwd

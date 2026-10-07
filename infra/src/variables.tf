@@ -27,27 +27,9 @@ variable "server_location" {
   default     = "nbg1" # Nuremberg, Germany
 }
 
-variable "cod2_binaries_aws_access_key_id" {
-  description = "AWS access key ID for S3 bucket with CoD2 binaries"
-  type        = string
-  default     = ""
-}
-
-variable "cod2_binaries_aws_secret_access_key" {
-  description = "AWS secret access key for S3 bucket with CoD2 binaries"
+variable "cod2_binaries_git_url" {
+  description = "HTTPS URL of the git repository (Git LFS) with CoD2 binaries, including a read token for a private repository"
   type        = string
   default     = ""
   sensitive   = true
-}
-
-variable "cod2_binaries_aws_s3_bucket_name" {
-  description = "S3 bucket name for CoD2 binaries (without 's3://' prefix)"
-  type        = string
-  default     = ""
-}
-
-variable "cod2_binaries_aws_s3_bucket_region" {
-  description = "S3 bucket region for CoD2 binaries"
-  type        = string
-  default     = "eu-central-1"
 }

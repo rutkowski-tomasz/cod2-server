@@ -72,11 +72,8 @@ resource "hcloud_server" "server" {
   firewall_ids = [hcloud_firewall.firewall.id]
 
   user_data = templatefile("${path.module}/user-data.tftpl", {
-    ubuntu_user_ssh_public_key          = var.ubuntu_user_ssh_public_key
-    cod2_binaries_aws_access_key_id     = var.cod2_binaries_aws_access_key_id
-    cod2_binaries_aws_secret_access_key = var.cod2_binaries_aws_secret_access_key
-    cod2_binaries_aws_s3_bucket_name    = var.cod2_binaries_aws_s3_bucket_name
-    cod2_binaries_aws_s3_bucket_region  = var.cod2_binaries_aws_s3_bucket_region
+    ubuntu_user_ssh_public_key = var.ubuntu_user_ssh_public_key
+    cod2_binaries_git_url      = var.cod2_binaries_git_url
   })
 }
 
