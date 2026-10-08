@@ -35,7 +35,7 @@ services:
     volumes:
       - ./my-server:/cod2/my-server:ro
       - ~/cod2/main/1_3:/cod2/main:ro
-      - ~/cod2/Library:/cod2/library:ro
+      - ~/cod2/library:/cod2/library:ro
     environment:
       PARAMS_BEFORE: "+exec server.cfg"
       COD2_SET_fs_homepath: "/cod2/home"
