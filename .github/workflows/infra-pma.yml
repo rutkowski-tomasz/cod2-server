@@ -33,7 +33,7 @@ jobs:
             set -e
             ssh-add ~/.ssh/key
             docker context create temp --docker "host=ssh://${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" && docker context use temp
-            docker stack deploy --resolve-image changed -c compose.yml ${{ env.StackName }}
+            docker stack deploy --detach=false --resolve-image changed -c compose.yml ${{ env.StackName }}
             docker context rm temp -f
           '
    

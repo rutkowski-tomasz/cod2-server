@@ -34,9 +34,11 @@ jobs:
             ssh-add ~/.ssh/key
             docker context create temp --docker "host=ssh://${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" && docker context use temp
 
-            SHUTDOWN_LOGS_SCRIPT_HASH=$(sha256sum shutdown_logs.sh | cut -c1-12) \
+            export SHUTDOWN_LOGS_SCRIPT_HASH=$(sha256sum shutdown_logs.sh | cut -c1-12)
             SHUTDOWN_LOGS_DISCORD_WEBHOOK=${{ secrets.SHUTDOWN_LOGS_DISCORD_WEBHOOK }} \
-              docker stack deploy --resolve-image changed -c compose.yml ${{ env.StackName }}
+              docker stack deploy --detach=false --resolve-image changed -c compose.yml ${{ env.StackName }}
+            docker config ls --filter label=com.docker.stack.namespace=${{ env.StackName }} --format "{{.Name}}" \
+              | grep -v "_$SHUTDOWN_LOGS_SCRIPT_HASH\$" | xargs -r docker config rm
             docker context rm temp -f
           '
    

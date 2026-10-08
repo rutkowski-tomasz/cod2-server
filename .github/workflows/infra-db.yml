@@ -34,11 +34,13 @@ jobs:
             ssh-add ~/.ssh/key
             docker context create temp --docker "host=ssh://${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" && docker context use temp
 
-            BACKUP_SCRIPT_HASH=$(sha256sum backup.sh | cut -c1-12) \
+            export BACKUP_SCRIPT_HASH=$(sha256sum backup.sh | cut -c1-12)
             DB_ROOT_PASSWORD=${{ secrets.DB_ROOT_PASSWORD }} \
             DB_BACKUP_AWS_ACCESS_KEY=${{ secrets.DB_BACKUP_AWS_ACCESS_KEY }} \
             DB_BACKUP_AWS_SECRET_ACCESS_KEY=${{ secrets.DB_BACKUP_AWS_SECRET_ACCESS_KEY }} \
-              docker stack deploy --resolve-image changed -c compose.yml ${{ env.StackName }}
+              docker stack deploy --detach=false --resolve-image changed -c compose.yml ${{ env.StackName }}
+            docker config ls --filter label=com.docker.stack.namespace=${{ env.StackName }} --format "{{.Name}}" \
+              | grep -v "_$BACKUP_SCRIPT_HASH\$" | xargs -r docker config rm
             docker context rm temp -f
           '
    
