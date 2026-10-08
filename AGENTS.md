@@ -1,9 +1,9 @@
 # Build and test
 
-Run from the repository root. The build fails if libcod does not compile:
+Run from the repository root. The build fails if libcod does not compile. Build against a local Docker context, never a remote one: `desktop-linux` is Docker Desktop's; if yours has another name (`docker context ls`), use that.
 
 ```bash
-docker build --platform linux/amd64 -f docker/Dockerfile --build-arg cod2_patch=3 --build-arg mysql_variant=1 -t cod2-server:local .
+docker --context desktop-linux build --platform linux/amd64 -f docker/Dockerfile --build-arg cod2_patch=3 --build-arg mysql_variant=1 -t cod2-server:local .
 ```
 
 # libcod
