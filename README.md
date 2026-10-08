@@ -3,7 +3,8 @@
 Everything needed to run a Call of Duty 2 server:
 
 - [`server/`](server) — server image `ghcr.io/rutkowski-tomasz/cod2-server-1.3` and our additions to [zk_libcod](https://github.com/ibuddieat/zk_libcod), see [functions](server/FUNCTIONS.md)
-- [`infra/`](infra) — Terraform for the VPS and its services
+- [`infra/`](infra) — Terraform for the VPS
+- [`stacks/`](stacks) — Docker Swarm stacks running on the VPS, deployed by the `deploy-<stack>` workflows
 
 See [AGENTS.md](AGENTS.md) for the local build command and how libcod is built.
 
@@ -88,12 +89,12 @@ Point DNS A records for `fastdl.yourdomain.com` and `pma.yourdomain.com` at the 
 
 ```sh
 ssh-keygen -t ed25519 -f ~/.ssh/mykey -N ""
-cd infra/src
+cd infra
 cp terraform.tfvars.example terraform.tfvars # then edit it
 terraform apply
 ```
 
-Then dispatch the `infra-*` GitHub Actions workflows to start the services. They need:
+Then dispatch each `deploy-<stack>` GitHub Actions workflow to start the stacks. They need:
 
 - secrets `DEPLOY_KEY`, `DEPLOY_USER`, `DEPLOY_HOST`
 - secrets `DB_ROOT_PASSWORD`, `DB_BACKUP_AWS_ACCESS_KEY`, `DB_BACKUP_AWS_SECRET_ACCESS_KEY`

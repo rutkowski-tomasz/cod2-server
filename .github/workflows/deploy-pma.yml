@@ -1,0 +1,17 @@
+name: Deploy pma
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "stacks/pma/**"
+      - ".github/workflows/deploy-pma.yml"
+      - ".github/workflows/deploy-stack.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/deploy-stack.yml
+    with:
+      stack: pma
+    secrets: inherit

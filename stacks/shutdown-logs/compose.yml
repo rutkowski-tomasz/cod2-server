@@ -5,7 +5,7 @@ services:
     image: alpine:latest
     configs:
       - source: shutdown_logs_script
-        target: /shutdown_logs.sh
+        target: /shutdown-logs.sh
         mode: 0755
     deploy:
       resources:
@@ -23,14 +23,14 @@ services:
     entrypoint: |
       sh -c '
       apk add --no-cache curl jq docker-cli &&
-      echo "*/15 * * * * /bin/sh /shutdown_logs.sh" > /etc/crontabs/root && 
+      echo "*/15 * * * * /bin/sh /shutdown-logs.sh" > /etc/crontabs/root && 
       crond -f -d 8
       '
 
 configs:
   shutdown_logs_script:
-    name: shutdown_logs_script_${SHUTDOWN_LOGS_SCRIPT_HASH}
-    file: shutdown_logs.sh
+    name: shutdown_logs_script_${CONFIG_HASH}
+    file: shutdown-logs.sh
 
 volumes:
   shutdown_logs_data:

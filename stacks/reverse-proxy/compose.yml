@@ -49,7 +49,7 @@ services:
 
 configs:
   nginx:
-    name: nginx_${NGINX_CONF_HASH}
+    name: nginx_${CONFIG_HASH}
     file: nginx.conf
 
 networks:

@@ -1,0 +1,44 @@
+name: Deploy stack
+
+on:
+  workflow_call:
+    inputs:
+      stack:
+        type: string
+        required: true
+      detach:
+        description: "Skip waiting for services to converge, for stacks whose tasks exit on purpose"
+        type: boolean
+        default: false
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.stack }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy ${{ inputs.stack }}
+        working-directory: stacks/${{ inputs.stack }}
+        env:
+          STACK: ${{ inputs.stack }}
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          DOCKER_HOST: ssh://${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}
+          DB_ROOT_PASSWORD: ${{ secrets.DB_ROOT_PASSWORD }}
+          DB_BACKUP_AWS_ACCESS_KEY: ${{ secrets.DB_BACKUP_AWS_ACCESS_KEY }}
+          DB_BACKUP_AWS_SECRET_ACCESS_KEY: ${{ secrets.DB_BACKUP_AWS_SECRET_ACCESS_KEY }}
+          LETS_ENCRYPT_EMAIL: ${{ secrets.LETS_ENCRYPT_EMAIL }}
+          LETS_ENCRYPT_DOMAINS: ${{ vars.LETS_ENCRYPT_DOMAINS }}
+          SHUTDOWN_LOGS_DISCORD_WEBHOOK: ${{ secrets.SHUTDOWN_LOGS_DISCORD_WEBHOOK }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_KEY" > ~/.ssh/key
+          chmod 600 ~/.ssh/key
+          printf 'Host *\n  IdentityFile ~/.ssh/key\n  StrictHostKeyChecking no\n' > ~/.ssh/config
+
+          CONFIG_HASH=$(find . -type f ! -name compose.yml | sort | xargs -r cat | sha256sum | cut -c1-12)
+          export CONFIG_HASH
+          docker stack deploy --detach=${{ inputs.detach }} --resolve-image changed -c compose.yml "$STACK"
+          docker config ls --filter "label=com.docker.stack.namespace=$STACK" --format "{{.Name}}" \
+            | grep -v "_$CONFIG_HASH\$" | xargs -r docker config rm
