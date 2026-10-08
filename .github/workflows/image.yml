@@ -54,7 +54,6 @@ jobs:
 
           last_tag="$(git tag -l 'v*' | sort -V | tail -n 1)"
           version="0.1"
-          bump="minor"
 
           if [ -n "$last_tag" ]; then
             last_version="${last_tag#v}"
@@ -66,7 +65,6 @@ jobs:
           if [ -n "$last_tag" ]; then
             range="${last_tag}..HEAD"
             if git log --pretty=%B "${range}" -- server | grep -qE 'BREAKING CHANGE|^[a-zA-Z]+(\([^)]+\))?!:'; then
-              bump="major"
               version="$((major + 1)).0"
             fi
           fi
@@ -96,12 +94,14 @@ jobs:
             push="true"
           fi
 
-          echo "push=${push}" >> "$GITHUB_OUTPUT"
-          echo "tags=${tags}" >> "$GITHUB_OUTPUT"
-          echo "libcod_commit=${libcod_commit}" >> "$GITHUB_OUTPUT"
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "image=${image}" >> "$GITHUB_OUTPUT"
-          echo "suffix=${suffix}" >> "$GITHUB_OUTPUT"
+          {
+            echo "push=${push}"
+            echo "tags=${tags}"
+            echo "libcod_commit=${libcod_commit}"
+            echo "version=${version}"
+            echo "image=${image}"
+            echo "suffix=${suffix}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Write summary
         shell: bash
