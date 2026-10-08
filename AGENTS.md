@@ -3,20 +3,20 @@
 Run from the repository root. The build fails if libcod does not compile. Build against a local Docker context, never a remote one: `desktop-linux` is Docker Desktop's; if yours has another name (`docker context ls`), use that.
 
 ```bash
-docker --context desktop-linux build --platform linux/amd64 -f docker/Dockerfile --build-arg cod2_patch=3 --build-arg mysql_variant=1 -t cod2-server:local .
+docker --context desktop-linux build --platform linux/amd64 -f server/Dockerfile --build-arg cod2_patch=3 --build-arg mysql_variant=1 -t cod2-server:local .
 ```
 
-# libcod
+# server
 
-The image builds [zk_libcod](https://github.com/ibuddieat/zk_libcod) at the commit in `libcod/UPSTREAM`, applies `libcod/hooks.patch`, and compiles it with `libcod/doit.sh`, which also compiles `libcod/extra/*.cpp`.
+The image builds [zk_libcod](https://github.com/ibuddieat/zk_libcod) at the commit in `server/UPSTREAM`, applies `server/hooks.patch`, copies in `server/extra/`, and compiles it all with upstream's `doit.sh`.
 
-- Put new code in `libcod/extra/`. Register GSC functions and methods in `libcod/extra/nl_functions.cpp`.
-- Prefix new files in `extra/` with `nl_`: their object files share a folder with upstream's and would overwrite one with the same name.
+- Put new code in `server/extra/`. Register GSC functions and methods in `server/extra/nl_functions.cpp`.
+- Include upstream headers from `extra/` as `"../name.hpp"`: upstream's `doit.sh` adds no include path for them.
 - Change `hooks.patch` only when upstream has no hook for it.
-- `libcod/dev.sh` checks out upstream with the patch and `extra/` into `libcod/zk_libcod/` for editing. After editing upstream files there, regenerate the patch: `git -C libcod/zk_libcod diff > libcod/hooks.patch`.
-- To update upstream, change `libcod/UPSTREAM`, rerun `dev.sh`, and fix the patch if it no longer applies.
+- `server/dev.sh` checks out upstream with the patch and `extra/` into `server/zk_libcod/` for editing. After editing upstream files there, regenerate the patch: `git -C server/zk_libcod diff > server/hooks.patch`.
+- To update upstream, change `server/UPSTREAM`, rerun `dev.sh`, and fix the patch if it no longer applies.
 
-`libcod/FUNCTIONS.md` should list only the *current* function signatures. Update it when a function signature is added, changed, or removed.
+`server/FUNCTIONS.md` should list only the *current* function signatures. Update it when a function signature is added, changed, or removed.
 
 # infra
 

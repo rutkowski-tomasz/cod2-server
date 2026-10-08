@@ -1,4 +1,3 @@
 *
-!libcod
-!docker
-libcod/zk_libcod
+!server
+server/zk_libcod

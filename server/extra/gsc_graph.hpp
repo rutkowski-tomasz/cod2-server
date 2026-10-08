@@ -27,7 +27,7 @@ given where due.
 #define _GSC_GRAPH_HPP_
 
 // gsc functions
-#include "gsc.hpp"
+#include "../gsc.hpp"
 
 void gsc_graph_create_graph(void);
 void gsc_graph_remove_graph(void);
