@@ -74,4 +74,8 @@ runcmd:
 
   - chown -R ubuntu:ubuntu /home/ubuntu/cod2
 
+  - |
+    echo "Schedule shutdown logs reporting..."
+    echo '*/30 * * * * /home/ubuntu/cod2/servers/nl-cod2-zom-dev/shutdown-logs.sh >> /home/ubuntu/cod2/servers/shutdown-logs.log 2>&1' | crontab -u ubuntu -
+
 final_message: "Setup completed."
