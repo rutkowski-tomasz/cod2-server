@@ -18,6 +18,6 @@ The image builds [zk_libcod](https://github.com/ibuddieat/zk_libcod) at the comm
 
 `server/FUNCTIONS.md` should list only the *current* function signatures. Update it when a function signature is added, changed, or removed.
 
-# infra
+# stacks
 
-Pushing changes under `infra/services/` to `master` deploys that service to production. Config names include a file hash set by the workflow (`*_HASH`), so editing the file is enough to roll out a new config. After deploying, the workflow removes the stack's old configs. Image digests stay pinned unless the image changes (`--resolve-image changed`).
+Pushing changes under `stacks/<name>/` to `master` deploys that stack to production. Each stack has a small `deploy-<name>.yml` workflow that calls the shared `deploy-stack.yml`. Config names end with `${CONFIG_HASH}`, a hash of every file in the stack folder except `compose.yml`, so editing a config file is enough to roll it out. After deploying, the workflow removes the stack's old configs. Image digests stay pinned unless the image changes (`--resolve-image changed`).

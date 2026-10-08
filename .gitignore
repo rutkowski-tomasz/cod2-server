@@ -1,1 +1,6 @@
 server/zk_libcod/
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+.DS_Store

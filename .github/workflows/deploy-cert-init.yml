@@ -1,0 +1,12 @@
+name: Deploy cert-init
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/deploy-stack.yml
+    with:
+      stack: cert-init
+      detach: true
+    secrets: inherit

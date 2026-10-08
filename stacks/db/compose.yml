@@ -53,7 +53,7 @@ volumes:
 
 configs:
   backup_script:
-    name: backup_script_${BACKUP_SCRIPT_HASH}
+    name: backup_script_${CONFIG_HASH}
     file: backup.sh
 
 networks:

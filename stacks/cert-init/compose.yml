@@ -47,8 +47,8 @@ services:
 
 configs:
   nginx-http-only:
-    external: true
-    name: nginx_http_only
+    name: nginx_http_only_${CONFIG_HASH}
+    file: nginx.conf
 
 networks:
   default:
