@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "Checking shutdown logs $(date '+%Y-%m-%d %H:%M:%S') v1"
+echo "Checking shutdown logs $(date '+%Y-%m-%d %H:%M:%S') v2"
 
 PROJECT="nl-cod2-zom"
 STATE_DIR="/var/run/shutdown-logs"
@@ -59,8 +59,8 @@ if grep -q -E "$error_regex" "$TEMP_LOG_FILE"; then
     # Get the total number of lines in the log file
     total_lines=$(wc -l < "$TEMP_LOG_FILE")
 
-    # Extract logs from start_line to the end of the file
-    error_logs=$(sed -n "${start_line},${total_lines}p" "$TEMP_LOG_FILE" | head -n 50)
+    # Discord caps embed descriptions at 4096 characters; truncate well below that
+    error_logs=$(sed -n "${start_line},${total_lines}p" "$TEMP_LOG_FILE" | head -c 3000)
 
     # Use jq to create a properly escaped JSON payload
     json_content="Error detected in $PROJECT (Container: $container_id)"
@@ -81,7 +81,7 @@ if grep -q -E "$error_regex" "$TEMP_LOG_FILE"; then
           }')
 
     # Send to Discord
-    curl -H "Content-Type: application/json" -d "$BODY" "$SHUTDOWN_LOGS_DISCORD_WEBHOOK"
+    curl --fail-with-body -sS -H "Content-Type: application/json" -d "$BODY" "$SHUTDOWN_LOGS_DISCORD_WEBHOOK"
     curl_status=$?
 
     if [ $curl_status -eq 0 ]; then
