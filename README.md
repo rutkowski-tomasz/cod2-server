@@ -101,6 +101,8 @@ Then dispatch the `infra-*` GitHub Actions workflows to start the services. They
 - secrets `LETS_ENCRYPT_EMAIL`, `SHUTDOWN_LOGS_DISCORD_WEBHOOK`
 - variable `LETS_ENCRYPT_DOMAINS`
 
+The `ubuntu` user's crontab runs `/home/ubuntu/cod2/servers/nl-cod2-zom-dev/shutdown-logs.sh` every 30 minutes. [nl-cod2-zom-iwds](https://github.com/nl-squad/nl-cod2-zom-iwds) deploys that script. It reads the Discord webhook URL from `/home/ubuntu/cod2/servers/shutdown-logs.webhook`. Create that file by hand on the server and never commit it.
+
 Layout on the server after setup:
 
 ```
