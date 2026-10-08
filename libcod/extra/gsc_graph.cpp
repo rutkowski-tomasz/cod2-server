@@ -1479,7 +1479,7 @@ void gsc_graph_find_closest_node(void)
 	{
 		AStarGraphNode* currentNode = node->get();
 
-		if ( useContentMask && !G_LocationalTracePassed(currentNode->origin, origin, ENTITY_NONE, contentMask) )
+		if ( useContentMask && !G_LocationalTracePassed(currentNode->origin, origin, ENTITYNUM_NONE, contentMask) )
 			continue;
 
 		dist = Get3DDistanceSquared(currentNode->origin, origin);
@@ -1596,7 +1596,7 @@ static bool TraceFloorAtXY(
 	vec3_t end = {x, y, endZ};
 	vec3_t mins = {0.0f, 0.0f, 0.0f};
 	vec3_t maxs = {0.0f, 0.0f, 0.0f};
-	SV_Trace(&trace, start, mins, maxs, end, ENTITY_NONE, contentMask, 0, NULL, 0);
+	SV_Trace(&trace, start, mins, maxs, end, ENTITYNUM_NONE, contentMask, 0, NULL, 0);
 
 	if ( trace.fraction >= 1.0f )
 		return false;
@@ -1617,7 +1617,7 @@ static bool IsPointClearToHeight(const vec3_t floorPoint, float height, int cont
 	vec3_t end = {floorPoint[0], floorPoint[1], floorPoint[2] + height};
 	vec3_t mins = {0.0f, 0.0f, 0.0f};
 	vec3_t maxs = {0.0f, 0.0f, 0.0f};
-	SV_Trace(&trace, start, mins, maxs, end, ENTITY_NONE, contentMask, 0, NULL, 0);
+	SV_Trace(&trace, start, mins, maxs, end, ENTITYNUM_NONE, contentMask, 0, NULL, 0);
 	return trace.fraction >= 1.0f;
 }
 
@@ -1642,7 +1642,7 @@ static bool HasWallClearance(const vec3_t floorPoint, float minWallClearance, in
 		};
 		vec3_t mins = {0.0f, 0.0f, 0.0f};
 		vec3_t maxs = {0.0f, 0.0f, 0.0f};
-		SV_Trace(&trace, start, mins, maxs, end, ENTITY_NONE, contentMask, 0, NULL, 0);
+		SV_Trace(&trace, start, mins, maxs, end, ENTITYNUM_NONE, contentMask, 0, NULL, 0);
 		if ( trace.fraction < 1.0f )
 			return false;
 	}
@@ -1681,7 +1681,7 @@ static int DetermineEdgeType(
 		vec3_t wallEnd = {to.origin[0], to.origin[1], to.origin[2] + 24.0f};
 		vec3_t pointMins = {0.0f, 0.0f, 0.0f};
 		vec3_t pointMaxs = {0.0f, 0.0f, 0.0f};
-		SV_Trace(&trace, wallStart, pointMins, pointMaxs, wallEnd, ENTITY_NONE, contentMask, 0, NULL, 0);
+		SV_Trace(&trace, wallStart, pointMins, pointMaxs, wallEnd, ENTITYNUM_NONE, contentMask, 0, NULL, 0);
 
 		if ( trace.fraction < 1.0f )
 		{
@@ -1695,21 +1695,21 @@ static int DetermineEdgeType(
 
 	if ( ( from.capabilityMask & 1 ) && ( to.capabilityMask & 1 ) )
 	{
-		SV_Trace(&trace, start, mins, maxsNormal, end, ENTITY_NONE, contentMask, 0, NULL, 0);
+		SV_Trace(&trace, start, mins, maxsNormal, end, ENTITYNUM_NONE, contentMask, 0, NULL, 0);
 		if ( trace.fraction >= 1.0f )
 			return edgeTypeNormal;
 	}
 
 	if ( ( from.capabilityMask & 2 ) && ( to.capabilityMask & 2 ) )
 	{
-		SV_Trace(&trace, start, mins, maxsCrouch, end, ENTITY_NONE, contentMask, 0, NULL, 0);
+		SV_Trace(&trace, start, mins, maxsCrouch, end, ENTITYNUM_NONE, contentMask, 0, NULL, 0);
 		if ( trace.fraction >= 1.0f )
 			return edgeTypeCrouch;
 	}
 
 	if ( ( from.capabilityMask & 4 ) && ( to.capabilityMask & 4 ) )
 	{
-		SV_Trace(&trace, start, mins, maxsProne, end, ENTITY_NONE, contentMask, 0, NULL, 0);
+		SV_Trace(&trace, start, mins, maxsProne, end, ENTITYNUM_NONE, contentMask, 0, NULL, 0);
 		if ( trace.fraction >= 1.0f )
 			return edgeTypeProne;
 	}
@@ -1726,7 +1726,7 @@ static int DetermineEdgeType(
 		vec3_t downEnd = {mid[0], mid[1], mid[2] - dropDistance};
 		vec3_t pointMins = {0.0f, 0.0f, 0.0f};
 		vec3_t pointMaxs = {0.0f, 0.0f, 0.0f};
-		SV_Trace(&trace, downStart, pointMins, pointMaxs, downEnd, ENTITY_NONE, contentMask, 0, NULL, 0);
+		SV_Trace(&trace, downStart, pointMins, pointMaxs, downEnd, ENTITYNUM_NONE, contentMask, 0, NULL, 0);
 
 		bool hasGap = trace.fraction >= 1.0f;
 		if ( hasGap )

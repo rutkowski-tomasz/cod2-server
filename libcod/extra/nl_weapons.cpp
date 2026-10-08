@@ -99,7 +99,7 @@ void gsc_weapons_getweaponidammostartsize()
 		return;
 	}
 
-	WeaponDef_t *weapon = BG_WeaponDefs(weaponId);
+	WeaponDef_t *weapon = BG_GetWeaponDef(weaponId);
 	stackPushInt(weapon->iStartAmmo);
 }
 
