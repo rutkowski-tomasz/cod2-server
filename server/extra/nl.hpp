@@ -1,8 +1,8 @@
 #ifndef _NL_HPP_
 #define _NL_HPP_
 
-#include "gsc.hpp"
-#include "utils.hpp"
+#include "../gsc.hpp"
+#include "../utils.hpp"
 #include <stdint.h>
 #include <algorithm>
 #include <functional>

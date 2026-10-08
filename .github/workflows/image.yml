@@ -3,21 +3,17 @@ name: Build and Publish Image
 on:
   pull_request:
     paths:
-      - "libcod/**"
-      - "docker/**"
-      - "!docker/**.md"
-      - "!libcod/**.md"
-      - "!libcod/dev.sh"
+      - "server/**"
+      - "!server/**.md"
+      - "!server/dev.sh"
       - ".github/workflows/image.yml"
   push:
     branches:
       - master
     paths:
-      - "libcod/**"
-      - "docker/**"
-      - "!docker/**.md"
-      - "!libcod/**.md"
-      - "!libcod/dev.sh"
+      - "server/**"
+      - "!server/**.md"
+      - "!server/dev.sh"
       - ".github/workflows/image.yml"
   workflow_dispatch:
     inputs:
@@ -69,7 +65,7 @@ jobs:
 
           if [ -n "$last_tag" ]; then
             range="${last_tag}..HEAD"
-            if git log --pretty=%B "${range}" -- libcod docker | grep -qE 'BREAKING CHANGE|^[a-zA-Z]+(\([^)]+\))?!:'; then
+            if git log --pretty=%B "${range}" -- server | grep -qE 'BREAKING CHANGE|^[a-zA-Z]+(\([^)]+\))?!:'; then
               bump="major"
               version="$((major + 1)).0"
             fi
@@ -90,7 +86,7 @@ jobs:
           suffix=""
           tags=""
 
-          libcod_commit="$(cat libcod/UPSTREAM)"
+          libcod_commit="$(cat server/UPSTREAM)"
 
           tags="${image}:${version}${suffix}"
           tags="${tags},${image}:latest${suffix}"
@@ -118,7 +114,7 @@ jobs:
             for tag in "${tag_list[@]}"; do
               echo "  - \`${tag}\`"
             done
-            echo "- 🧬 zk_libcod: [${{ steps.build_meta.outputs.libcod_commit }}](${{ env.LIBCOD_REPO_URL }}/commit/${{ steps.build_meta.outputs.libcod_commit }}) + \`libcod/\`"
+            echo "- 🧬 zk_libcod: [${{ steps.build_meta.outputs.libcod_commit }}](${{ env.LIBCOD_REPO_URL }}/commit/${{ steps.build_meta.outputs.libcod_commit }}) + \`server/\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Login to GHCR
@@ -133,7 +129,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./docker/Dockerfile
+          file: ./server/Dockerfile
           push: ${{ steps.build_meta.outputs.push == 'true' }}
           tags: ${{ steps.build_meta.outputs.tags }}
           labels: |

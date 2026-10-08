@@ -2,8 +2,7 @@
 
 Everything needed to run a Call of Duty 2 server:
 
-- [`libcod/`](libcod) — our additions to [zk_libcod](https://github.com/ibuddieat/zk_libcod), see [functions](libcod/FUNCTIONS.md)
-- [`docker/`](docker) — server image `ghcr.io/rutkowski-tomasz/cod2-server-1.3`
+- [`server/`](server) — server image `ghcr.io/rutkowski-tomasz/cod2-server-1.3` and our additions to [zk_libcod](https://github.com/ibuddieat/zk_libcod), see [functions](server/FUNCTIONS.md)
 - [`infra/`](infra) — Terraform for the VPS and its services
 
 See [AGENTS.md](AGENTS.md) for the local build command and how libcod is built.
@@ -12,7 +11,7 @@ See [AGENTS.md](AGENTS.md) for the local build command and how libcod is built.
 
 All tags are [here](https://github.com/users/rutkowski-tomasz/packages/container/package/cod2-server-1.3). The image started as a replacement for the unmaintained [cod2docker](https://github.com/Lonsofore/cod2docker). It adds:
 
-- [zk_libcod](https://github.com/ibuddieat/zk_libcod) at the commit pinned in `libcod/UPSTREAM`, plus [our additions](libcod)
+- [zk_libcod](https://github.com/ibuddieat/zk_libcod) at the commit pinned in `server/UPSTREAM`, plus [our additions](server/extra)
 - optional speex for dynamic sound loading (`--build-arg enable_speex=true`; off in published images)
 - a non-root user and read-only main and library folders
 - Ubuntu 24.04 without unused packages
@@ -55,7 +54,7 @@ networks:
       name: my_network
 ```
 
-A push to `master` that changes `libcod/` or `docker/` builds and publishes a new image and creates a git tag. The version comes from git tags and Conventional Commits: a breaking change bumps the major version, anything else the minor.
+A push to `master` that changes `server/` builds and publishes a new image and creates a git tag. The version comes from git tags and Conventional Commits: a breaking change bumps the major version, anything else the minor.
 
 ## Infra
 
@@ -139,4 +138,4 @@ pv databases_backup.sql | mysql -h <target-host> -P 3307 -u root -p
 
 Thanks to the [killtube.org](https://killtube.org/) community for their open-source work.
 
-Licensed under [MIT](LICENSE), except `docker/`, which keeps its original [Apache-2.0](docker/LICENSE) license.
+Licensed under [MIT](LICENSE).

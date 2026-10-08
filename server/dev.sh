@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 if [ -e zk_libcod ]; then
-    echo "libcod/zk_libcod already exists, remove it first" >&2
+    echo "server/zk_libcod already exists, remove it first" >&2
     exit 1
 fi
 
