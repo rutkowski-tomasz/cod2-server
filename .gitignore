@@ -5,6 +5,4 @@ server/zk_libcod/
 *.tfvars
 .DS_Store
 node_modules/
-tools/fxview/out/
-tools/menuview/out/
-tools/mapview/out/
+/out/

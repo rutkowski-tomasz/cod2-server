@@ -15,7 +15,7 @@ Targets are a file path or a game path (`.menu` optional). `#include`s, material
 
 In game, the scripts fill many dvars: lists, prices, info lines, selected tiles, images. `dvars.json` holds sample values in the format the scripts in `nl-cod2-zom-scripts` produce, so previews look like a mid-match player's menus. It is applied by default, after the menus' `onOpen` like the scripts do in game; `--dvar name=value` overrides one value, `--dvars <file>` replaces the file and `--empty` starts without samples. `render` and `view` list referenced dvars that still have no value. When a menu gets a new script-filled dvar, add a sample to `dvars.json`.
 
-Output goes to `tools/menuview/out/` unless `-o` is given. `render` writes the page next to the PNG and prints the open menus, script commands it could not run (`scriptMenuResponse`, `exec`, `uiScript`, menus in other files) and missing images.
+Output goes to `out/menuview/` unless `-o` is given. `render` writes the page next to the PNG and prints the open menus, script commands it could not run (`scriptMenuResponse`, `exec`, `uiScript`, menus in other files) and missing images.
 
 ## Checking a menu as an agent
 
