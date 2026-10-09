@@ -30,7 +30,7 @@ The image builds [zk_libcod](https://github.com/ibuddieat/zk_libcod) at the comm
 
 fxview, menuview and mapview write to `out/<tool>/` (git-ignored) unless `-o` is given; that is scratch.
 
-Before/after screenshots of a change go on the `pr-assets` branch, which PRs embed images from. Check it out once with `git worktree add ../cod2-server-pr-assets pr-assets`, then follow its `README.md`.
+Before/after screenshots of a change go on the `pr-assets` branch, which PRs embed images from. Check it out once with `git worktree add ~/cod2-server-pr-assets pr-assets`, then follow its `README.md`.
 
 # stacks
 
