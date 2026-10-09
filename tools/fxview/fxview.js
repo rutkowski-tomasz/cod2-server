@@ -120,7 +120,7 @@ async function render() {
 
 function info() {
   const bundle = buildBundle(target(), search)
-  const sim = createSim(bundle, { seed: Number(opts.seed ?? 1) })
+  const sim = createSim(bundle, { seed: Number(opts.seed ?? 1), forward: opts.forward, ground: opts.ground === 'off' ? null : 0 })
   const bounds = sim.bounds()
   const samples = []
   for (const t of [50, 100, 250, 500, 1000, 2000, 5000, 10000]) {
