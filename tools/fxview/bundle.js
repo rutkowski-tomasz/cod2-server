@@ -85,6 +85,7 @@ export function buildBundle(target, search) {
       image: mat.image,
       techset: mat.techset,
       blend: mat.blend,
+      feather: mat.feather,
       atlasCols: mat.atlasCols,
       atlasRows: mat.atlasRows,
       width: img.width,
