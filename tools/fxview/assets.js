@@ -47,20 +47,17 @@ class AssetSearch {
   }
 
   // Returns Buffer or null. `name` is a forward-slash path inside the iwd, e.g. "materials/gfx_hotspot".
+  // Case is ignored, like the game does.
   read(name) {
-    const source = this.find(name)
-    return source ? source.read(name) : null
-  }
-
-  find(name) {
-    for (let i = this.sources.length - 1; i >= 0; i--) if (this.sources[i].has(name)) return this.sources[i]
+    const key = name.toLowerCase()
+    for (let i = this.sources.length - 1; i >= 0; i--) if (this.sources[i].has(key)) return this.sources[i].read(key)
     return null
   }
 
   list(prefix) {
-    const out = new Set()
-    for (const s of this.sources) for (const n of s.names()) if (n.startsWith(prefix)) out.add(n)
-    return [...out].sort()
+    const out = new Map()
+    for (const s of this.sources) for (const n of s.names()) if (n.toLowerCase().startsWith(prefix.toLowerCase())) out.set(n.toLowerCase(), n)
+    return [...out.values()].sort()
   }
 }
 
@@ -74,28 +71,28 @@ function isZip(path) {
   return head[0] === 0x50 && head[1] === 0x4b
 }
 
+// Sources key their files by lowercase path.
 class DirSource {
   constructor(dir) {
     this.dir = dir
-    this.path = dir
-  }
-  has(name) {
-    return existsSync(join(this.dir, name)) && statSync(join(this.dir, name)).isFile()
-  }
-  read(name) {
-    return readFileSync(join(this.dir, name))
-  }
-  names() {
-    const out = []
+    this.files = new Map()
     const walk = (rel) => {
-      for (const e of readdirSync(join(this.dir, rel), { withFileTypes: true })) {
+      for (const e of readdirSync(join(dir, rel), { withFileTypes: true })) {
         const p = rel ? `${rel}/${e.name}` : e.name
         if (e.isDirectory()) walk(p)
-        else out.push(p)
+        else this.files.set(p.toLowerCase(), p)
       }
     }
     walk('')
-    return out
+  }
+  has(key) {
+    return this.files.has(key)
+  }
+  read(key) {
+    return readFileSync(join(this.dir, this.files.get(key)))
+  }
+  names() {
+    return [...this.files.values()]
   }
 }
 
@@ -104,11 +101,11 @@ class ZipSource {
     this.path = path
     this.entries = readCentralDirectory(path)
   }
-  has(name) {
-    return this.entries.has(name)
+  has(key) {
+    return this.entries.has(key)
   }
-  read(name) {
-    const e = this.entries.get(name)
+  read(key) {
+    const e = this.entries.get(key)
     const fd = openSync(this.path, 'r')
     try {
       const head = Buffer.alloc(30)
@@ -119,13 +116,13 @@ class ZipSource {
       readSync(fd, data, 0, e.compressedSize, e.offset + 30 + nameLen + extraLen)
       if (e.method === 0) return data
       if (e.method === 8) return inflateRawSync(data)
-      throw new Error(`${this.path}: unsupported zip method ${e.method} for ${name}`)
+      throw new Error(`${this.path}: unsupported zip method ${e.method} for ${e.name}`)
     } finally {
       closeSync(fd)
     }
   }
   names() {
-    return [...this.entries.keys()]
+    return [...this.entries.values()].map((e) => e.name)
   }
 }
 
@@ -155,7 +152,7 @@ function readCentralDirectory(path) {
       const commentLen = cd.readUInt16LE(p + 32)
       const offset = cd.readUInt32LE(p + 42)
       const name = cd.toString('utf8', p + 46, p + 46 + nameLen)
-      if (!name.endsWith('/')) entries.set(name, { method, compressedSize, offset })
+      if (!name.endsWith('/')) entries.set(name.toLowerCase(), { name, method, compressedSize, offset })
       p += 46 + nameLen + extraLen + commentLen
     }
     return entries
