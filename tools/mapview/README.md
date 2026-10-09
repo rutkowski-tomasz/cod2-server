@@ -24,7 +24,7 @@ Output goes to `tools/mapview/out/` unless `-o` is given. `render` writes the pa
 3. `render --top` for a floor plan with a 256-unit grid and coordinates. `--center x,y --span units` zooms in, `--cut z` hides everything above z (also in perspective), which shows the inside of buildings.
 4. Many views: `--batch shots.json`, an array of objects with the view options as keys plus `name` and `size` (`400x300`; `--size` or 1280x720 otherwise), such as `[{ "name": "plan", "top": true, "cut": 240 }, { "name": "spawn", "at": "mp_tdm_spawn[2]", "labels": "off" }]`. Each shot starts from the defaults, and all share one browser.
 
-In the page: click to look around, WASD to move, Shift for speed, E and Q for up and down, the wheel for move speed or top-view zoom. L labels (Shift+L all), F entities, T textures, G grid, K tool brushes, M lightmap, O fog, 1 top view, H HUD and FPS counter. The HUD shows the `--pos`/`--angles` or `--center`/`--span` that reproduce the view. URL hash params override the baked view options, as `#at=mp_tdm_spawn&labels=off`.
+In the page: click to look around, WASD to move, Shift for speed, E and Q for up and down, the wheel for top-view zoom. L labels (Shift+L all), F entities, T textures, G grid, K tool brushes, M lightmap, O fog, 1 top view, H HUD and FPS counter. The HUD shows the `--pos`/`--angles` or `--center`/`--span` that reproduce the view. URL hash params override the baked view options, as `#at=mp_tdm_spawn&labels=off`.
 
 ## What is drawn
 

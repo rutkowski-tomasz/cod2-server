@@ -11,7 +11,8 @@ const TOP_MARGIN = 1.05
 const off = (v) => v !== undefined && ['off', '0', 'false', false].includes(v)
 const on = (v) => v !== undefined && !off(v)
 
-const state = { speed: 500 }
+const SPEED = 500
+const state = {}
 const keys = new Set()
 let lastTime = performance.now()
 const fps = { frames: 0, since: performance.now() }
@@ -223,7 +224,7 @@ function move() {
   const now = performance.now(), dt = Math.min(0.1, (now - lastTime) / 1000)
   lastTime = now
   if (!keys.size) return false
-  const speed = state.speed * (keys.has('ShiftLeft') || keys.has('ShiftRight') ? 4 : 1) * dt
+  const speed = SPEED * (keys.has('ShiftLeft') || keys.has('ShiftRight') ? 4 : 1) * dt
   const y = state.angles[1] * d2r
   const fwd = anglesToForward(state.angles)
   const right = [Math.sin(y), -Math.cos(y), 0]
@@ -248,10 +249,9 @@ function setupControls() {
     needRender = true
   })
   addEventListener('wheel', (e) => {
-    if (state.top) {
-      const { span, x, y } = topWindow()
-      Object.assign(state, { span: span * (e.deltaY > 0 ? 1.15 : 1 / 1.15), center: [x, y] })
-    } else state.speed = Math.max(25, Math.min(6400, state.speed * (e.deltaY > 0 ? 0.8 : 1.25)))
+    if (!state.top) return
+    const { span, x, y } = topWindow()
+    Object.assign(state, { span: span * (e.deltaY > 0 ? 1.15 : 1 / 1.15), center: [x, y] })
     needRender = true
   })
   const toggles = { KeyL: 'labels', KeyF: 'entities', KeyT: 'textures', KeyG: 'grid', KeyK: 'tools', KeyM: 'lightmap', KeyO: 'fog', KeyH: 'hud', Digit1: 'top' }
