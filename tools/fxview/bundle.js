@@ -5,7 +5,7 @@ import { parseEfx } from './parse.js'
 import { normalizeElement } from './normalize.js'
 import { parseMaterial } from '../shared/material.js'
 import { decodeIwi } from '../shared/iwi.js'
-import { encodePng } from '../shared/png.js'
+import { pngDataUrl } from '../shared/png.js'
 import { parseXModel, parseSurfaces } from './xmodel.js'
 
 // `target` is a file path (ending in .efx) or an fx path like fx/explosions/grenade_flash.
@@ -90,7 +90,7 @@ export function buildBundle(target, search) {
       atlasRows: mat.atlasRows,
       width: img.width,
       height: img.height,
-      png: `data:image/png;base64,${encodePng(img.width, img.height, img.rgba).toString('base64')}`,
+      png: pngDataUrl(img),
     }
   }
 }

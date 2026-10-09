@@ -1,6 +1,8 @@
 import { deflateSync } from 'node:zlib'
 
-export function encodePng(width, height, rgba) {
+export const pngDataUrl = (img) => `data:image/png;base64,${encodePng(img.width, img.height, img.rgba).toString('base64')}`
+
+function encodePng(width, height, rgba) {
   const raw = Buffer.alloc((width * 4 + 1) * height)
   for (let y = 0; y < height; y++) {
     raw[y * (width * 4 + 1)] = 0

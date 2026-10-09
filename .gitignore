@@ -7,3 +7,4 @@ server/zk_libcod/
 node_modules/
 tools/fxview/out/
 tools/menuview/out/
+tools/mapview/out/

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>mapview</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #202830; font: 12px/1.4 ui-monospace, Menlo, monospace; color: #e8ecf0; }
+  canvas { display: block; }
+  #hud { position: absolute; left: 8px; top: 8px; background: rgba(0,0,0,.55); padding: 6px 8px; border-radius: 4px; white-space: pre; pointer-events: none; }
+  #hud b { color: #ffd166; }
+  #status { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); background: rgba(0,0,0,.7); padding: 10px 14px; border-radius: 4px; }
+  #labels div { position: absolute; transform: translate(-50%, -100%); padding: 1px 4px; border-radius: 3px; background: rgba(0,0,0,.6); white-space: nowrap; pointer-events: none; font-size: 11px; }
+  #ticks div { position: absolute; color: #fff; text-shadow: 0 0 3px #000, 0 0 3px #000; font-size: 11px; pointer-events: none; }
+  #legend { position: absolute; right: 8px; bottom: 8px; background: rgba(0,0,0,.55); padding: 6px 8px; border-radius: 4px; white-space: pre; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="labels"></div>
+<div id="ticks"></div>
+<div id="hud"></div>
+<div id="legend">WASD move · mouse look · shift fast · space/C up/down
+wheel speed · L labels · E entities · T textures · G grid · K tool brushes · M lightmap · 1 top view · H hide hud</div>
+<div id="status">loading…</div>
+<script id="three" type="text/plain">__THREE__</script>
+<script id="bundle" type="application/json">__BUNDLE__</script>
+<script>
+// Uncaught errors end the wait in `render` and show on the page.
+addEventListener('error', (e) => {
+  window.mapError = e.message
+  Object.assign(document.getElementById('status'), { textContent: e.message }).style.display = 'block'
+})
+</script>
+<script type="module">
+// The modules below use this THREE.
+const THREE = await import(document.getElementById('three').textContent)
+__SCRIPT__
+</script>
+</body>
+</html>
