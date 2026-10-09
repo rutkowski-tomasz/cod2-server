@@ -248,10 +248,10 @@ export function createSim(bundle, opts = {}) {
     return out
   }
 
-  // Sum of the live camera shakes, read from their size graph, optionally only those `include` accepts.
+  // Sum of the live camera shakes that `include` accepts, read from their size graph.
   function shake(include) {
     let total = 0
-    for (const p of sim.particles) if (p.type === 'CameraShake' && p.spawnTime <= sim.time && (!include || include(p))) total += sampleSize(p)[0]
+    for (const p of sim.particles) if (p.type === 'CameraShake' && p.spawnTime <= sim.time && include(p)) total += sampleSize(p)[0]
     return total
   }
 
