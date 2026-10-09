@@ -112,7 +112,11 @@ async function render() {
     writeFileSync(out, Buffer.from(result.png.split(',')[1], 'base64'))
     console.log(out)
     const stats = { target: bundle.root, ...result.info, frames: result.frames }
-    if (opts.stats) { writeFileSync(out.replace(/\.png$/, '.json'), JSON.stringify(stats, null, 2)); console.log(out.replace(/\.png$/, '.json')) }
+    if (opts.stats) {
+      const json = join(dirname(out), `${basename(out, '.png')}.json`)
+      writeFileSync(json, JSON.stringify(stats, null, 2))
+      console.log(json)
+    }
     for (const w of result.info.warnings) console.log(`warning: ${w}`)
     reportMissing(bundle)
   } finally {
