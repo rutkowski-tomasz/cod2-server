@@ -1,6 +1,8 @@
 // The map in three.js: surfaces with their materials, textures and lightmaps, lights, sky and grid.
 // THREE comes from the page script, which imports it before this module runs.
 import { anglesToForward, parseVec } from './math.js'
+import { buildModels } from './models.js'
+import { BLEND, LIGHTMAP_SHADER, blendOf } from './shader.js'
 
 // CoD2 is Z-up; three.js is Y-up. World coordinates convert as (x, y, z) -> (x, z, -y).
 export const toThree = (x, y, z) => new THREE.Vector3(x, z, -y)
@@ -13,41 +15,8 @@ const TRIGGER_COLOR = 0xff9f1c
 const ALPHA_TEST = 0.4
 const MAX_POINT_LIGHTS = 64
 const GRID_STEP = 256
-// How a surface's techset combines it with what is behind it; the shader's `blend` uniform.
-const BLEND = { opaque: 0, alpha: 1, multiply: 2, add: 3 }
 // Decals and blended layers lie on another surface, so they are drawn pulled toward the camera.
 const PULL_FORWARD = { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }
-
-const LIGHTMAP_SHADER = {
-  vertexShader: `attribute vec2 uv1; attribute vec4 rgba;
-varying vec2 vUv; varying vec2 vLm; varying vec3 vNormal; varying vec4 vColor;
-void main() {
-  vUv = uv; vLm = uv1; vColor = rgba;
-  vNormal = normalize(mat3(modelMatrix) * normal);
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}`,
-  // Mirrors the game's lmap shader: lightmap = indirect light (four coefficients per channel, weighted
-  // for a flat normal), plus sun colour scaled by the sun-visibility page and N·L. Vertex colour tints
-  // the texel; its alpha fades blended layers. Multiply layers are unlit, like the game's effect_multiply.
-  fragmentShader: `uniform sampler2D map; uniform int hasMap; uniform vec3 color; uniform float alphaTest;
-uniform sampler2D lmR; uniform sampler2D lmG; uniform sampler2D lmB; uniform sampler2D lmSun;
-uniform int useLm; uniform vec3 sunDir; uniform vec3 sunColor; uniform int blend;
-varying vec2 vUv; varying vec2 vLm; varying vec3 vNormal; varying vec4 vColor;
-void main() {
-  vec4 t = hasMap == 1 ? texture2D(map, vUv) : vec4(color, 1.0);
-  if (t.a < alphaTest) discard;
-  vec4 d = t * vColor;
-  if (blend == ${BLEND.multiply}) { gl_FragColor = vec4(mix(vec3(1.0), d.rgb, d.a), 1.0); return; }
-  vec3 light = vec3(1.0);
-  if (useLm == 1) {
-    vec4 w = vec4(0.25);
-    vec3 lm = vec3(dot(texture2D(lmR, vLm), w), dot(texture2D(lmG, vLm), w), dot(texture2D(lmB, vLm), w));
-    float sunVis = texture2D(lmSun, vLm).r;
-    light = lm + sunVis * max(0.0, dot(normalize(vNormal), sunDir)) * sunColor;
-  }
-  gl_FragColor = vec4(d.rgb * light, blend == ${BLEND.opaque} ? 1.0 : d.a);
-}`,
-}
 
 // `onChange` is called when a texture arrives, so the page draws again.
 export function createWorld(map, renderer, scene, onChange) {
@@ -76,14 +45,16 @@ export function createWorld(map, renderer, scene, onChange) {
       continue
     }
     const tool = info.tool || !!s.collision
-    const mesh = buildMesh(s, materialFor(info, s.lightmap, s.doubleSided, tool))
+    const mesh = buildMesh(s, materialFor(info, { lightmap: s.lightmap, doubleSided: s.doubleSided, tool }))
     // A compiled map's translucent surfaces draw in its surface order, like the game, so layers on one surface
     // stack right. A .map has no such order and the game never draws tools, so those sort by distance.
     if (lit && mesh.material.transparent && !tool) mesh.renderOrder = order
     if (tool) tools.add(mesh)
     else occluders.add(mesh)
   }
-  scene.add(occluders, triggers, tools)
+  // Models stay out of `occluders` too: their own labels sit inside them.
+  const models = buildModels(map, buildGeometry, (info) => materialFor(info, { doubleSided: true, sunShade: true }))
+  scene.add(occluders, triggers, tools, models)
   const sun = lit ? null : addLights()
   const grid = buildGrid()
   const sky = buildSky()
@@ -108,6 +79,15 @@ export function createWorld(map, renderer, scene, onChange) {
   }
 
   function buildMesh(s, material) {
+    const ent = map.entities[s.entity]
+    const mesh = new THREE.Mesh(buildGeometry(s), material)
+    mesh.castShadow = mesh.receiveShadow = !material.transparent
+    // Brush model vertices in a .d3dbsp are relative to their entity's origin.
+    if (ent.origin && ent.index > 0 && map.kind === 'bsp') mesh.position.copy(toThree(...ent.origin))
+    return mesh
+  }
+
+  function buildGeometry(s) {
     const geom = new THREE.BufferGeometry()
     const pos = map.f32(s.positions), nor = map.f32(s.normals)
     const p3 = new Float32Array(pos.length), n3 = new Float32Array(nor.length)
@@ -121,25 +101,21 @@ export function createWorld(map, renderer, scene, onChange) {
     if (s.lmuvs) geom.setAttribute('uv1', new THREE.BufferAttribute(map.f32(s.lmuvs), 2))
     if (s.colors) geom.setAttribute('rgba', new THREE.BufferAttribute(map.u8(s.colors), 4, true))
     geom.setIndex(new THREE.BufferAttribute(map.u32(s.indices), 1))
-    const ent = map.entities[s.entity]
-    const mesh = new THREE.Mesh(geom, material)
-    mesh.castShadow = mesh.receiveShadow = !material.transparent
-    // Brush model vertices in a .d3dbsp are relative to their entity's origin.
-    if (ent.origin && ent.index > 0 && map.kind === 'bsp') mesh.position.copy(toThree(...ent.origin))
-    return mesh
+    return geom
   }
 
-  function materialFor(info, lightmap, doubleSided, tool) {
-    const key = `${info.name}/${lit ? lightmap : -1}/${!!doubleSided}/${tool}`
+  // `sunShade` lights a surface without a lightmap, a model, by the sun.
+  function materialFor(info, { lightmap = -1, doubleSided = false, tool = false, sunShade = false }) {
+    const key = `${info.name}/${lit ? lightmap : -1}/${doubleSided}/${tool}/${sunShade}`
     if (!materials.has(key)) {
-      const mat = makeMaterial(info, lightmap, tool)
+      const mat = makeMaterial(info, lightmap, tool, sunShade)
       if (doubleSided) mat.side = THREE.DoubleSide
       materials.set(key, mat)
     }
     return materials.get(key)
   }
 
-  function makeMaterial(info, lightmap, tool) {
+  function makeMaterial(info, lightmap, tool, sunShade) {
     if (/water/.test(info.techset ?? '') || /^water/.test(info.name)) return new THREE.MeshBasicMaterial({ color: WATER_COLOR, transparent: true, opacity: 0.55, depthWrite: false })
     const baseColor = hashColor(info.name)
     // Only the lightmap shader blends by techset; a .map and tool brushes draw every material opaque.
@@ -153,7 +129,7 @@ export function createWorld(map, renderer, scene, onChange) {
       mat.onBeforeCompile = (shader) => { shader.fragmentShader = shader.fragmentShader.replace('#include <colorspace_fragment>', '') }
     }
     else mat = lightmapMaterial(baseColor, blend)
-    mat.userData = { info, baseColor, blend }
+    mat.userData = { info, baseColor, blend, sunShade }
     if (blend !== BLEND.opaque) {
       Object.assign(mat, { transparent: true, depthWrite: false, ...PULL_FORWARD })
       if (blend === BLEND.add) mat.blending = THREE.AdditiveBlending
@@ -186,7 +162,7 @@ export function createWorld(map, renderer, scene, onChange) {
       uniforms: {
         map: { value: null }, hasMap: { value: 0 }, color: { value: baseColor }, alphaTest: { value: 0 },
         lmR: { value: null }, lmG: { value: null }, lmB: { value: null }, lmSun: { value: null },
-        useLm: { value: 0 }, sunDir: { value: sunDir }, sunColor: { value: sunColor.clone().multiplyScalar(sunlight) },
+        useLm: { value: 0 }, sunShade: { value: 0 }, sunDir: { value: sunDir }, sunColor: { value: sunColor.clone().multiplyScalar(sunlight) },
         blend: { value: blend },
       },
     })
@@ -194,7 +170,7 @@ export function createWorld(map, renderer, scene, onChange) {
 
   // Water has no info: it looks the same whatever the view options.
   function refresh(mat) {
-    const { info, texture, lightmaps, baseColor, blend } = mat.userData
+    const { info, texture, lightmaps, baseColor, blend, sunShade } = mat.userData
     if (!info) return
     const colorMap = view.textures && texture ? texture : null
     // three.js tests opacity times texel alpha, so translucent tools need a threshold scaled to match.
@@ -207,6 +183,8 @@ export function createWorld(map, renderer, scene, onChange) {
       const useLm = view.lightmap && lightmaps
       u.useLm.value = useLm ? 1 : 0
       if (useLm) [u.lmR.value, u.lmG.value, u.lmB.value, u.lmSun.value] = lightmaps
+      // With the lightmap off the world draws full-bright, so sun-shaded models do too.
+      u.sunShade.value = sunShade && view.lightmap ? 1 : 0
     } else {
       mat.map = colorMap
       mat.color.copy(colorMap ? new THREE.Color(0xffffff) : baseColor)
@@ -293,13 +271,6 @@ void main() {
     scene.add(sky)
     return sky
   }
-}
-
-function blendOf(techset = '') {
-  if (techset.includes('multiply')) return BLEND.multiply
-  if (/(^|_)add(_|$)/.test(techset)) return BLEND.add
-  if (/(^|_)blend(_|$)/.test(techset)) return BLEND.alpha
-  return BLEND.opaque
 }
 
 // Untextured surfaces get a stable colour per material name.

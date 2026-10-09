@@ -4,6 +4,7 @@ import { resolve, basename } from 'node:path'
 import { parseMaterial } from '../shared/material.js'
 import { decodeIwi, iwiInfo } from '../shared/iwi.js'
 import { pngDataUrl } from '../shared/png.js'
+import { readXModel } from '../shared/xmodel.js'
 import { readBsp } from './bsp.js'
 import { readMap } from './map.js'
 import { parseVec } from './math.js'
@@ -36,6 +37,14 @@ export function loadScene(target, search, { prefabRoots = [] } = {}) {
     if (pad) { chunks.push(Buffer.alloc(pad)); byteLength += pad }
     return ref
   }
+  // The arrays that map and model surfaces share, packed into the geometry buffer.
+  const packGeometry = (s) => ({
+    positions: push(Float32Array.from(s.positions)),
+    normals: push(Float32Array.from(s.normals)),
+    colors: s.colors ? push(Uint8Array.from(s.colors)) : null,
+    uvs: push(Float32Array.from(s.uvs)),
+    indices: push(Uint32Array.from(s.indices)),
+  })
 
   const bounds = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] }
   const grow = (p) => { for (let k = 0; k < 3; k++) { bounds.min[k] = Math.min(bounds.min[k], p[k]); bounds.max[k] = Math.max(bounds.max[k], p[k]) } }
@@ -45,21 +54,25 @@ export function loadScene(target, search, { prefabRoots = [] } = {}) {
     if (s.entity === 0 && !s.collision && !materials[material].sky) for (let i = 0; i < positions.length; i += 3) grow(positions.subarray(i, i + 3))
     return {
       material, entity: s.entity, lightmap: s.lightmap ?? -1, doubleSided: s.doubleSided, collision: s.collision,
-      positions: push(positions),
-      normals: push(Float32Array.from(s.normals)),
-      colors: s.colors ? push(Uint8Array.from(s.colors)) : null,
-      uvs: push(Float32Array.from(s.uvs)),
+      ...packGeometry({ ...s, positions }),
       lmuvs: s.lmuvs ? push(Float32Array.from(s.lmuvs)) : null,
-      indices: push(Uint32Array.from(s.indices)),
     }
   })
   if (!Number.isFinite(bounds.min[0])) for (const e of entities) if (e.origin) grow(e.origin)
+  // Every xmodel the entities name, once. Ones that cannot be drawn stay boxes and are listed in `boxModels`.
+  const models = {}
+  const boxModels = []
+  for (const name of new Set(entities.map((e) => e.keys.model).filter((m) => m?.startsWith('xmodel/')))) {
+    const surfaces = readXModel(name, search)
+    if (surfaces) models[name] = surfaces.map((s) => ({ material: materialId(s.material), ...packGeometry(s) }))
+    else boxModels.push(name)
+  }
 
   const scene = {
     name: source.name, kind: source.kind, path: source.path,
     bounds: Number.isFinite(bounds.min[0]) ? bounds : DEFAULT_BOUNDS,
     worldspawn: entities[0]?.keys ?? {},
-    materials, surfaces, entities,
+    materials, surfaces, entities, models, boxModels,
     lightmapCount: parsed.lightmaps?.length ?? 0,
     missingPrefabs: parsed.missingPrefabs ?? [],
   }

@@ -6,7 +6,7 @@ import { normalizeElement } from './normalize.js'
 import { parseMaterial } from '../shared/material.js'
 import { decodeIwi } from '../shared/iwi.js'
 import { pngDataUrl } from '../shared/png.js'
-import { parseXModel, parseSurfaces } from './xmodel.js'
+import { readXModel } from '../shared/xmodel.js'
 
 // `target` is a file path (ending in .efx) or an fx path like fx/explosions/grenade_flash.
 export function buildBundle(target, search) {
@@ -60,16 +60,11 @@ export function buildBundle(target, search) {
 
   function loadModel(name) {
     if (models[name] || missing.models.includes(name)) return
-    const xmodel = search.read(name)
-    const parsed = xmodel && parseXModel(xmodel)
-    const surfaceFile = parsed && search.read(`xmodelsurfs/${parsed.surfaces}`)
-    const surfaces = surfaceFile && parseSurfaces(surfaceFile)
+    const surfaces = readXModel(name, search)
     if (!surfaces) { missing.models.push(name); return }
-    surfaces.forEach((s, i) => {
-      s.material = parsed.materials[i]
-      loadMaterial(s.material)
-    })
-    models[name] = { surfaces }
+    for (const s of surfaces) loadMaterial(s.material)
+    // fxview draws models without vertex colours, so they stay out of the page.
+    models[name] = { surfaces: surfaces.map(({ colors, ...s }) => s) }
   }
 
   function loadMaterial(name) {

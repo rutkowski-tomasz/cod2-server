@@ -69,7 +69,7 @@ export function createMarkers(map, renderer, scene, occluders) {
       label = `light ${e.keys.intensity || ''}`
     } else if (/model/.test(cls) || cls === 'misc_prefab' || cls === 'misc_turret') {
       color = 0xff5dd0
-      group.add(new THREE.Mesh(new THREE.BoxGeometry(32, 32, 32), new THREE.MeshBasicMaterial({ color, wireframe: true })))
+      if (!map.models[e.keys.model]) group.add(new THREE.Mesh(new THREE.BoxGeometry(32, 32, 32), new THREE.MeshBasicMaterial({ color, wireframe: true })))
       label = `${cls} ${(e.keys.model || '').split('/').pop()}`
     } else {
       group.add(new THREE.Mesh(new THREE.OctahedronGeometry(10), new THREE.MeshBasicMaterial({ color })))
