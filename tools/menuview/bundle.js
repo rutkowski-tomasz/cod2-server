@@ -3,7 +3,7 @@ import { readFileSync, existsSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { parseMaterial } from '../shared/material.js'
 import { decodeIwi } from '../shared/iwi.js'
-import { encodePng } from '../shared/png.js'
+import { pngDataUrl } from '../shared/png.js'
 import { preprocess } from './preprocess.js'
 import { parseMenuFile } from './parse.js'
 import { parseFont } from './font.js'
@@ -118,7 +118,7 @@ export function buildBundle(target, search, dvars = {}) {
     if (!iwi) return { missing: `→ ${mat.image}.iwi` }
     const img = decodeIwi(iwi)
     if (!img) return { missing: `→ ${mat.image}.iwi (unsupported format ${iwi[4]})` }
-    return { blend: mat.blend, width: img.width, height: img.height, png: toPng(img) }
+    return { blend: mat.blend, width: img.width, height: img.height, png: pngDataUrl(img) }
   }
 
   // "@MENU_BACK" is REFERENCE BACK in localizedstrings/menu.str. File names can hold underscores too
@@ -151,5 +151,3 @@ function place(rect, baseX, baseY, menuRect, origin = [0, 0]) {
 }
 
 const isScript = (v) => Array.isArray(v) && Array.isArray(v[0])
-
-const toPng = (img) => `data:image/png;base64,${encodePng(img.width, img.height, img.rgba).toString('base64')}`

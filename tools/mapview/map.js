@@ -1,9 +1,30 @@
-// Parses CoD2 Radiant .map files (iwmap 4): entities, brushes, mesh/curve patches, misc_prefab includes.
+// Reads CoD2 Radiant .map files (iwmap 4) into entities and surfaces: brushes, mesh/curve patches, misc_prefab includes.
 import fs from 'node:fs'
 import path from 'node:path'
-import { anglesToMatrix, applyMatrix } from './math.js'
+import { anglesToMatrix, applyMatrix, parseVec } from './math.js'
+import { MeshBuilder } from './brush.js'
 
-export function parseMap(text) {
+const MAX_PREFAB_DEPTH = 8
+
+// Prefab paths resolve against prefabRoots, then next to the map and one and two folders up.
+export function readMap(file, prefabRoots) {
+  const roots = [...prefabRoots, path.dirname(file), path.resolve(path.dirname(file), '..'), path.resolve(path.dirname(file), '../..')]
+  const missing = new Set()
+  const entities = expandPrefabs(parseMap(fs.readFileSync(file, 'latin1')), roots, missing, 0)
+  const builders = new Map()
+  entities.forEach((e, index) => {
+    if (!e.brushes.length && !e.patches.length) return
+    // Prefab contents (func_group) render as part of the world.
+    const owner = e.classname === 'func_group' ? 0 : index
+    if (!builders.has(owner)) builders.set(owner, new MeshBuilder())
+    for (const b of e.brushes) builders.get(owner).addBrush(b)
+    for (const p of e.patches) builders.get(owner).addPatch(p)
+  })
+  const surfaces = [...builders].flatMap(([entity, mb]) => mb.result().map((g) => ({ entity, ...g })))
+  return { entities: entities.map(({ classname, keys, prefab }) => ({ classname, keys, prefab })), surfaces, missingPrefabs: [...missing] }
+}
+
+function parseMap(text) {
   const lines = text.split(/\r?\n/)
   const entities = []
   let i = 0
@@ -31,7 +52,7 @@ export function parseMap(text) {
     ent.classname = ent.keys.classname || ''
     entities.push(ent)
   }
-  return { entities }
+  return entities
 
   function parseBrushBlock(ent) {
     const sides = []
@@ -59,7 +80,7 @@ export function parseMap(text) {
 
   function parsePatch(kind) {
     skipJunk(); next() // {
-    const patch = { kind, material: '', w: 0, h: 0, rows: [] }
+    const patch = { kind, material: '', rows: [] }
     for (;;) {
       skipJunk()
       const line = next()
@@ -81,8 +102,7 @@ export function parseMap(text) {
       } else if (line.endsWith(';') || line.startsWith('lightmap_')) {
         continue
       } else if (/^\d+\s+\d+/.test(line)) {
-        const d = line.split(/\s+/)
-        patch.w = +d[0]; patch.h = +d[1]
+        continue
       } else if (!patch.material) {
         patch.material = line
       }
@@ -91,20 +111,10 @@ export function parseMap(text) {
   }
 }
 
-// Loads a .map and expands misc_prefab entities. Prefab paths are resolved against prefabRoots.
-export function loadMap(file, { prefabRoots = [] } = {}) {
-  const roots = [...prefabRoots, path.dirname(file), path.resolve(path.dirname(file), '..'), path.resolve(path.dirname(file), '../..')]
-  const missing = new Set()
-  const map = parseMap(fs.readFileSync(file, 'latin1'))
-  map.entities = expandPrefabs(map.entities, roots, missing, 0)
-  map.missingPrefabs = [...missing]
-  return map
-}
-
 function expandPrefabs(entities, roots, missing, depth) {
   const out = []
   for (const ent of entities) {
-    if (ent.classname !== 'misc_prefab' || depth > 8) { out.push(ent); continue }
+    if (ent.classname !== 'misc_prefab' || depth > MAX_PREFAB_DEPTH) { out.push(ent); continue }
     const rel = ent.keys.model || ''
     const file = roots.map((r) => path.join(r, rel)).find((p) => fs.existsSync(p))
     if (!file) { missing.add(rel); out.push(ent); continue }
@@ -112,16 +122,17 @@ function expandPrefabs(entities, roots, missing, depth) {
     const m = anglesToMatrix(parseVec(ent.keys.angles))
     const origin = parseVec(ent.keys.origin)
     const xf = (v) => applyMatrix(m, v, origin)
-    for (const se of expandPrefabs(sub.entities, roots, missing, depth + 1)) {
+    for (const se of expandPrefabs(sub, roots, missing, depth + 1)) {
       const copy = { keys: { ...se.keys }, classname: se.classname, brushes: [], patches: [], prefab: rel }
       for (const b of se.brushes) copy.brushes.push({ sides: b.sides.map((s) => ({ ...s, points: s.points.map(xf) })) })
       for (const p of se.patches) copy.patches.push({ ...p, rows: p.rows.map((row) => row.map((pt) => ({ ...pt, pos: xf(pt.pos) }))) })
-      if (copy.keys.origin) copy.keys.origin = xf(parseVec(copy.keys.origin)).map(fmt).join(' ')
-      else if (se.classname !== 'worldspawn' && copy.brushes.length === 0 && copy.patches.length === 0) copy.keys.origin = origin.map(fmt).join(' ')
-      if (copy.keys.angles || ent.keys.angles) {
-        const a = parseVec(copy.keys.angles)
+      if (copy.keys.origin) copy.keys.origin = xf(parseVec(copy.keys.origin)).map(formatNumber).join(' ')
+      else if (se.classname !== 'worldspawn' && copy.brushes.length === 0 && copy.patches.length === 0) copy.keys.origin = origin.map(formatNumber).join(' ')
+      if (copy.keys.angles || copy.keys.angle || ent.keys.angles) {
+        const a = copy.keys.angles ? parseVec(copy.keys.angles) : [0, +(copy.keys.angle || 0), 0]
         a[1] += parseVec(ent.keys.angles)[1]
-        copy.keys.angles = a.map(fmt).join(' ')
+        copy.keys.angles = a.map(formatNumber).join(' ')
+        delete copy.keys.angle
       }
       if (se.classname === 'worldspawn') {
         copy.classname = 'func_group'
@@ -133,10 +144,4 @@ function expandPrefabs(entities, roots, missing, depth) {
   return out
 }
 
-export function parseVec(s) {
-  if (!s) return [0, 0, 0]
-  const v = String(s).trim().split(/\s+/).map(Number)
-  return [v[0] || 0, v[1] || 0, v[2] || 0]
-}
-
-const fmt = (n) => (Math.abs(n - Math.round(n)) < 1e-6 ? String(Math.round(n)) : n.toFixed(3))
+const formatNumber = (n) => (Math.abs(n - Math.round(n)) < 1e-6 ? String(Math.round(n)) : n.toFixed(3))

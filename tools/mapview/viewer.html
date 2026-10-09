@@ -23,7 +23,16 @@ wheel speed · L labels · E entities · T textures · G grid · K tool brushes 
 <div id="status">loading…</div>
 <script id="three" type="text/plain">__THREE__</script>
 <script id="bundle" type="application/json">__BUNDLE__</script>
+<script>
+// Uncaught errors end the wait in `render` and show on the page.
+addEventListener('error', (e) => {
+  window.mapError = e.message
+  Object.assign(document.getElementById('status'), { textContent: e.message }).style.display = 'block'
+})
+</script>
 <script type="module">
+// The modules below use this THREE.
+const THREE = await import(document.getElementById('three').textContent)
 __SCRIPT__
 </script>
 </body>

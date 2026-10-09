@@ -131,7 +131,7 @@ async function render() {
 }
 
 function info() {
-  const { binary, lightmaps, ...s } = loadScene(target(), search, { prefabRoots: opts.prefabs })
+  const { scene: s } = loadScene(target(), search, { prefabRoots: opts.prefabs })
   if (opts.json) { console.log(JSON.stringify(s, null, 2)); return }
   const r = (v) => v.map((x) => Math.round(x)).join(' ')
   console.log(`${s.name} (${s.kind}) ${s.path}`)

@@ -4,7 +4,7 @@ import { add, cross, dot, normalize, scale, sub } from './math.js'
 const EPS = 0.01
 const HUGE = 1 << 17
 
-export function brushPolygons(brush) {
+function brushPolygons(brush) {
   const planes = brush.sides.map((s) => {
     const [a, b, c] = s.points
     const n = normalize(cross(sub(c, a), sub(b, a)))
@@ -54,7 +54,7 @@ function clip(poly, n, d) {
 }
 
 // Texture coordinates follow cod2map: axial projection by dominant normal, rotation, then offset and size.
-export function faceUv(point, normal, side) {
+function faceUv(point, normal, side) {
   const ax = [Math.abs(normal[0]), Math.abs(normal[1]), Math.abs(normal[2])]
   let s, t
   if (ax[2] >= ax[0] && ax[2] >= ax[1]) { s = point[0]; t = -point[1] }
@@ -70,10 +70,11 @@ export function faceUv(point, normal, side) {
 export class MeshBuilder {
   constructor() { this.groups = new Map() }
 
-  group(material) {
-    let g = this.groups.get(material)
-    if (!g) { g = { material, positions: [], normals: [], uvs: [], indices: [] }; this.groups.set(material, g) }
-    return g
+  // Patches get their own groups: they draw from both sides, since which side Radiant treats as the front is not known.
+  group(material, doubleSided = false) {
+    const key = `${material}/${doubleSided}`
+    if (!this.groups.has(key)) this.groups.set(key, { material, doubleSided, positions: [], normals: [], uvs: [], indices: [] })
+    return this.groups.get(key)
   }
 
   addBrush(brush) {
@@ -93,7 +94,7 @@ export class MeshBuilder {
   addPatch(patch) {
     const grid = patch.kind === 'curve' ? tessellateCurve(patch.rows) : patch.rows
     if (grid.length < 2 || grid[0].length < 2) return
-    const g = this.group(patch.material)
+    const g = this.group(patch.material, true)
     const base = g.positions.length / 3
     const rows = grid.length, cols = grid[0].length
     const normals = gridNormals(grid)
@@ -123,7 +124,7 @@ function gridNormals(grid) {
     for (let j = 0; j < cols; j++) {
       const di = sub(grid[Math.min(i + 1, rows - 1)][j].pos, grid[Math.max(i - 1, 0)][j].pos)
       const dj = sub(grid[i][Math.min(j + 1, cols - 1)].pos, grid[i][Math.max(j - 1, 0)].pos)
-      let n = normalize(cross(dj, di))
+      let n = normalize(cross(di, dj))
       if (dot(n, n) < 0.5) n = [0, 0, 1]
       out[i].push(n)
     }

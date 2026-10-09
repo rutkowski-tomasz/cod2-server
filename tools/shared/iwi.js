@@ -2,18 +2,21 @@
 // Header: "IWi", version, format, usage, u16 width, height, depth, 4 × u32 end offsets.
 // Mips are stored smallest first, so the top mip is the last `size` bytes.
 // Formats 6 and 7 hold compressed data in an unknown scheme.
-// A cube map (usage 5, skies) stores six faces; their top mips are the last six `size` blocks, in face order.
-export const FORMATS = { 1: 'argb8', 2: 'rgb8', 3: 'la8', 11: 'dxt1', 12: 'dxt3', 13: 'dxt5' }
-const USAGE_CUBE = 5
+const FORMATS = { 1: 'argb8', 2: 'rgb8', 3: 'la8', 11: 'dxt1', 12: 'dxt3', 13: 'dxt5' }
+// Usage bit 4 marks a cube map (skies): six faces, whose top mips are the last six `size` blocks, in face order.
+const USAGE_CUBE = 4
+
+// Header fields; `format` is undefined when the decoder does not support it.
+export function iwiInfo(buf) {
+  if (buf.toString('latin1', 0, 3) !== 'IWi') throw new Error('not an IWI')
+  return { format: FORMATS[buf[4]], width: buf.readUInt16LE(6), height: buf.readUInt16LE(8), cube: (buf[5] & USAGE_CUBE) !== 0 }
+}
 
 export function decodeIwi(buf) {
-  if (buf.toString('latin1', 0, 3) !== 'IWi') throw new Error('not an IWI')
-  const format = FORMATS[buf[4]]
+  const { format, width, height, cube } = iwiInfo(buf)
   if (!format) return null
-  const width = buf.readUInt16LE(6)
-  const height = buf.readUInt16LE(8)
   const size = mipSize(format, width, height)
-  const faceCount = buf[5] === USAGE_CUBE ? 6 : 1
+  const faceCount = cube ? 6 : 1
   const faces = []
   for (let f = faceCount; f > 0; f--) faces.push(decodeMip(format, width, height, buf.subarray(buf.length - size * f, buf.length - size * (f - 1))))
   return { width, height, rgba: faces[0], faces: faceCount === 6 ? faces : undefined }
