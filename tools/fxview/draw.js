@@ -81,18 +81,28 @@ export function createRenderer(canvas, { materials, models }) {
     gl.linkProgram(program)
     return program
   }
+  // Guessed fade depth for zfeather materials, in units along the view ray to the ground plane.
+  const FEATHER_DEPTH = 16
   const program = createProgram(`
-    layout(location = 0) in vec3 pos; layout(location = 1) in vec2 uv; layout(location = 2) in vec4 col; uniform mat4 vp; out vec2 vUv; out vec4 vCol;
-    void main() { gl_Position = vp * vec4(pos, 1.0); vUv = uv; vCol = col; }`, `
-    precision mediump float; in vec2 vUv; in vec4 vCol; uniform sampler2D tex; uniform int mode; out vec4 o;
+    layout(location = 0) in vec3 pos; layout(location = 1) in vec2 uv; layout(location = 2) in vec4 col; uniform mat4 vp; out vec2 vUv; out vec4 vCol; out vec3 vPos;
+    void main() { gl_Position = vp * vec4(pos, 1.0); vUv = uv; vCol = col; vPos = pos; }`, `
+    precision highp float; in vec2 vUv; in vec4 vCol; in vec3 vPos; uniform sampler2D tex; uniform int mode; uniform bool feather; uniform vec3 eye; uniform float ground; out vec4 o;
     void main() {
       vec4 t = texture(tex, vUv) * vCol;
+      if (feather) {
+        vec3 ray = normalize(vPos - eye);
+        if (vPos.z < ground) t.a = 0.0;
+        else if (ray.z < 0.0) t.a *= clamp((vPos.z - ground) / -ray.z / float(${FEATHER_DEPTH}), 0.0, 1.0);
+      }
       if (mode == 1) o = vec4(t.rgb * t.a, t.a);          // additive, premultiplied
       else if (mode == 2) o = vec4(mix(vec3(1.0), t.rgb, t.a), 1.0); // multiply
       else o = t;
     }`)
   const uVp = gl.getUniformLocation(program, 'vp')
   const uMode = gl.getUniformLocation(program, 'mode')
+  const uFeather = gl.getUniformLocation(program, 'feather')
+  const uEye = gl.getUniformLocation(program, 'eye')
+  const uGround = gl.getUniformLocation(program, 'ground')
   // Models get a fixed light from above so their shape reads without the level's lighting.
   const meshProgram = createProgram(`
     layout(location = 0) in vec3 pos; layout(location = 1) in vec3 nrm; layout(location = 2) in vec2 uv;
@@ -204,6 +214,8 @@ export function createRenderer(canvas, { materials, models }) {
     gl.uniformMatrix4fv(uMeshVp, false, vp)
     gl.useProgram(program)
     gl.uniformMatrix4fv(uVp, false, vp)
+    gl.uniform3fv(uEye, eye)
+    gl.uniform1f(uGround, state.ground ?? 0)
     const shown = (p) => p.spawnTime <= sim.time && !hidden.has(p.def.key) && (state.ground === null || p.pos[2] >= state.ground - 2 || p.type === 'Decal')
 
     // Reference lines and models, with depth write so particles sort against them.
@@ -228,8 +240,11 @@ export function createRenderer(canvas, { materials, models }) {
     for (const p of sim.particles) {
       if (!shown(p)) continue
       const q = particleQuad(p, eye, viewRight, viewUp)
+      if (!q) continue
       const at = p.end ? V.mul(V.add(p.pos, p.end), 0.5) : p.pos
-      if (q) { q.depth = V.dot(V.sub(at, eye), viewFwd); items.push(q) }
+      q.depth = V.dot(V.sub(at, eye), viewFwd)
+      q.feather = state.ground !== null && p.type !== 'Decal' && materialMeta[q.tex].feather
+      items.push(q)
     }
     items.sort((a, b) => b.depth - a.depth)
     drawQuads(items)
@@ -349,6 +364,7 @@ export function createRenderer(canvas, { materials, models }) {
     ensureCapacity(items.length)
     let n = 0
     let batchTex = null
+    let batchFeather = false
     let batchStart = 0
     const flush = (end) => {
       if (end === batchStart) return
@@ -358,6 +374,7 @@ export function createRenderer(canvas, { materials, models }) {
       else if (mode === 2) gl.blendFunc(gl.DST_COLOR, gl.ZERO)
       else gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
       gl.uniform1i(uMode, mode)
+      gl.uniform1i(uFeather, batchFeather)
       gl.bindTexture(gl.TEXTURE_2D, textures[batchTex])
       gl.bindBuffer(gl.ARRAY_BUFFER, vbo)
       gl.bufferData(gl.ARRAY_BUFFER, verts.subarray(batchStart * 36, end * 36), gl.STREAM_DRAW)
@@ -368,7 +385,8 @@ export function createRenderer(canvas, { materials, models }) {
       batchStart = end
     }
     for (const it of items) {
-      if (it.tex !== batchTex) { flush(n); batchTex = it.tex }
+      const feather = !!it.feather
+      if (it.tex !== batchTex || feather !== batchFeather) { flush(n); batchTex = it.tex; batchFeather = feather }
       const meta = materialMeta[it.tex]
       const cols = meta.atlasCols, rows = meta.atlasRows
       const fx = it.frame % cols, fy = Math.floor(it.frame / cols) % rows
