@@ -34,4 +34,20 @@ In the page: click to look around, WASD to move, Shift for speed, Space and C fo
 - Materials: the colour map, downscaled to 512, alpha-tested at 0.4 when the image has alpha. The sky material's cube map is the background. Tool materials (caulk, clip, hint, …) are hidden unless `--tools`; `water` techsets are flat translucent blue; decals are pulled toward the camera.
 - Markers: player-sized boxes with a yaw arrow for spawns (red axis, blue allied, teal other), yellow spheres for lights, magenta boxes for models, orange translucent volumes for triggers in a `.map` (a `.d3dbsp` keeps no trigger geometry, and most of its triggers have no origin, so they do not show). Labels show `classname [targetname]`, hide behind walls and past 2000 units, and skip lights, models, prefabs, `info_null` and `script_origin` unless `--labels all`; lights, models and prefabs with a targetname keep theirs.
 
-Not drawn: xmodel geometry (models are labelled boxes), effects, normal and specular maps, fog, vertex colours (blend materials draw at full strength), animated or scrolling materials. A guess that may be off: how three.js lights a `.map`, which has no lightmaps.
+Not drawn:
+- xmodel geometry: models are labelled boxes.
+- Effects, fog, normal and specular maps, animated or scrolling materials.
+- Vertex colours, so blend materials (snow edges, terrain) draw at full strength.
+- Triggers in a `.d3dbsp`: it keeps no trigger geometry, and most of its triggers have no origin for a marker.
+- Rotation of brush models: an entity's `angles` does not turn its brush model in a `.d3dbsp`.
+
+Guesses that may be off:
+- How three.js lights a `.map`, which has no lightmaps.
+- Patches draw from both sides, since which side Radiant treats as the front is not known.
+- `--fov` is applied horizontally at the image's aspect. If the game widens the view for widescreen from a 4:3 base, renders are narrower than in game.
+
+Limits:
+- Stock maps other than `mp_harbor`, `mp_rhine` and the `iw_00` single-player maps need `iw_01`–`iw_05` pulled.
+- The page embeds every texture, so it is large: about 56 MB for `mp_harbor`.
+- A batch stops at the first shot whose `at` matches no entity.
+- `list` matches the name prefix with case.
