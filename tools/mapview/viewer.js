@@ -33,6 +33,7 @@ const world = createWorld(map, renderer, scene, () => { needRender = true })
 const players = map.player && createPlayers(map, world)
 const markers = createMarkers(map, renderer, scene, world.occluders, players)
 const live = map.defaults.live ? createLive(map, scene, players, map.defaults.live, mapChanged) : null
+if (live) $('legend').textContent += ' · P follow the next live player'
 
 readParams(params)
 applyView()
@@ -108,6 +109,7 @@ function readParams(p) {
   state.fog = !off(p.fog)
   state.shadows = !off(p.shadows)
   state.hud = !off(p.hud)
+  state.follow = p.follow || null
 }
 
 // First match of a selector: classname, key=value, or #index; an optional [n] picks the n-th match.
@@ -175,10 +177,14 @@ function updateCamera() {
 }
 
 function renderLoop() {
+  const moved = move()
+  // Moving takes the camera back from the followed player.
+  if (moved) state.follow = null
+  const liveMoved = live?.animate(state.follow) ?? false
+  if (state.follow) follow()
   const cam = updateCamera()
-  const changed = move() || needRender || world.loading()
+  const changed = moved || needRender || world.loading()
   const animated = !!players && players.update(cam, state.cut)
-  const liveMoved = live?.animate() ?? false
   // The players' animation alone moves no label, so it leaves label occlusion settled.
   if (changed || animated || liveMoved) {
     markers.hideNear(cam, state.top)
@@ -194,6 +200,23 @@ function renderLoop() {
   } else markers.settle(cam, state.top)
   updateFps()
   requestAnimationFrame(renderLoop)
+}
+
+// Puts the camera in the followed player's eyes, while the stream has that player. Redraws only when they moved,
+// so a still player lets labels settle as a still camera does.
+function follow() {
+  const eye = live.eyeOf(state.follow)
+  if (!eye || [...eye.pos, ...eye.angles].every((v, i) => v === [...state.pos, ...state.angles][i])) return
+  state.pos = eye.pos
+  state.angles = eye.angles
+  needRender = true
+}
+
+// The next live player to follow after the one followed, then back to the free camera after the last.
+function followNext() {
+  const names = live.names()
+  state.follow = names[names.indexOf(state.follow) + 1] ?? null
+  needRender = true
 }
 
 // Frames are drawn only when the view changes or a player is on view, so this counts drawn frames and says idle when none were.
@@ -231,7 +254,8 @@ function updateHud() {
   const cli = state.top
     ? `--top${state.span ? ` --center ${state.center.map(round).join(',')} --span ${round(state.span)}` : ''}`
     : `--pos ${state.pos.map(round).join(',')} --angles ${state.angles.map(round).join(',')}`
-  $('hud').innerHTML = `${map.name} (${map.kind}) · ${view}\nrender: <b>${cli}</b>${state.cut != null ? ` --cut ${state.cut}` : ''}`
+  const following = state.follow ? `following <b>${state.follow}</b> · ` : ''
+  $('hud').innerHTML = `${map.name} (${map.kind}) · ${following}${view}\nrender: <b>${cli}</b>${state.cut != null ? ` --cut ${state.cut}` : ''}${state.follow ? ` --follow ${state.follow}` : ''}`
 }
 
 function move() {
@@ -276,6 +300,7 @@ function setupControls() {
     if (e.repeat) return
     if (toggles[e.code]) { state[toggles[e.code]] = e.code === 'KeyL' && e.shiftKey ? 'all' : !state[toggles[e.code]]; applyView() }
     if (e.code === 'Escape') document.exitPointerLock()
+    if (e.code === 'KeyP' && live) followNext()
   })
   addEventListener('keyup', (e) => keys.delete(e.code))
   addEventListener('blur', () => keys.clear())

@@ -39,9 +39,10 @@ view options:
   --cut z              hide everything above z
   --labels off|all     --ents off   --tex off   --lightmap off   --normals off   --shadows off
   --fog off   --grid   --tools
-  --live ws://…        draw the players a livemap relay streams; live sets it to its relay (default ${RELAY})`
+  --live ws://…        draw the players a livemap relay streams; live sets it to its relay (default ${RELAY})
+  --follow <name>      with live players, see from that player's eyes`
 
-const VIEW_KEYS = ['pos', 'angles', 'at', 'look', 'fov', 'top', 'center', 'span', 'cut', 'labels', 'ents', 'tex', 'lightmap', 'normals', 'shadows', 'fog', 'grid', 'tools', 'live']
+const VIEW_KEYS = ['pos', 'angles', 'at', 'look', 'fov', 'top', 'center', 'span', 'cut', 'labels', 'ents', 'tex', 'lightmap', 'normals', 'shadows', 'fog', 'grid', 'tools', 'live', 'follow']
 const FLAGS = ['open', 'json', 'top', 'grid', 'tools']
 // What the live page fetches by kind and key, which a streamed player names: its rig by its models joined with
 // commas, its weapon's model by the weapon's name.

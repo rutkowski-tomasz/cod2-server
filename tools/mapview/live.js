@@ -1,6 +1,6 @@
 // Players streamed from a game server through the livemap relay (stacks/livemap); THREE comes from the page script.
 // Each update moves a player from where it is drawn to its new position over one update interval, so it glides.
-import { toThree } from './draw.js'
+import { toThree, fromThree } from './draw.js'
 import { d2r } from './math.js'
 
 // The server sends 10 updates a second.
@@ -38,25 +38,37 @@ export function createLive(map, scene, players, url, onMapChange) {
   return {
     // Resolves with the first update for this map, or after READY_TIMEOUT_MS without one.
     ready,
-    // Moves the players on; true while any are shown, so the page has to draw again.
-    animate() {
+    // Moves the players on, and hides the one named `follow` whose eyes the camera is in; true while any are shown,
+    // so the page has to draw again.
+    animate(follow) {
       const now = performance.now()
       for (const p of shown.values()) {
         const t = Math.min(1, (now - p.start) / UPDATE_MS)
         p.group.position.lerpVectors(p.from, p.to, t)
         p.group.rotation.y = p.fromYaw + shortestTurn(p.fromYaw, p.toYaw) * t
+        p.pitch = p.fromPitch + (p.toPitch - p.fromPitch) * t
+        p.eye.lerpVectors(p.fromEye, p.toEye, t)
+        p.group.visible = p.name !== follow
       }
       updateStatus(now)
       const redraw = shown.size > 0 || removed
       removed = false
       return redraw
     },
+    // Where the player named `name` sees from this frame: { pos, angles } in CoD's frame, or null when not shown.
+    eyeOf(name) {
+      const p = [...shown.values()].find((q) => q.name === name)
+      if (!p) return null
+      return { pos: fromThree(p.group.position.clone().add(p.eye)), angles: [p.pitch, p.group.rotation.y / d2r, 0] }
+    },
+    // The names of the players shown, in id order.
+    names: () => [...shown.entries()].sort((a, b) => a[0] - b[0]).map(([, p]) => p.name),
     // Name labels over every player, walls or not, since following players is the point.
     place(cam) {
       const v = new THREE.Vector3()
       for (const p of shown.values()) {
         v.copy(p.group.position).setY(p.group.position.y + 80).project(cam)
-        const show = v.z < 1 && Math.abs(v.x) < 1.05 && Math.abs(v.y) < 1.05
+        const show = p.group.visible && v.z < 1 && Math.abs(v.x) < 1.05 && Math.abs(v.y) < 1.05
         p.label.style.display = show ? 'block' : 'none'
         if (show) Object.assign(p.label.style, { left: `${((v.x + 1) / 2) * innerWidth}px`, top: `${((1 - v.y) / 2) * innerHeight}px` })
       }
@@ -73,7 +85,7 @@ export function createLive(map, scene, players, url, onMapChange) {
     ws.onmessage = (e) => receive(JSON.parse(e.data))
   }
 
-  // { map, players: [{ id, name, team, origin, yaw, models, weapon }] }; the server sends an empty players list as {}.
+  // { map, players: [{ id, name, team, origin, view, pitch, yaw, models, weapon }] }; `view` is the eye.; the server sends an empty players list as {}.
   function receive(msg) {
     lastMessage = performance.now()
     if (msg.map !== map.name) return onMapChange(msg.map)
@@ -99,13 +111,17 @@ export function createLive(map, scene, players, url, onMapChange) {
     group.add(g)
     const label = document.createElement('div')
     labelsDiv.appendChild(label)
-    const p = { group: g, model: null, modelsKey: null, weapon: null, weaponName: null, material, label, from: new THREE.Vector3(), to: new THREE.Vector3(), fromYaw: 0, toYaw: 0, start: 0, fresh: true }
+    const p = {
+      group: g, material, label, model: null, modelsKey: null, weapon: null, weaponName: null,
+      from: new THREE.Vector3(), to: new THREE.Vector3(), fromYaw: 0, toYaw: 0, pitch: 0, fromPitch: 0, toPitch: 0,
+      eye: new THREE.Vector3(), fromEye: new THREE.Vector3(), toEye: new THREE.Vector3(), start: 0, fresh: true,
+    }
     if (players) wear(p, players.createLive())
     shown.set(id, p)
     return p
   }
 
-  function update(p, { name, team, origin, yaw, models, weapon }) {
+  function update(p, { name, team, origin, view, pitch, yaw, models, weapon }) {
     const key = models.join(',')
     if (players && key !== p.modelsKey) {
       p.modelsKey = key
@@ -121,15 +137,22 @@ export function createLive(map, scene, players, url, onMapChange) {
     }
     const to = toThree(...origin)
     const jump = p.fresh || to.distanceTo(p.group.position) > TELEPORT
+    // The eye relative to the feet, so it glides with them.
+    const eye = toThree(...view).sub(to)
     p.from.copy(jump ? to : p.group.position)
     p.fromYaw = jump ? yaw * d2r : p.group.rotation.y
+    p.fromPitch = jump ? pitch : p.pitch
+    p.fromEye.copy(jump ? eye : p.eye)
     p.to.copy(to)
     p.toYaw = yaw * d2r
+    p.toPitch = pitch
+    p.toEye.copy(eye)
     p.start = performance.now()
     p.fresh = false
     const color = TEAM_COLORS[team] ?? OTHER_COLOR
     p.material.color.setHex(color)
-    p.label.textContent = name.replace(/\^\d/g, '')
+    p.name = name.replace(/\^\d/g, '')
+    p.label.textContent = p.name
     p.label.style.color = `#${new THREE.Color(color).getHexString()}`
   }
 
