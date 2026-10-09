@@ -4,9 +4,9 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, join, basename } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { execFileSync } from 'node:child_process'
-import { createSearch } from './assets.js'
+import { createSearch } from '../shared/assets.js'
 import { buildBundle } from './bundle.js'
-import { inlineModules } from './inline.js'
+import { inlineModules } from '../shared/inline.js'
 import { createSim, FORWARD } from './sim.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))

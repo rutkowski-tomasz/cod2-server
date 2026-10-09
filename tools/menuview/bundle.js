@@ -1,9 +1,9 @@
 // Builds the self-contained menu bundle: parsed menus plus the images, fonts and localized strings they use.
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve, join } from 'node:path'
-import { parseMaterial } from '../fxview/material.js'
-import { decodeIwi } from '../fxview/iwi.js'
-import { encodePng } from '../fxview/png.js'
+import { parseMaterial } from '../shared/material.js'
+import { decodeIwi } from '../shared/iwi.js'
+import { encodePng } from '../shared/png.js'
 import { preprocess } from './preprocess.js'
 import { parseMenuFile } from './parse.js'
 import { parseFont } from './font.js'

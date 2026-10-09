@@ -3,9 +3,9 @@ import { readFileSync, existsSync } from 'node:fs'
 import { resolve, basename } from 'node:path'
 import { parseEfx } from './parse.js'
 import { normalizeElement } from './normalize.js'
-import { parseMaterial } from './material.js'
-import { decodeIwi } from './iwi.js'
-import { encodePng } from './png.js'
+import { parseMaterial } from '../shared/material.js'
+import { decodeIwi } from '../shared/iwi.js'
+import { encodePng } from '../shared/png.js'
 import { parseXModel, parseSurfaces } from './xmodel.js'
 
 // `target` is a file path (ending in .efx) or an fx path like fx/explosions/grenade_flash.
