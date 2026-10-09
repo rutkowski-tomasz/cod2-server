@@ -57,6 +57,8 @@ static scr_method_t methods[] =
 	{"setWeaponIdAmmo", gsc_player_setweaponidammo, 0},
 	{"setWeaponIdClipAmmo", gsc_player_setweaponidclipammo, 0},
 	{"setWeaponIdInSlotId", gsc_player_setweaponidinslotid, 0},
+	{"getLegsAnimation", gsc_player_getlegsanimation, 0},
+	{"getTorsoAnimation", gsc_player_gettorsoanimation, 0},
 	{NULL, NULL, 0}
 };
 
