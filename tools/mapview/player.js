@@ -65,8 +65,8 @@ export function createPlayers(map, world) {
       return outer
     },
     // Moves the copies on by the time since the last call; true when one is drawn in `cam`'s view, so the page has
-    // to draw again. A copy is not drawn while its marker hides it or `cut`, a height or null, clips its feet away.
-    // False once frozen.
+    // to draw again. A copy is not drawn while it or a group above it is hidden, or while `cut` (a height, or null)
+    // is below its feet. False once frozen.
     update(cam, cut) {
       const now = performance.now()
       const seconds = (now - lastUpdate) / 1000
@@ -76,8 +76,11 @@ export function createPlayers(map, world) {
       const frustum = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse))
       const center = new THREE.Vector3()
       return copies.some(({ outer }) => {
-        if (!outer.parent.visible || (cut != null && outer.getWorldPosition(center).y > cut)) return false
-        outer.getWorldPosition(center).y += BODY_CENTER
+        let shown = true
+        outer.traverseAncestors((a) => { shown &&= a.visible })
+        outer.getWorldPosition(center)
+        if (!shown || (cut != null && center.y > cut)) return false
+        center.y += BODY_CENTER
         return frustum.intersectsSphere(new THREE.Sphere(center, BODY_RADIUS))
       })
     },

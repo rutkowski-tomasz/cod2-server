@@ -3,6 +3,7 @@ import { toThree } from './draw.js'
 import { d2r } from './math.js'
 
 const SPAWN_BOX = { width: 30, height: 72 }
+const ALLIED_COLOR = 0x3a86ff
 const LABEL_RANGE = 2000
 // Markers closer than this to the camera would fill the view, as when standing on a spawn.
 const NEAR = 80
@@ -61,12 +62,12 @@ export function createMarkers(map, renderer, scene, occluders, players) {
     const group = new THREE.Group()
     group.position.copy(toThree(...e.origin))
     if (cls === players?.classname) {
-      color = 0x3a86ff
+      color = ALLIED_COLOR
       const player = players.create(e)
       group.add(player)
       group.userData.hides = player.userData.hides
     } else if (/spawn|info_player_start|intermission/.test(cls)) {
-      color = /allied|allies|american|british|russian/.test(cls) ? 0x3a86ff : /axis|german/.test(cls) ? 0xff3355 : 0x2ec4b6
+      color = /allied|allies|american|british|russian/.test(cls) ? ALLIED_COLOR : /axis|german/.test(cls) ? 0xff3355 : 0x2ec4b6
       const box = new THREE.Mesh(new THREE.BoxGeometry(SPAWN_BOX.width, SPAWN_BOX.height, SPAWN_BOX.width), new THREE.MeshBasicMaterial({ color, wireframe: true, fog: false }))
       box.position.y = SPAWN_BOX.height / 2
       const yaw = (e.angles ? e.angles[1] : 0) * d2r

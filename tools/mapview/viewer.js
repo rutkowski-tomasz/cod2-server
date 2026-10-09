@@ -175,7 +175,7 @@ function updateCamera() {
 function renderLoop() {
   const cam = updateCamera()
   const changed = move() || needRender || world.loading()
-  const animated = !!players && players.update(cam, state.cut) && state.entities
+  const animated = !!players && players.update(cam, state.cut)
   // The players' animation alone moves no label, so it leaves label occlusion settled.
   if (changed || animated) {
     markers.hideNear(cam, state.top)
