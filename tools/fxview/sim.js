@@ -9,11 +9,12 @@ export const FORWARD = { x: [1, 0, 0], z: [0, 0, 1], '-z': [0, 0, -1], '-x': [-1
 export function createSim(bundle, opts = {}) {
   const rngSeed = opts.seed ?? 1
   const forward = FORWARD[opts.forward ?? 'z']
-  const up = opts.up ?? (Math.abs(forward[2]) > 0.9 ? [1, 0, 0] : [0, 0, 1])
+  const axis = axisFrom(forward, Math.abs(forward[2]) > 0.9 ? [1, 0, 0] : [0, 0, 1])
   const ground = opts.ground === undefined ? 0 : opts.ground
   const origin = opts.origin ?? [0, 0, 0]
   const sim = {
     time: 0,
+    axis,
     particles: [],
     pending: [],
     instances: 0,
@@ -41,7 +42,7 @@ export function createSim(bundle, opts = {}) {
     sim.pending = []
     sim.instances = 0
     sim.dropped = 0
-    spawnEffect(bundle.root, origin, axisFrom(forward, up), 0, 0)
+    spawnEffect(bundle.root, origin, axis, 0, 0)
   }
 
   function seek(t) {

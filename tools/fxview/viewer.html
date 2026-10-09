@@ -44,7 +44,7 @@
 <div id="fps"></div>
 <script id="bundle" type="application/json">__BUNDLE__</script>
 <script type="module">
-import { createSim, sampleVisual, axisFrom, FORWARD } from './sim.js'
+import { createSim, sampleVisual } from './sim.js'
 
 const bundle = JSON.parse(document.getElementById('bundle').textContent)
 const params = { ...(bundle.defaults ?? {}), ...Object.fromEntries(new URLSearchParams(location.hash.slice(1))) }
@@ -203,11 +203,9 @@ function sceneLines() {
       }
     }
   }
-  const forward = FORWARD[state.forward]
-  const axis = axisFrom(forward, Math.abs(forward[2]) > 0.9 ? [1, 0, 0] : [0, 0, 1])
-  pushLine([0, 0, 0], V.mul(axis[0], 48), [1, 0.3, 0.3, 1], 2)
-  pushLine([0, 0, 0], V.mul(axis[1], 32), [0.3, 1, 0.3, 1], 2)
-  pushLine([0, 0, 0], V.mul(axis[2], 32), [0.4, 0.5, 1, 1], 2)
+  pushLine([0, 0, 0], V.mul(sim.axis[0], 48), [1, 0.3, 0.3, 1], 2)
+  pushLine([0, 0, 0], V.mul(sim.axis[1], 32), [0.3, 1, 0.3, 1], 2)
+  pushLine([0, 0, 0], V.mul(sim.axis[2], 32), [0.4, 0.5, 1, 1], 2)
   if (state.player) {
     // 72-unit player silhouette, 30 wide, standing 120 units to the left as a scale reference.
     const z = state.ground ?? 0

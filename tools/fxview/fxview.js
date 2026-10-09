@@ -69,7 +69,7 @@ function buildHtml(bundle) {
   const sim = readFileSync(join(HERE, 'sim.js'), 'utf8').replace(/^export /gm, '')
   const defaults = Object.fromEntries(['forward', 'seed', 'ground', 'bg', 'cam'].filter((k) => opts[k] !== undefined).map((k) => [k, opts[k]]))
   return readFileSync(join(HERE, 'viewer.html'), 'utf8')
-    .replace("import { createSim, sampleVisual, axisFrom, FORWARD } from './sim.js'", sim)
+    .replace("import { createSim, sampleVisual } from './sim.js'", sim)
     .replace('__BUNDLE__', () => JSON.stringify({ ...bundle, defaults }).replace(/<\//g, '<\\/'))
 }
 
