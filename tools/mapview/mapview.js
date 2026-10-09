@@ -5,12 +5,10 @@ import { dirname, join, basename, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { homedir } from 'node:os'
 import { execFileSync } from 'node:child_process'
-import { createServer } from 'node:http'
-import { gzipSync } from 'node:zlib'
 import { createSearch } from '../shared/assets.js'
 import { inlineModules } from '../shared/inline.js'
-import { loadScene, buildBundle, buildRig, buildWeapon } from './bundle.js'
-import { parseXAnim } from './xanim.js'
+import { loadScene, buildBundle } from './bundle.js'
+import { serveLive, liveAssets } from './live-server.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const OUT = join(HERE, '..', '..', 'out', 'mapview')
@@ -49,20 +47,6 @@ view options:
 
 const VIEW_KEYS = ['pos', 'angles', 'at', 'look', 'fov', 'top', 'center', 'span', 'cut', 'labels', 'ents', 'tex', 'lightmap', 'normals', 'shadows', 'fog', 'grid', 'tools', 'live', 'follow', 'director']
 const FLAGS = ['open', 'json', 'top', 'grid', 'tools']
-// What the live page fetches by kind and key, which a streamed player names: its rig by its models joined with
-// commas, its weapon's model by the weapon's name, its legs' and torso's animations by theirs.
-const ASSETS = {
-  rigs: { keysOf: (p) => [p.models.join(',')], build: (key, search) => buildRig(key.split(','), search) },
-  weapons: { keysOf: (p) => [p.weapon], build: buildWeapon },
-  anims: { keysOf: (p) => [p.legs, p.torso], build: readAnim },
-}
-
-// Null for a name without an xanim, such as `root`, which the torso plays when only the legs animate.
-function readAnim(name, search) {
-  const buf = search.read(`xanim/${name}`)
-  return buf && parseXAnim(buf)
-}
-
 const args = process.argv.slice(2)
 const cmd = args.shift()
 const opts = { source: [], prefabs: [] }
@@ -137,7 +121,7 @@ function buildHtml(bundle, defaults) {
 async function load() {
   const bundle = buildBundle(target(), search, sceneOptions)
   reportMissing(bundle)
-  if (opts.live) Object.assign(bundle, assetsOf((await nextMessage(opts.live))?.players, new Map(), search))
+  if (opts.live) Object.assign(bundle, await liveAssets(opts.live, search))
   return bundle
 }
 
@@ -178,93 +162,21 @@ async function render() {
   }
 }
 
-// Serves the page of the map the relay's server plays, built once per map; the page reloads itself when the map changes.
 // Entity markers start off, so spawn labels do not bury the players, and the director on.
 function live() {
   const relay = positional[0] ?? RELAY
-  const port = +(opts.port ?? 8643)
-  let latest = null
-  let built = null
-  const assets = new Map()
-  follow()
-  createServer((req, res) => {
-    const url = new URL(req.url, 'http://localhost')
-    if (url.pathname === '/') {
-      const { html, gzipped } = page()
-      const gzip = gzipped && /\bgzip\b/.test(req.headers['accept-encoding'] ?? '')
-      return res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', ...(gzip && { 'content-encoding': 'gzip' }) }).end(gzip ? gzipped : html)
-    }
-    const kind = url.pathname.slice(1)
-    if (!ASSETS[kind]) return res.writeHead(404).end()
-    const asset = assetOf(kind, url.searchParams.get('key'), assets, search)
-    res.writeHead(asset ? 200 : 404, { 'content-type': 'application/json' }).end(JSON.stringify(asset))
-  }).listen(port, () => {
-    const address = `http://localhost:${port}/`
-    console.log(`${address}  following ${relay}`)
-    if (opts.open) execFileSync('open', [address])
+  serveLive({
+    relay, port: +(opts.port ?? 8643), search,
+    buildPage(map, assets) {
+      const bundle = buildBundle(map, searchFor(map), sceneOptions)
+      reportMissing(bundle)
+      return buildHtml({ ...bundle, ...assets }, { ents: 'off', director: 'on', ...viewOf(opts), live: opts['page-relay'] ?? relay })
+    },
+    onListen(address) {
+      console.log(`${address}  following ${relay}`)
+      if (opts.open) execFileSync('open', [address])
+    },
   })
-
-  function follow() {
-    const ws = new WebSocket(relay)
-    ws.onmessage = (e) => {
-      const next = JSON.parse(e.data)
-      if (next.map !== latest?.map) console.log(`server map: ${next.map}`)
-      latest = next
-    }
-    ws.onclose = () => setTimeout(follow, 2000)
-  }
-
-  // The page of the server's map, also gzipped once, as pages run to 100 MB. A map missing from the local sources,
-  // such as a library map not pulled yet, waits like no map at all.
-  function page() {
-    if (!latest) return { html: waitingPage(`waiting for a map from ${relay}`) }
-    const { map } = latest
-    if (built?.map !== map) {
-      try {
-        const bundle = buildBundle(map, searchFor(map), sceneOptions)
-        reportMissing(bundle)
-        Object.assign(bundle, assetsOf(latest.players, assets, search))
-        const html = buildHtml(bundle, { ents: 'off', director: 'on', ...viewOf(opts), live: opts['page-relay'] ?? relay })
-        built = { map, html, gzipped: gzipSync(html) }
-      } catch (e) {
-        return { html: waitingPage(`${map}: ${e.message}`) }
-      }
-    }
-    return built
-  }
-}
-
-// One message from the relay, or null if none comes within 5 s.
-function nextMessage(relay) {
-  return new Promise((resolve) => {
-    const ws = new WebSocket(relay)
-    const done = (msg) => { ws.close(); resolve(msg) }
-    ws.onmessage = (e) => done(JSON.parse(e.data))
-    setTimeout(() => done(null), 5000)
-  })
-}
-
-// Built once per kind and key into `cache`; null when it cannot be built.
-function assetOf(kind, key, cache, search) {
-  const id = `${kind}/${key}`
-  if (!cache.has(id)) cache.set(id, ASSETS[kind].build(key, search))
-  return cache.get(id)
-}
-
-// Every asset `players` use, as { rigs: { key: asset }, weapons: … }, to bake into a page.
-function assetsOf(players, cache, search) {
-  const out = {}
-  for (const [kind, { keysOf }] of Object.entries(ASSETS)) {
-    out[kind] = {}
-    for (const p of Object.values(players ?? {})) for (const key of keysOf(p)) out[kind][key] = assetOf(kind, key, cache, search)
-  }
-  return out
-}
-
-function waitingPage(text) {
-  const escaped = text.replace(/[&<>]/g, (c) => `&#${c.charCodeAt(0)};`)
-  return `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="3"><title>mapview live</title>
-<body style="margin:0;height:100vh;display:grid;place-items:center;background:#202830;color:#e8ecf0;font:12px ui-monospace,Menlo,monospace">${escaped}`
 }
 
 function info() {

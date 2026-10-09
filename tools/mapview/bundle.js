@@ -137,6 +137,13 @@ export function buildWeapon(weapon, search) {
   return model ? buildRig([model], search) : null
 }
 
+// The player animation `name` plays (an xanim), or null for one without, such as `root`, which the torso plays when
+// only the legs animate.
+export function buildAnim(name, search) {
+  const buf = search.read(`xanim/${name}`)
+  return buf && parseXAnim(buf)
+}
+
 // Typed arrays packed one after another, each 4-byte aligned; `push` returns where its array sits.
 function createPacker() {
   const chunks = []
