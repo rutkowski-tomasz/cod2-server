@@ -73,7 +73,7 @@ function buildHtml(bundle) {
   const defaults = { menus: opts.menu ? opts.menu.split(',') : [], dvars, outline: !!opts.outline, bg: opts.bg ?? 'mid' }
   return readFileSync(join(HERE, 'viewer.html'), 'utf8')
     .replace('__SCRIPT__', () => readFileSync(join(HERE, 'viewer.js'), 'utf8'))
-    .replace('__BUNDLE__', () => JSON.stringify({ ...bundle, defaults }).replace(/<\//g, '<\\/'))
+    .replace('__BUNDLE__', () => JSON.stringify({ ...bundle, defaults }).replace(/</g, '\\u003c'))
 }
 
 function view() {
