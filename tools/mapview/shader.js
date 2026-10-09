@@ -87,3 +87,6 @@ export function blendOf(techset = '') {
   if (/(^|_)blend(_|$)/.test(techset)) return BLEND.alpha
   return BLEND.opaque
 }
+
+// A `replace` techset draws opaque whatever the image's alpha: v_window01's glass panes are alpha 0 but solid in game.
+export const ignoresAlpha = (techset = '') => /(^|_)replace(_|$)/.test(techset)

@@ -5,20 +5,27 @@
 import { decodeWavelet } from './iwi-wavelet.js'
 
 const FORMATS = { 1: 'argb8', 2: 'rgb8', 3: 'la8', 6: 'argb8', 7: 'rgb8', 11: 'dxt1', 12: 'dxt3', 13: 'dxt5' }
-const WAVELET = { 6: 4, 7: 3 }
+const WAVELET_FORMATS = [6, 7]
+const HEADER_SIZE = 28
 // Usage bit 4 marks a cube map (skies): six faces, whose top mips are the last six `size` blocks, in face order.
 const USAGE_CUBE = 4
 
 // Header fields; `format` is undefined when the decoder does not support it.
 export function iwiInfo(buf) {
   if (buf.toString('latin1', 0, 3) !== 'IWi') throw new Error('not an IWI')
-  return { format: FORMATS[buf[4]], width: buf.readUInt16LE(6), height: buf.readUInt16LE(8), cube: (buf[5] & USAGE_CUBE) !== 0 }
+  return {
+    format: FORMATS[buf[4]], width: buf.readUInt16LE(6), height: buf.readUInt16LE(8),
+    cube: (buf[5] & USAGE_CUBE) !== 0, wavelet: WAVELET_FORMATS.includes(buf[4]),
+  }
 }
 
 export function decodeIwi(buf) {
-  const { format, width, height, cube } = iwiInfo(buf)
+  const { format, width, height, cube, wavelet } = iwiInfo(buf)
   if (!format) return null
-  if (WAVELET[buf[4]]) return { width, height, rgba: decodeMip(format, width, height, decodeWavelet(buf.subarray(28), width, height, WAVELET[buf[4]])) }
+  if (wavelet) {
+    const samples = decodeWavelet(buf.subarray(HEADER_SIZE), width, height, format === 'argb8' ? 4 : 3)
+    return { width, height, rgba: decodeMip(format, width, height, samples) }
+  }
   const size = mipSize(format, width, height)
   const faceCount = cube ? 6 : 1
   const faces = []
