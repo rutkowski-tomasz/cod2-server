@@ -31,13 +31,12 @@ In the page: click to look around, WASD to move, Shift for speed, E and Q (or Sp
 - Coordinates are CoD's: Z up, yaw 0 along +X, positive pitch looks down. `--fov` is horizontal, like `cg_fov`, 80 by default.
 - `.map`: brushes (plane intersection, cod2map's axial texture mapping), mesh and bezier `curve` patches, `misc_prefab` contents. Lit by three.js from worldspawn `sundirection`, `suncolor`, `sunlight`, `ambient`, `_color`, `sundiffusecolor`, `diffusefraction` and the first 64 `light` entities, with sun shadows.
 - `.d3dbsp` (IBSP 4): draw surfaces, brush models, entities, lightmaps. The lightmap is applied like the game's `lmap` shader: four 512×512 pages per lightmap (R, G and B coefficients, then sun visibility), plus direct sun from the surface normal. No three.js lights or shadows are added, except for a `.d3dbsp` compiled without lightmaps, which is lit like a `.map`.
-- Materials: the colour map, downscaled to 512, alpha-tested at 0.4 when the image has alpha. The sky material's cube map is the background. Tool materials (caulk, clip, hint, …) are hidden unless `--tools`; `water` techsets are flat translucent blue; decals are pulled toward the camera.
+- Materials: the colour map, downscaled to 512, alpha-tested at 0.4 when the image has alpha. In a `.d3dbsp` with lightmaps, vertex colours tint it, and the techset decides how a surface meets what is behind it: `blend` layers (snow edges, terrain, mud) fade by texture alpha times vertex alpha, `multiply` layers (stains) darken it unlit, `add` layers brighten it. The sky material's cube map is the background. Tool materials (caulk, clip, hint, …) are hidden unless `--tools`; `water` techsets are flat translucent blue; decals are pulled toward the camera.
 - Markers: player-sized boxes with a yaw arrow for spawns (red axis, blue allied, teal other), yellow spheres for lights, magenta boxes for models, orange translucent volumes for triggers in a `.map` (a `.d3dbsp` keeps no trigger geometry, and most of its triggers have no origin, so they do not show). Labels show `classname [targetname]`, hide behind walls and past 2000 units, and skip lights, models, prefabs, `info_null` and `script_origin` unless `--labels all`; lights, models and prefabs with a targetname keep theirs.
 
 Not drawn:
 - xmodel geometry: models are labelled boxes.
 - Effects, fog, normal and specular maps, animated or scrolling materials.
-- Vertex colours, so blend materials (snow edges, terrain) draw at full strength.
 - Triggers in a `.d3dbsp`: it keeps no trigger geometry, and most of its triggers have no origin for a marker.
 - Rotation of brush models: an entity's `angles` does not turn its brush model in a `.d3dbsp`.
 
