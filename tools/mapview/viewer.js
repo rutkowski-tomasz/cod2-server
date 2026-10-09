@@ -2,6 +2,7 @@ import { createWorld, toThree, fromThree } from './draw.js'
 import { createMarkers } from './markers.js'
 import { createPlayers } from './player.js'
 import { createLive } from './live.js'
+import { createDirector, DELAY_MS } from './director.js'
 import { anglesToForward, anglesToMatrix, d2r } from './math.js'
 
 const map = decodeGeometry(JSON.parse(document.getElementById('bundle').textContent))
@@ -33,7 +34,8 @@ const world = createWorld(map, renderer, scene, () => { needRender = true })
 const players = map.player && createPlayers(map, world)
 const markers = createMarkers(map, renderer, scene, world.occluders, players)
 const live = map.defaults.live ? createLive(map, scene, players, map.defaults.live, mapChanged) : null
-if (live) $('legend').textContent += ' · P follow the next live player'
+const director = live && createDirector(live)
+if (live) $('legend').textContent += ' · P follow the next live player · D director'
 
 readParams(params)
 applyView()
@@ -110,6 +112,9 @@ function readParams(p) {
   state.shadows = !off(p.shadows)
   state.hud = !off(p.hud)
   state.follow = p.follow || null
+  // Kept across readParams: the director owns the live stream's delay, which only setDirector changes.
+  state.director ??= false
+  setDirector(on(p.director))
 }
 
 // First match of a selector: classname, key=value, or #index; an optional [n] picks the n-th match.
@@ -178,8 +183,12 @@ function updateCamera() {
 
 function renderLoop() {
   const moved = move()
-  // Moving takes the camera back from the followed player.
-  if (moved) state.follow = null
+  // Moving takes the camera back from the followed player and the director.
+  if (moved) {
+    state.follow = null
+    setDirector(false)
+  }
+  if (state.director) direct()
   const liveMoved = live?.animate(state.follow) ?? false
   if (state.follow) follow()
   const cam = updateCamera()
@@ -212,8 +221,24 @@ function follow() {
   needRender = true
 }
 
+// Follows whoever the director picks, through the delayed stream, and says why.
+function direct() {
+  const pick = director.pick(performance.now())
+  state.follow = pick?.name ?? null
+  live.setNote(pick ? `director: ${pick.name}, ${pick.reason}` : 'director')
+}
+
+// The director plays the stream DELAY_MS behind; without it the stream plays as it comes.
+function setDirector(on) {
+  if (!live || state.director === on) return
+  state.director = on
+  live.setDelay(on ? DELAY_MS : 0)
+  if (!on) live.setNote('')
+}
+
 // The next live player to follow after the one followed, then back to the free camera after the last.
 function followNext() {
+  setDirector(false)
   const names = live.names()
   state.follow = names[names.indexOf(state.follow) + 1] ?? null
   needRender = true
@@ -301,6 +326,7 @@ function setupControls() {
     if (toggles[e.code]) { state[toggles[e.code]] = e.code === 'KeyL' && e.shiftKey ? 'all' : !state[toggles[e.code]]; applyView() }
     if (e.code === 'Escape') document.exitPointerLock()
     if (e.code === 'KeyP' && live) followNext()
+    if (e.code === 'KeyD' && live) setDirector(!state.director)
   })
   addEventListener('keyup', (e) => keys.delete(e.code))
   addEventListener('blur', () => keys.clear())

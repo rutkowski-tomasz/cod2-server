@@ -41,9 +41,10 @@ view options:
   --labels off|all     --ents off   --tex off   --lightmap off   --normals off   --shadows off
   --fog off   --grid   --tools
   --live ws://…        draw the players a livemap relay streams; live sets it to its relay (default ${RELAY})
-  --follow <name>      with live players, see from that player's eyes`
+  --follow <name>      with live players, see from that player's eyes
+  --director on        with live players, watch whoever the director picks, 3 s behind; live turns it on`
 
-const VIEW_KEYS = ['pos', 'angles', 'at', 'look', 'fov', 'top', 'center', 'span', 'cut', 'labels', 'ents', 'tex', 'lightmap', 'normals', 'shadows', 'fog', 'grid', 'tools', 'live', 'follow']
+const VIEW_KEYS = ['pos', 'angles', 'at', 'look', 'fov', 'top', 'center', 'span', 'cut', 'labels', 'ents', 'tex', 'lightmap', 'normals', 'shadows', 'fog', 'grid', 'tools', 'live', 'follow', 'director']
 const FLAGS = ['open', 'json', 'top', 'grid', 'tools']
 // What the live page fetches by kind and key, which a streamed player names: its rig by its models joined with
 // commas, its weapon's model by the weapon's name, its legs' and torso's animations by theirs.
@@ -175,7 +176,7 @@ async function render() {
 }
 
 // Serves the page of the map the relay's server plays, built once per map; the page reloads itself when the map changes.
-// Entity markers start off, so spawn labels do not bury the players.
+// Entity markers start off, so spawn labels do not bury the players, and the director on.
 function live() {
   const relay = positional[0] ?? RELAY
   const port = +(opts.port ?? 8643)
@@ -215,7 +216,7 @@ function live() {
         const bundle = buildBundle(map, searchFor(map), sceneOptions)
         reportMissing(bundle)
         Object.assign(bundle, assetsOf(latest.players, assets, search))
-        page = { map, html: buildHtml(bundle, { ents: 'off', ...viewOf(opts), live: relay }) }
+        page = { map, html: buildHtml(bundle, { ents: 'off', director: 'on', ...viewOf(opts), live: relay }) }
       } catch (e) {
         return waitingPage(`${map}: ${e.message}`)
       }

@@ -11,6 +11,8 @@ const STALE_MS = 3000
 const RECONNECT_MS = 2000
 // How long a headless render waits for the first update before it shoots without one.
 const READY_TIMEOUT_MS = 10000
+// Kills older than this leave the history the director reads.
+const KILL_HISTORY_MS = 60000
 const TEAM_COLORS = { allies: 0x3a86ff, axis: 0xff3355 }
 const OTHER_COLOR = 0x2ec4b6
 
@@ -28,6 +30,11 @@ export function createLive(map, scene, players, url, onMapChange) {
   const assets = { rigs: new Map(), weapons: new Map(), anims: new Map() }
   let lastMessage = 0
   let connected = false
+  // Messages wait here for `delay` ms before they play, so the director sees what is coming.
+  const queue = []
+  let delay = 0
+  const kills = []
+  let note = ''
   // A removal must reach the screen even when no players are left to keep the page drawing.
   let removed = false
   let markReady
@@ -42,6 +49,7 @@ export function createLive(map, scene, players, url, onMapChange) {
     // so the page has to draw again.
     animate(follow) {
       const now = performance.now()
+      while (queue.length && queue[0].at <= now - delay) receive(queue.shift().msg)
       for (const p of shown.values()) {
         const t = Math.min(1, (now - p.start) / UPDATE_MS)
         p.group.position.lerpVectors(p.from, p.to, t)
@@ -61,6 +69,22 @@ export function createLive(map, scene, players, url, onMapChange) {
       if (!p) return null
       return { pos: fromThree(p.group.position.clone().add(p.eye)), angles: [p.pitch, p.group.rotation.y / d2r, 0] }
     },
+    // Plays the stream `ms` behind; 0 plays what is waiting at once.
+    setDelay(ms) {
+      delay = ms
+      if (!ms) while (queue.length) receive(queue.shift().msg)
+    },
+    // Text after the status, such as what the director watches.
+    setNote(text) {
+      note = text
+    },
+    // The players shown: { id, name, team, origin } with the origin they are heading to, in CoD's frame.
+    roster: () => [...shown.entries()].map(([id, p]) => ({ id, name: p.name, team: p.team, origin: fromThree(p.to) })),
+    // Kills played in the last KILL_HISTORY_MS, oldest first: { attacker, victim, at } by player id, `attacker`
+    // undefined for a death without one; `at` in performance.now() time.
+    kills: () => kills,
+    // Kills still waiting to play, with `at` the time they will.
+    upcomingKills: () => queue.flatMap((q) => Object.values(q.msg.kills ?? {}).map((k) => ({ ...k, at: q.at + delay }))),
     // The names of the players shown, in id order.
     names: () => [...shown.entries()].sort((a, b) => a[0] - b[0]).map(([, p]) => p.name),
     // Name labels over every player, walls or not, since following players is the point.
@@ -82,14 +106,21 @@ export function createLive(map, scene, players, url, onMapChange) {
       connected = false
       setTimeout(connect, RECONNECT_MS)
     }
-    ws.onmessage = (e) => receive(JSON.parse(e.data))
+    ws.onmessage = (e) => {
+      lastMessage = performance.now()
+      queue.push({ at: lastMessage, msg: JSON.parse(e.data) })
+      if (!delay) receive(queue.shift().msg)
+    }
   }
 
-  // { map, players: [{ id, name, team, origin, view, pitch, yaw, models, weapon, legs, torso }] }; `view` is the eye,
-  // `legs` and `torso` the names of the player animations they play.; the server sends an empty players list as {}.
+  // { map, players: [{ id, name, team, origin, view, pitch, yaw, models, weapon, legs, torso }], kills: [{ attacker,
+  // victim }] }: `view` is the eye, `legs` and `torso` the player animations playing, `kills` the deaths since the
+  // last message. The server sends an empty list as {}.
   function receive(msg) {
-    lastMessage = performance.now()
     if (msg.map !== map.name) return onMapChange(msg.map)
+    const now = performance.now()
+    for (const k of Object.values(msg.kills ?? {})) kills.push({ ...k, at: now })
+    while (kills.length && kills[0].at < now - KILL_HISTORY_MS) kills.shift()
     const seen = new Set()
     for (const p of Object.values(msg.players)) {
       seen.add(p.id)
@@ -161,6 +192,7 @@ export function createLive(map, scene, players, url, onMapChange) {
     p.fresh = false
     const color = TEAM_COLORS[team] ?? OTHER_COLOR
     p.material.color.setHex(color)
+    p.team = team
     p.name = name.replace(/\^\d/g, '')
     p.label.textContent = p.name
     p.label.style.color = `#${new THREE.Color(color).getHexString()}`
@@ -198,7 +230,7 @@ export function createLive(map, scene, players, url, onMapChange) {
   function updateStatus(now) {
     const text = !connected ? `live · connecting to ${url}`
       : now - lastMessage > STALE_MS ? `live · no data from ${url}`
-        : `live · ${shown.size} player${shown.size === 1 ? '' : 's'}`
+        : `live · ${shown.size} player${shown.size === 1 ? '' : 's'}${note && ` · ${note}`}`
     if (status.textContent !== text) status.textContent = text
   }
 }
