@@ -28,7 +28,7 @@ The tools are tested but can still have bugs or missing parts. If one gets in yo
 
 `tools/mapview/` draws maps (`.map`, `.d3dbsp`, a map's `.iwd` or a stock name) without the game: `node tools/mapview/mapview.js render <map> --at mp_tdm_spawn` writes a screenshot to look at, `view` an interactive page, `info` the entities and materials, `live` the map the dev server plays with its players moving. See `tools/mapview/README.md`.
 
-`tools/mapcompile/` compiles a `.map` into a map `.iwd` with the Mod Tools under wine in Docker: `tools/mapcompile/mapcompile.sh <file.map> [-o out.iwd]`. See `tools/mapcompile/README.md`.
+`tools/mapcompile/` compiles a `.map` into a map `.iwd` with the Mod Tools under wine in Docker: `tools/mapcompile/mapcompile.sh <file.map> [-o out.iwd] [--fast]`; `--fast` makes lighting about 7× quicker but rougher, for test builds. See `tools/mapcompile/README.md`.
 
 `tools/mapdecompile/` turns a `.d3dbsp` back into a `.map`: `node tools/mapdecompile/mapdecompile.js <d3dbsp | iwd | mp_name> [-o out.map]`. See `tools/mapdecompile/README.md`.
 
