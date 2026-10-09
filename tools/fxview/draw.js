@@ -1,4 +1,4 @@
-// WebGL drawing: reference lines, then opaque models, then particles far to near, batched by material.
+// WebGL drawing: reference lines, then opaque models, then particles far to near, batched by material, then distortion particles over a copy of the frame.
 import { sampleVisual, modelAxis } from './sim.js'
 
 export const V = {
@@ -67,6 +67,18 @@ export function createRenderer(canvas, { materials, models }) {
     img.onerror = resolve
     img.src = m.png
   }))
+  // Distortion samples a copy of the frame drawn so far, kept on texture unit 1.
+  const sceneTexture = gl.createTexture()
+  gl.bindTexture(gl.TEXTURE_2D, sceneTexture)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+  function copyFrame() {
+    gl.activeTexture(gl.TEXTURE1)
+    gl.bindTexture(gl.TEXTURE_2D, sceneTexture)
+    gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGB, 0, 0, canvas.width, canvas.height, 0)
+    gl.activeTexture(gl.TEXTURE0)
+  }
 
   // ---------- shaders ----------
   function createProgram(vertex, fragment) {
@@ -88,21 +100,23 @@ export function createRenderer(canvas, { materials, models }) {
   const program = createProgram(`
     layout(location = 0) in vec3 pos; layout(location = 1) in vec2 uv; layout(location = 2) in vec4 col; uniform mat4 vp; out vec2 vUv; out vec4 vCol; out vec3 vPos;
     void main() { gl_Position = vp * vec4(pos, 1.0); vUv = uv; vCol = col; vPos = pos; }`, `
-    precision highp float; in vec2 vUv; in vec4 vCol; in vec3 vPos; uniform sampler2D tex; uniform int mode; uniform bool feather; uniform vec3 eye; uniform float ground; uniform sampler2D scene; uniform vec2 screen; out vec4 o;
+    precision highp float; in vec2 vUv; in vec4 vCol; in vec3 vPos; uniform sampler2D tex; uniform int mode; uniform bool feather; uniform vec3 eye; uniform float ground; uniform sampler2D scene; out vec4 o;
     void main() {
-      vec4 t = texture(tex, vUv) * vCol;
+      vec4 d = texture(tex, vUv);
+      vec4 t = d * vCol;
       if (feather) {
         vec3 ray = normalize(vPos - eye);
         if (vPos.z < ground) t.a = 0.0;
         else if (ray.z < 0.0) t.a *= clamp((vPos.z - ground) / -ray.z / float(${FEATHER_DEPTH}), 0.0, 1.0);
       }
-      if (mode == 3) {
-        vec4 d = texture(tex, vUv);
-        vec2 bend = (d.rg * 2.0 - 1.0) * d.a * vCol.a * float(${DISTORTION_STRENGTH});
-        o = vec4(texture(scene, gl_FragCoord.xy / screen + bend).rgb, 1.0);
-      }
-      else if (mode == 1) o = vec4(t.rgb * t.a, t.a);          // additive, premultiplied
+      if (mode == 1) o = vec4(t.rgb * t.a, t.a);          // additive, premultiplied
       else if (mode == 2) o = vec4(mix(vec3(1.0), t.rgb, t.a), 1.0); // multiply
+      else if (mode == 3) {                                 // distortion: red and green push along the texture's u and v on screen
+        vec2 u = vec2(dFdx(vUv.x), dFdy(vUv.x)), v = vec2(dFdx(vUv.y), dFdy(vUv.y));
+        vec2 dir = (d.r * 2.0 - 1.0) * u / max(length(u), 1e-8) + (d.g * 2.0 - 1.0) * v / max(length(v), 1e-8);
+        vec2 size = vec2(textureSize(scene, 0));
+        o = vec4(texture(scene, gl_FragCoord.xy / size + dir * t.a * float(${DISTORTION_STRENGTH})).rgb, t.a);
+      }
       else o = t;
     }`)
   const uVp = gl.getUniformLocation(program, 'vp')
@@ -110,21 +124,8 @@ export function createRenderer(canvas, { materials, models }) {
   const uFeather = gl.getUniformLocation(program, 'feather')
   const uEye = gl.getUniformLocation(program, 'eye')
   const uGround = gl.getUniformLocation(program, 'ground')
-  const uScreen = gl.getUniformLocation(program, 'screen')
   gl.useProgram(program)
   gl.uniform1i(gl.getUniformLocation(program, 'scene'), 1)
-  // Distortion samples a copy of the frame drawn so far, bound to texture unit 1.
-  const sceneTexture = gl.createTexture()
-  gl.bindTexture(gl.TEXTURE_2D, sceneTexture)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-  function copyFrame() {
-    gl.activeTexture(gl.TEXTURE1)
-    gl.bindTexture(gl.TEXTURE_2D, sceneTexture)
-    gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGB, 0, 0, canvas.width, canvas.height, 0)
-    gl.activeTexture(gl.TEXTURE0)
-  }
   // Models get a fixed light from above so their shape reads without the level's lighting.
   const meshProgram = createProgram(`
     layout(location = 0) in vec3 pos; layout(location = 1) in vec3 nrm; layout(location = 2) in vec2 uv;
@@ -238,7 +239,6 @@ export function createRenderer(canvas, { materials, models }) {
     gl.uniformMatrix4fv(uVp, false, vp)
     gl.uniform3fv(uEye, eye)
     gl.uniform1f(uGround, state.ground ?? 0)
-    gl.uniform2f(uScreen, canvas.width, canvas.height)
     const shown = (p) => p.spawnTime <= sim.time && !hidden.has(p.def.key) && (state.ground === null || p.pos[2] >= state.ground - 2 || p.type === 'Decal')
 
     // Reference lines and models, with depth write so particles sort against them.
@@ -258,7 +258,7 @@ export function createRenderer(canvas, { materials, models }) {
     gl.enable(gl.BLEND)
     gl.depthMask(false)
 
-    // Particles, far to near, batched by material.
+    // Particles, far to near, batched by material; distortion last, as it bends what is already drawn.
     const items = []
     for (const p of sim.particles) {
       if (!shown(p)) continue
@@ -273,7 +273,7 @@ export function createRenderer(canvas, { materials, models }) {
     const isDistortion = (q) => materialMeta[q.tex].blend === 'distortion'
     drawQuads(items.filter((q) => !isDistortion(q)))
     const distortions = items.filter(isDistortion)
-    if (distortions.length) { copyFrame(); drawQuads(distortions) }
+    drawQuads(distortions)
   }
 
   // Camera shake turns the view by up to its amplitude in degrees, driven by sim time so the same frame always shakes the same way.
@@ -396,9 +396,9 @@ export function createRenderer(canvas, { materials, models }) {
       if (end === batchStart) return
       const meta = materialMeta[batchTex]
       const mode = MODES[meta.blend] ?? 0
+      if (mode === 3) copyFrame()
       if (mode === 1) gl.blendFunc(gl.ONE, gl.ONE)
       else if (mode === 2) gl.blendFunc(gl.DST_COLOR, gl.ZERO)
-      else if (mode === 3) gl.blendFunc(gl.ONE, gl.ZERO)
       else gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
       gl.uniform1i(uMode, mode)
       gl.uniform1i(uFeather, batchFeather)
