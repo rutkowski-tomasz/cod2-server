@@ -10,7 +10,7 @@ export function parseMaterial(buf) {
   const name = cstr(buf, buf.readUInt32LE(0x00))
   const image = cstr(buf, buf.readUInt32LE(0x04))
   const techset = cstr(buf, buf.readUInt32LE(0x38))
-  if (!/^[\w./~&$-]+$/.test(name) || !/^[\w./~&$-]+$/.test(image)) return null
+  if (!/^[\w./~&$@-]+$/.test(name) || !/^[\w./~&$@-]+$/.test(image)) return null
   return {
     image,
     techset,
