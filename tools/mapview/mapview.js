@@ -14,7 +14,7 @@ const USAGE = `usage:
   mapview.js render <map> [-o out.png] [view options]             headless screenshot
   mapview.js render <map> --batch shots.json [-o dir]             one screenshot per entry, one browser
   mapview.js info   <map> [--json]                                bounds, entities, materials, missing assets
-  mapview.js list   [prefix]                                      compiled maps found in the sources
+  mapview.js list   [name prefix]                                 compiled maps found in the sources
 
 <map>: a .map, .d3dbsp or .iwd file, or a stock name like mp_harbor
 
@@ -132,7 +132,7 @@ async function render() {
 
 function info() {
   const { scene: s } = loadScene(target(), search, { prefabRoots: opts.prefabs })
-  if (opts.json) { console.log(JSON.stringify(s, null, 2)); return }
+  if (opts.json) { console.log(JSON.stringify({ ...s, surfaces: undefined }, null, 2)); return }
   const r = (v) => v.map((x) => Math.round(x)).join(' ')
   console.log(`${s.name} (${s.kind}) ${s.path}`)
   console.log(`bounds: min ${r(s.bounds.min)}  max ${r(s.bounds.max)}  size ${r([0, 1, 2].map((i) => s.bounds.max[i] - s.bounds.min[i]))}`)
@@ -154,7 +154,7 @@ function info() {
 }
 
 function list() {
-  for (const n of search.list(positional[0] ?? 'maps/')) if (n.endsWith('.d3dbsp')) console.log(n)
+  for (const n of search.list('maps/')) if (n.endsWith('.d3dbsp') && basename(n).startsWith(positional[0] ?? '')) console.log(n)
 }
 
 function reportMissing(scene) {

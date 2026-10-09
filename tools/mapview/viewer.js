@@ -1,11 +1,10 @@
 import { createWorld, toThree, fromThree } from './draw.js'
-import { createMarkers } from './labels.js'
-import { anglesToForward } from './math.js'
+import { createMarkers } from './markers.js'
+import { anglesToForward, anglesToMatrix, d2r } from './math.js'
 
 const map = decodeGeometry(JSON.parse(document.getElementById('bundle').textContent))
 const params = { ...map.defaults, ...Object.fromEntries(new URLSearchParams(location.hash.slice(1))) }
 const $ = (id) => document.getElementById(id)
-const d2r = Math.PI / 180
 const EYE_HEIGHT = 60
 const TOP_MARGIN = 1.05
 // View params are the command line's view options: "off" turns a default-on option off.
@@ -75,7 +74,7 @@ function readParams(p) {
   state.fov = +p.fov || 80
   state.top = on(p.top)
   state.span = +p.span || 0
-  if (p.center !== undefined) [state.pos[0], state.pos[1]] = vec(p.center)
+  state.center = p.center !== undefined ? vec(p.center) : [state.pos[0], state.pos[1]]
   state.cut = p.cut === undefined || p.cut === '' ? null : +p.cut
   state.labels = p.labels === 'all' ? 'all' : !off(p.labels)
   state.textures = !off(p.tex)
@@ -119,9 +118,9 @@ function applyView() {
   needRender = true
 }
 
-// Top view: the whole map, or `span` units wide around pos once zoomed.
+// Top view: the whole map, or `span` units wide around `center` once zoomed.
 function topWindow() {
-  if (state.span) return { span: state.span, x: state.pos[0], y: state.pos[1] }
+  if (state.span) return { span: state.span, x: state.center[0], y: state.center[1] }
   const b = map.bounds
   return { span: Math.max(b.max[0] - b.min[0], (b.max[1] - b.min[1]) * innerWidth / innerHeight) * TOP_MARGIN, x: (b.min[0] + b.max[0]) / 2, y: (b.min[1] + b.max[1]) / 2 }
 }
@@ -137,10 +136,9 @@ function updateCamera() {
     ortho.updateProjectionMatrix()
     return ortho
   }
-  const [p, y, r] = state.angles.map((a) => a * d2r)
-  const up = toThree(Math.cos(r) * Math.sin(p) * Math.cos(y) + Math.sin(r) * Math.sin(y), Math.cos(r) * Math.sin(p) * Math.sin(y) - Math.sin(r) * Math.cos(y), Math.cos(r) * Math.cos(p))
+  const m = anglesToMatrix(state.angles)
   camera.position.copy(toThree(...state.pos))
-  camera.up.copy(up)
+  camera.up.copy(toThree(m[0][2], m[1][2], m[2][2]))
   camera.lookAt(camera.position.clone().add(toThree(...anglesToForward(state.angles))))
   // --fov is horizontal, like cg_fov; three.js takes the vertical one.
   camera.fov = (2 * Math.atan(Math.tan((state.fov * d2r) / 2) / aspect)) / d2r
@@ -187,7 +185,7 @@ function updateHud() {
   const cut = state.cut != null ? ` · cut z<=${state.cut}` : ''
   const view = state.top ? `top view${cut}` : `pos <b>${state.pos.map(round).join(' ')}</b> · angles <b>${state.angles.map(round).join(' ')}</b> · fov ${state.fov}${cut}`
   const cli = state.top
-    ? `--top${state.span ? ` --center ${round(state.pos[0])},${round(state.pos[1])} --span ${round(state.span)}` : ''}`
+    ? `--top${state.span ? ` --center ${state.center.map(round).join(',')} --span ${round(state.span)}` : ''}`
     : `--pos ${state.pos.map(round).join(',')} --angles ${state.angles.map(round).join(',')}`
   $('hud').innerHTML = `${map.name} (${map.kind}) · ${view}\nrender: <b>${cli}</b>${state.cut != null ? ` --cut ${state.cut}` : ''}`
 }
@@ -223,7 +221,7 @@ function setupControls() {
   addEventListener('wheel', (e) => {
     if (state.top) {
       const { span, x, y } = topWindow()
-      Object.assign(state, { span: span * (e.deltaY > 0 ? 1.15 : 1 / 1.15), pos: [x, y, state.pos[2]] })
+      Object.assign(state, { span: span * (e.deltaY > 0 ? 1.15 : 1 / 1.15), center: [x, y] })
     } else state.speed = Math.max(25, Math.min(6400, state.speed * (e.deltaY > 0 ? 0.8 : 1.25)))
     needRender = true
   })

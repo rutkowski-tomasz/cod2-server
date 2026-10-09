@@ -1,7 +1,10 @@
 // Reads compiled CoD2 maps (.d3dbsp, IBSP version 4) into entities, surfaces and lightmaps.
 const LUMP = { MATERIALS: 0, LIGHTMAPS: 1, TRISOUPS: 7, DRAWVERTS: 8, DRAWINDICES: 9, MODELS: 35, ENTITIES: 37 }
 const NO_LIGHTMAP = 31
+const MATERIAL_BYTES = 72
+const TRISOUP_BYTES = 16
 const VERTEX_BYTES = 68
+const MODEL_BYTES = 48
 // A lightmap holds four 512x512 RGBA pages: directional coefficients for R, G and B, then sun visibility.
 const LIGHTMAP_PAGE = 512
 
@@ -13,14 +16,14 @@ export function readBsp(buf) {
 
   const mats = lump(LUMP.MATERIALS)
   const materials = []
-  for (let o = 0; o + 72 <= mats.length; o += 72) {
+  for (let o = 0; o + MATERIAL_BYTES <= mats.length; o += MATERIAL_BYTES) {
     const end = mats.indexOf(0, o)
     materials.push(mats.toString('latin1', o, Math.min(end < 0 ? o + 64 : end, o + 64)))
   }
 
   const soups = []
   const ts = lump(LUMP.TRISOUPS)
-  for (let o = 0; o + 16 <= ts.length; o += 16) {
+  for (let o = 0; o + TRISOUP_BYTES <= ts.length; o += TRISOUP_BYTES) {
     soups.push({ material: ts.readUInt16LE(o), lightmap: ts.readUInt16LE(o + 2), firstVertex: ts.readUInt32LE(o + 4), indexCount: ts.readUInt16LE(o + 10), firstIndex: ts.readUInt32LE(o + 12) })
   }
 
@@ -38,7 +41,7 @@ export function readBsp(buf) {
 
   const models = []
   const ml = lump(LUMP.MODELS)
-  for (let o = 0; o + 48 <= ml.length; o += 48) models.push({ firstSoup: ml.readUInt32LE(o + 24), soupCount: ml.readUInt32LE(o + 28) })
+  for (let o = 0; o + MODEL_BYTES <= ml.length; o += MODEL_BYTES) models.push({ firstSoup: ml.readUInt32LE(o + 24), soupCount: ml.readUInt32LE(o + 28) })
 
   const entities = parseEntities(lump(LUMP.ENTITIES).toString('latin1'))
   // Brush model *n belongs to the entity whose model key names it; model 0 is the world.

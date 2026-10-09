@@ -10,7 +10,7 @@ node tools/mapview/mapview.js render mp_harbor --pos -9500,-7500,120 --angles 10
 node tools/mapview/mapview.js render ~/Dev/nl-cod2-library/src/iwds/mp_square.iwd --top --cut 240
 node tools/mapview/mapview.js render mp_harbor --batch shots.json -o out/harbor
 node tools/mapview/mapview.js info   mp_harbor
-node tools/mapview/mapview.js list
+node tools/mapview/mapview.js list   mp_
 ```
 
 Targets are a `.map` source (what `nl-cod2-library/map_source` generates), a compiled `.d3dbsp`, a map's `.iwd`, or a game path or stock name like `mp_harbor`. Maps, materials and `.iwi` images are looked up, ignoring case, in the same sources as fxview (later wins): `~/Dev/cod2-binaries/1_0`, `~/Dev/cod2-binaries/1_3`, every `~/Dev/nl-cod2-zom-iwds/iwds/<iwd>/<feature>/` folder, then `--source <dir|iwd>`. A target `.iwd` is added as a source, and its map is the one named like the iwd. `misc_prefab` paths in a `.map` resolve next to the map, one and two folders up, and in `--prefabs <dir>`. Needs `iw_13` (materials) and `iw_08`–`iw_12` (images) pulled. Stock maps: `1_3/iw_15` has `mp_harbor` and `mp_rhine`, `iw_00` seven single-player maps, `iw_01`–`iw_05` the rest; `list` shows the ones found.
@@ -30,8 +30,8 @@ In the page: click to look around, WASD to move, Shift for speed, Space and C fo
 
 - Coordinates are CoD's: Z up, yaw 0 along +X, positive pitch looks down. `--fov` is horizontal, like `cg_fov`, 80 by default.
 - `.map`: brushes (plane intersection, cod2map's axial texture mapping), mesh and bezier `curve` patches, `misc_prefab` contents. Lit by three.js from worldspawn `sundirection`, `suncolor`, `sunlight`, `ambient`, `_color`, `sundiffusecolor`, `diffusefraction` and the first 64 `light` entities, with sun shadows.
-- `.d3dbsp` (IBSP 4): draw surfaces, brush models, entities, lightmaps. The lightmap is applied like the game's `lmap` shader: four 512×512 pages per lightmap (R, G and B coefficients, then sun visibility), plus direct sun from the surface normal. No three.js lights or shadows are added.
+- `.d3dbsp` (IBSP 4): draw surfaces, brush models, entities, lightmaps. The lightmap is applied like the game's `lmap` shader: four 512×512 pages per lightmap (R, G and B coefficients, then sun visibility), plus direct sun from the surface normal. No three.js lights or shadows are added, except for a `.d3dbsp` compiled without lightmaps, which is lit like a `.map`.
 - Materials: the colour map, downscaled to 512, alpha-tested at 0.4 when the image has alpha. The sky material's cube map is the background. Tool materials (caulk, clip, hint, …) are hidden unless `--tools`; `water` techsets are flat translucent blue; decals are pulled toward the camera.
-- Markers: player-sized boxes with a yaw arrow for spawns (red axis, blue allied, teal other), yellow spheres for lights, magenta boxes for models, orange translucent volumes for triggers. Labels show `classname [targetname]`, hide behind walls and past 2000 units, and skip lights, models, prefabs, `info_null` and `script_origin` unless `--labels all`; lights, models and prefabs with a targetname keep theirs.
+- Markers: player-sized boxes with a yaw arrow for spawns (red axis, blue allied, teal other), yellow spheres for lights, magenta boxes for models, orange translucent volumes for triggers in a `.map` (a `.d3dbsp` keeps no trigger geometry, and most of its triggers have no origin, so they do not show). Labels show `classname [targetname]`, hide behind walls and past 2000 units, and skip lights, models, prefabs, `info_null` and `script_origin` unless `--labels all`; lights, models and prefabs with a targetname keep theirs.
 
 Not drawn: xmodel geometry (models are labelled boxes), effects, normal and specular maps, fog, vertex colours (blend materials draw at full strength), animated or scrolling materials. A guess that may be off: how three.js lights a `.map`, which has no lightmaps.

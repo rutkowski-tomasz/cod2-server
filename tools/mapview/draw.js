@@ -1,6 +1,6 @@
 // The map in three.js: surfaces with their materials, textures and lightmaps, lights, sky and grid.
 // THREE comes from the page script, which imports it before this module runs.
-import { anglesToForward } from './math.js'
+import { anglesToForward, parseVec } from './math.js'
 
 // CoD2 is Z-up; three.js is Y-up. World coordinates convert as (x, y, z) -> (x, z, -y).
 export const toThree = (x, y, z) => new THREE.Vector3(x, z, -y)
@@ -47,7 +47,7 @@ export function createWorld(map, renderer, scene, onChange) {
   // Compiled maps carry their light in lightmaps; a .map is lit by three.js lights.
   const lit = map.lightmapCount > 0
   const ws = map.worldspawn
-  const wsVec = (k, d) => (ws[k] ? ws[k].trim().split(/\s+/).map(Number) : d)
+  const wsVec = (k, d) => (ws[k] ? parseVec(ws[k]) : d)
   // sundirection is a CoD angle vector pointing at the sun.
   const sunDir = toThree(...anglesToForward(wsVec('sundirection', [-50, 40, 0]))).normalize()
   const sunlight = +(ws.sunlight || 1.2)
@@ -57,12 +57,16 @@ export function createWorld(map, renderer, scene, onChange) {
   const view = { textures: true, lightmap: true }
   let pending = 0
 
+  // Triggers are translucent, so they stay out of `world`, which hides labels behind it.
   const world = new THREE.Group()
+  const triggers = new THREE.Group()
   for (const s of map.surfaces) {
     const info = map.materials[s.material]
-    if (!info.sky) world.add(buildMesh(s, info))
+    if (info.sky) continue
+    if (/^trigger/.test(map.entities[s.entity].classname)) triggers.add(buildMesh(s, new THREE.MeshBasicMaterial({ color: TRIGGER_COLOR, transparent: true, opacity: 0.25, depthWrite: false })))
+    else world.add(buildMesh(s, materialFor(info, s.lightmap, s.doubleSided), info.tool))
   }
-  scene.add(world)
+  scene.add(world, triggers)
   const sun = lit ? null : addLights()
   const grid = buildGrid()
   const sky = buildSky()
@@ -73,7 +77,7 @@ export function createWorld(map, renderer, scene, onChange) {
     setView(state) {
       view.textures = state.textures
       view.lightmap = state.lightmap
-      for (const m of world.children) m.visible = m.userData.trigger || !m.userData.tool || state.tools
+      for (const m of world.children) m.visible = !m.userData.tool || state.tools
       for (const mat of materials.values()) refresh(mat)
       const shadows = state.shadows && !state.top
       renderer.shadowMap.enabled = shadows
@@ -85,7 +89,7 @@ export function createWorld(map, renderer, scene, onChange) {
     },
   }
 
-  function buildMesh(s, info) {
+  function buildMesh(s, material, tool = false) {
     const geom = new THREE.BufferGeometry()
     const pos = map.f32(s.positions), nor = map.f32(s.normals)
     const p3 = new Float32Array(pos.length), n3 = new Float32Array(nor.length)
@@ -99,10 +103,9 @@ export function createWorld(map, renderer, scene, onChange) {
     if (s.lmuvs) geom.setAttribute('uv1', new THREE.BufferAttribute(map.f32(s.lmuvs), 2))
     geom.setIndex(new THREE.BufferAttribute(map.u32(s.indices), 1))
     const ent = map.entities[s.entity]
-    const trigger = /^trigger/.test(ent.classname)
-    const mesh = new THREE.Mesh(geom, trigger ? new THREE.MeshBasicMaterial({ color: TRIGGER_COLOR, transparent: true, opacity: 0.25, depthWrite: false }) : materialFor(info, s.lightmap, s.doubleSided))
-    mesh.userData = { tool: info.tool, trigger }
-    mesh.castShadow = mesh.receiveShadow = !info.tool && !trigger
+    const mesh = new THREE.Mesh(geom, material)
+    mesh.userData = { tool }
+    mesh.castShadow = mesh.receiveShadow = !material.transparent
     // Brush model vertices in a .d3dbsp are relative to their entity's origin.
     if (ent.origin && ent.index > 0 && map.kind === 'bsp') mesh.position.copy(toThree(...ent.origin))
     return mesh
@@ -211,7 +214,7 @@ export function createWorld(map, renderer, scene, onChange) {
     )
     for (const e of map.entities.filter((e) => e.classname === 'light' && e.origin).slice(0, MAX_POINT_LIGHTS)) {
       const radius = +(e.keys.radius || 300)
-      const color = e.keys._color ? new THREE.Color(...e.keys._color.trim().split(/\s+/).map(Number)) : new THREE.Color(1, 1, 1)
+      const color = new THREE.Color(...parseVec(e.keys._color ?? '1 1 1'))
       const light = new THREE.PointLight(color, +(e.keys.intensity || 1) * radius * 0.6, radius, 1)
       light.position.copy(toThree(...e.origin))
       scene.add(light)

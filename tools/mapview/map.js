@@ -21,7 +21,7 @@ export function readMap(file, prefabRoots) {
     for (const p of e.patches) builders.get(owner).addPatch(p)
   })
   const surfaces = [...builders].flatMap(([entity, mb]) => mb.result().map((g) => ({ entity, ...g })))
-  return { entities: entities.map(({ classname, keys, prefab }) => ({ classname, keys, prefab })), surfaces, missingPrefabs: [...missing] }
+  return { entities: entities.map(({ classname, keys }) => ({ classname, keys })), surfaces, missingPrefabs: [...missing] }
 }
 
 function parseMap(text) {
@@ -123,7 +123,7 @@ function expandPrefabs(entities, roots, missing, depth) {
     const origin = parseVec(ent.keys.origin)
     const xf = (v) => applyMatrix(m, v, origin)
     for (const se of expandPrefabs(sub, roots, missing, depth + 1)) {
-      const copy = { keys: { ...se.keys }, classname: se.classname, brushes: [], patches: [], prefab: rel }
+      const copy = { keys: { ...se.keys }, classname: se.classname, brushes: [], patches: [] }
       for (const b of se.brushes) copy.brushes.push({ sides: b.sides.map((s) => ({ ...s, points: s.points.map(xf) })) })
       for (const p of se.patches) copy.patches.push({ ...p, rows: p.rows.map((row) => row.map((pt) => ({ ...pt, pos: xf(pt.pos) }))) })
       if (copy.keys.origin) copy.keys.origin = xf(parseVec(copy.keys.origin)).map(formatNumber).join(' ')

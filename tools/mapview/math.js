@@ -1,4 +1,4 @@
-const d2r = Math.PI / 180
+export const d2r = Math.PI / 180
 
 // CoD angle vector (pitch, yaw, roll) → forward unit vector.
 export function anglesToForward([p, y]) {

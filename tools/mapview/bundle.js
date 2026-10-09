@@ -117,12 +117,11 @@ function loadTarget(target, search) {
   throw new Error(`map not found: ${target} (not a file, and no maps/mp/${name}.d3dbsp in the sources)`)
 }
 
-function entityInfo({ classname, keys, prefab }, index) {
+function entityInfo({ classname, keys }, index) {
   return {
     index, classname, keys,
     origin: keys.origin ? parseVec(keys.origin) : null,
     angles: keys.angles ? parseVec(keys.angles) : keys.angle ? [0, +keys.angle, 0] : null,
-    model: keys.model || null, prefab: prefab || null,
   }
 }
 
