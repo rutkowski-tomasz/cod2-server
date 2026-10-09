@@ -1,0 +1,1 @@
+mapview: show tool textures' faint colour fill, as Radiant does

@@ -1,0 +1,1 @@
+fxview: hide elements outside their spawnRange or cullrange

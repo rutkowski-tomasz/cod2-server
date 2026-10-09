@@ -1,0 +1,1 @@
+mapview: draw the fog the map's script sets
