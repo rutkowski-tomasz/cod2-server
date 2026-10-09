@@ -48,8 +48,9 @@ window.mapview = {
 // readParams ranks at over pos and look over angles, so a camera in `p` drops the baked one it replaces.
 function withDefaults(p) {
   const { at, pos, angles, look, ...rest } = map.defaults
-  const camera = p.at !== undefined ? {} : p.pos !== undefined ? { angles } : { at, pos, angles, look: p.angles !== undefined ? undefined : look }
-  return { ...rest, ...camera, ...p }
+  if (p.at !== undefined) return { ...rest, ...p }
+  if (p.pos !== undefined) return { ...rest, angles, ...p }
+  return { ...rest, at, pos, angles, look: p.angles !== undefined ? undefined : look, ...p }
 }
 
 // The geometry arrives as one base64 blob; surfaces hold { offset, count } refs into it.
