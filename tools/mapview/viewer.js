@@ -11,7 +11,7 @@ const TOP_MARGIN = 1.05
 const off = (v) => v !== undefined && ['off', '0', 'false', false].includes(v)
 const on = (v) => v !== undefined && !off(v)
 
-const state = { speed: 440 }
+const state = { speed: 500 }
 const keys = new Set()
 let lastTime = performance.now()
 const fps = { frames: 0, since: performance.now() }
@@ -232,8 +232,8 @@ function move() {
   if (keys.has('KeyS')) step(fwd, -speed)
   if (keys.has('KeyD')) step(right, speed)
   if (keys.has('KeyA')) step(right, -speed)
-  if (keys.has('Space') || keys.has('KeyE')) step([0, 0, 1], speed)
-  if (keys.has('KeyC') || keys.has('KeyQ')) step([0, 0, 1], -speed)
+  if (keys.has('KeyE')) step([0, 0, 1], speed)
+  if (keys.has('KeyQ')) step([0, 0, 1], -speed)
   return moved
 }
 
@@ -253,7 +253,7 @@ function setupControls() {
     } else state.speed = Math.max(25, Math.min(6400, state.speed * (e.deltaY > 0 ? 0.8 : 1.25)))
     needRender = true
   })
-  const toggles = { KeyL: 'labels', KeyO: 'entities', KeyT: 'textures', KeyG: 'grid', KeyK: 'tools', KeyM: 'lightmap', KeyH: 'hud', Digit1: 'top' }
+  const toggles = { KeyL: 'labels', KeyF: 'entities', KeyT: 'textures', KeyG: 'grid', KeyK: 'tools', KeyM: 'lightmap', KeyH: 'hud', Digit1: 'top' }
   addEventListener('keydown', (e) => {
     // macOS sends no keyup for keys released while Cmd is held, so they would stay pressed.
     if (e.metaKey) { keys.clear(); return }
