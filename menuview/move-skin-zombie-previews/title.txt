@@ -1,1 +1,0 @@
-menuview: move zombie and skin previews slightly down
