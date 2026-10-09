@@ -66,11 +66,30 @@ function outName(ext) {
 
 // Command line options are baked into the page as defaults; URL hash params still override them.
 function buildHtml(bundle) {
-  const sim = readFileSync(join(HERE, 'sim.js'), 'utf8').replace(/^export /gm, '')
   const defaults = Object.fromEntries(['forward', 'seed', 'ground', 'bg', 'cam'].filter((k) => opts[k] !== undefined).map((k) => [k, opts[k]]))
   return readFileSync(join(HERE, 'viewer.html'), 'utf8')
-    .replace("import { createSim, sampleVisual } from './sim.js'", sim)
+    .replace('__SCRIPT__', () => inlineModules('viewer.js'))
     .replace('__BUNDLE__', () => JSON.stringify({ ...bundle, defaults }).replace(/<\//g, '<\\/'))
+}
+
+// The page runs from file://, where module imports are blocked. Each local module becomes a scoped block,
+// inlined once before its first user, and its imports become reads from that block.
+function inlineModules(entry) {
+  const blocks = []
+  const names = new Map()
+  const load = (file) => {
+    if (names.has(file)) return names.get(file)
+    const source = readFileSync(join(HERE, file), 'utf8')
+    const body = source.replace(/^import \{([^}]+)\} from '\.\/([\w-]+\.js)'$/gm, (_, imported, dep) => `const {${imported}} = ${load(dep)}`)
+    if (/^import /m.test(body)) throw new Error(`${file}: only single-line named imports of local files can be inlined`)
+    const exported = [...body.matchAll(/^export (?:const|function) (\w+)/gm)].map((m) => m[1])
+    const name = `module_${basename(file, '.js').replace(/-/g, '_')}`
+    names.set(file, name)
+    blocks.push(`const ${name} = (() => {\n${body.replace(/^export /gm, '')}\nreturn { ${exported.join(', ')} }\n})()`)
+    return name
+  }
+  load(entry)
+  return blocks.join('\n')
 }
 
 function view() {
