@@ -35,6 +35,8 @@ export function buildBundle(target, search, dvars = {}) {
     menu.box = place(menu.rect ?? [0, 0, 640, 480], 0, 0)
     for (const item of menu.items) {
       item.box = place(item.rect ?? [0, 0, 0, 0], menu.rect?.[0] ?? 0, menu.rect?.[1] ?? 0, menu.rect, item.origin)
+      // dvarFloat "name" default min max sets the item's dvar too, as in game.
+      if (item.dvarfloat && item.dvar === undefined) item.dvar = item.dvarfloat[0]
       if (item.type !== undefined) item.typeName = macroName('ITEM_TYPE_', item.type)
       if (item.ownerdraw !== undefined) item.ownerdrawName = macroName('CG_', item.ownerdraw) ?? macroName('UI_', item.ownerdraw)
       if (item.background) loadImage(item.background)
