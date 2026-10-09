@@ -1,0 +1,8 @@
+{
+  "name": "fxview",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "playwright-core": "^1.63.0"
+  }
+}
