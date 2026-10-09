@@ -54,6 +54,8 @@ export function normalizeElement(raw) {
     delay: range(raw.delay ?? [0]),
     origin: box(raw.origin),
     origin2: box(raw.origin2),
+    spawnRange: raw.spawnRange ? range(raw.spawnRange) : null,
+    cullRange: Number(raw.cullrange?.[0]) || null,
     radius: range(raw.radius ?? [0]),
     height: range(raw.height ?? [0]),
     rotation: range(raw.rotation ?? [0]),

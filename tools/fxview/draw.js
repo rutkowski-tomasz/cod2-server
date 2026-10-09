@@ -1,5 +1,5 @@
 // WebGL drawing: reference lines, then opaque models, then particles far to near, batched by material, then distortion particles over a copy of the frame.
-import { sampleVisual, modelAxis } from './sim.js'
+import { sampleVisual, modelAxis, inViewRange } from './sim.js'
 
 export const V = {
   add: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]],
@@ -222,7 +222,9 @@ export function createRenderer(canvas, { materials, models }) {
 
   function render({ sim, cam, state, hidden }) {
     const eye = cameraEye(cam)
-    const target = shakenTarget(eye, cam, sim)
+    const inRange = (p) => !state.ranges || inViewRange(p, eye)
+    const shake = sim.shake(inRange)
+    const target = shakenTarget(eye, cam, shake, sim.time)
     const aspect = canvas.width / canvas.height
     const vp = mat4mul(perspective(cam.fov, aspect, 2, 20000), lookAt(eye, target, [0, 0, 1]))
     const viewFwd = V.norm(V.sub(target, eye))
@@ -239,7 +241,7 @@ export function createRenderer(canvas, { materials, models }) {
     gl.uniformMatrix4fv(uVp, false, vp)
     gl.uniform3fv(uEye, eye)
     gl.uniform1f(uGround, state.ground ?? 0)
-    const shown = (p) => p.spawnTime <= sim.time && !hidden.has(p.def.key) && (state.ground === null || p.pos[2] >= state.ground - 2 || p.type === 'Decal')
+    const visible = (p) => p.spawnTime <= sim.time && !hidden.has(p.def.key) && (state.ground === null || p.pos[2] >= state.ground - 2 || p.type === 'Decal')
 
     // Reference lines and models, with depth write so particles sort against them.
     sceneLines(sim, state, eye)
@@ -254,14 +256,16 @@ export function createRenderer(canvas, { materials, models }) {
       return { corners: [V.add(l.a, sideA), V.add(l.b, sideB), V.sub(l.b, sideB), V.sub(l.a, sideA)], color: l.color, tex: 'white', frame: 0 }
     })
     drawQuads(lq)
-    drawModels(sim.particles.filter((p) => meshes[p.model] && shown(p)), eye, viewFwd)
+    drawModels(sim.particles.filter((p) => meshes[p.model] && visible(p) && inRange(p)), eye, viewFwd)
     gl.enable(gl.BLEND)
     gl.depthMask(false)
 
     // Particles, far to near, batched by material; distortion last, as it bends what is already drawn.
     const items = []
+    let outOfViewRange = 0
     for (const p of sim.particles) {
-      if (!shown(p)) continue
+      if (!visible(p)) continue
+      if (!inRange(p)) { outOfViewRange++; continue }
       const q = particleQuad(p, eye, viewRight, viewUp)
       if (!q) continue
       const at = p.end ? V.mul(V.add(p.pos, p.end), 0.5) : p.pos
@@ -273,17 +277,17 @@ export function createRenderer(canvas, { materials, models }) {
     const isDistortion = (q) => materialMeta[q.tex].blend === 'distortion'
     drawQuads(items.filter((q) => !isDistortion(q)))
     drawQuads(items.filter(isDistortion))
+    return { outOfViewRange, shake }
   }
 
   // Camera shake turns the view by up to its amplitude in degrees, driven by sim time so the same frame always shakes the same way.
-  function shakenTarget(eye, cam, sim) {
-    const amount = sim.shake()
+  function shakenTarget(eye, cam, amount, time) {
     if (amount <= 0) return cam.target
     const fwd = V.norm(V.sub(cam.target, eye))
     const right = V.norm(V.cross(fwd, [0, 0, 1]))
     const up = V.cross(right, fwd)
     const k = Math.tan((amount * Math.PI) / 180) * cam.dist
-    return V.add(cam.target, V.add(V.mul(right, k * Math.sin(sim.time * 0.071)), V.mul(up, k * Math.sin(sim.time * 0.053 + 1))))
+    return V.add(cam.target, V.add(V.mul(right, k * Math.sin(time * 0.071)), V.mul(up, k * Math.sin(time * 0.053 + 1))))
   }
 
   function particleQuad(p, eye, viewRight, viewUp) {

@@ -26,6 +26,7 @@ options:
   --seed 1             random seed
   --ground off         no ground plane
   --bg dark|mid|light|black
+  --ranges off         ignore spawnRange and cullrange
   --stats              also write <out>.json with per-frame particle counts and warnings (render)`
 
 const args = process.argv.slice(2)
@@ -66,7 +67,7 @@ function outName(ext) {
 
 // Command line options are baked into the page as defaults; URL hash params still override them.
 function buildHtml(bundle) {
-  const defaults = Object.fromEntries(['forward', 'seed', 'ground', 'bg', 'cam'].filter((k) => opts[k] !== undefined).map((k) => [k, opts[k]]))
+  const defaults = Object.fromEntries(['forward', 'seed', 'ground', 'bg', 'cam', 'ranges'].filter((k) => opts[k] !== undefined).map((k) => [k, opts[k]]))
   return readFileSync(join(HERE, 'viewer.html'), 'utf8')
     .replace('__SCRIPT__', () => inlineModules('viewer.js'))
     .replace('__BUNDLE__', () => JSON.stringify({ ...bundle, defaults }).replace(/<\//g, '<\\/'))
