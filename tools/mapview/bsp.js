@@ -1,10 +1,19 @@
 // Reads compiled CoD2 maps (.d3dbsp, IBSP version 4) into entities, surfaces and lightmaps.
-const LUMP = { MATERIALS: 0, LIGHTMAPS: 1, TRISOUPS: 7, DRAWVERTS: 8, DRAWINDICES: 9, MODELS: 35, ENTITIES: 37 }
+import { MeshBuilder, planePolygons } from './brush.js'
+
+const LUMP = { MATERIALS: 0, LIGHTMAPS: 1, PLANES: 4, BRUSHSIDES: 5, BRUSHES: 6, TRISOUPS: 7, DRAWVERTS: 8, DRAWINDICES: 9, MODELS: 35, ENTITIES: 37 }
 const NO_LIGHTMAP = 31
 const MATERIAL_BYTES = 72
 const TRISOUP_BYTES = 16
 const VERTEX_BYTES = 68
 const MODEL_BYTES = 48
+const PLANE_BYTES = 16
+const BRUSHSIDE_BYTES = 8
+const BRUSH_BYTES = 4
+// A brush's first sides are axial planes, stored as a bare distance.
+const AXIAL_SIDES = 6
+// Collision faces have no texture mapping; their texture repeats every this many units.
+const COLLISION_TILE = 64
 // A lightmap holds four 512x512 RGBA pages: directional coefficients for R, G and B, then sun visibility.
 const LIGHTMAP_PAGE = 512
 
@@ -42,7 +51,9 @@ export function readBsp(buf) {
 
   const models = []
   const ml = lump(LUMP.MODELS)
-  for (let o = 0; o + MODEL_BYTES <= ml.length; o += MODEL_BYTES) models.push({ firstSoup: ml.readUInt32LE(o + 24), soupCount: ml.readUInt32LE(o + 28) })
+  for (let o = 0; o + MODEL_BYTES <= ml.length; o += MODEL_BYTES) {
+    models.push({ firstSoup: ml.readUInt32LE(o + 24), soupCount: ml.readUInt32LE(o + 28), firstBrush: ml.readUInt32LE(o + 40), brushCount: ml.readUInt32LE(o + 44) })
+  }
 
   const entities = parseEntities(lump(LUMP.ENTITIES).toString('latin1'))
   // Brush model *n belongs to the entity whose model key names it; model 0 is the world.
@@ -73,6 +84,7 @@ export function readBsp(buf) {
     }
     for (const { remap, ...g } of groups.values()) surfaces.push({ entity: modelEntity.get(mi) ?? 0, ...g })
   })
+  surfaces.push(...collisionSurfaces(lump, materials, models, modelEntity, new Set(soups.map((s) => materials[s.material]))))
 
   const lm = lump(LUMP.LIGHTMAPS)
   const pageBytes = LIGHTMAP_PAGE * LIGHTMAP_PAGE * 4
@@ -81,6 +93,40 @@ export function readBsp(buf) {
     lightmaps.push([0, 1, 2, 3].map((p) => ({ width: LIGHTMAP_PAGE, height: LIGHTMAP_PAGE, rgba: lm.subarray(o + p * pageBytes, o + (p + 1) * pageBytes) })))
   }
   return { entities, surfaces, lightmaps }
+}
+
+// Faces of collision brushes whose material no draw surface uses: clip, caulk, mantle, ladder and the like.
+// The AXIAL_SIDES come in the order -x, +x, -y, +y, -z, +z, each holding that coordinate of the brush's bounds;
+// the rest point into the plane lump.
+function collisionSurfaces(lump, materials, models, modelEntity, drawn) {
+  const planes = lump(LUMP.PLANES), sides = lump(LUMP.BRUSHSIDES), brushes = lump(LUMP.BRUSHES)
+  const firstSide = []
+  for (let b = 0, s = 0; b * BRUSH_BYTES < brushes.length; b++) { firstSide.push(s); s += brushes.readUInt16LE(b * BRUSH_BYTES) }
+  const surfaces = []
+  models.forEach((model, mi) => {
+    const builder = new MeshBuilder()
+    for (let b = model.firstBrush; b < model.firstBrush + model.brushCount; b++) {
+      const count = brushes.readUInt16LE(b * BRUSH_BYTES)
+      const brushPlanes = []
+      for (let i = 0; i < count; i++) {
+        const o = (firstSide[b] + i) * BRUSHSIDE_BYTES
+        const material = sides.readUInt32LE(o + 4)
+        const side = { material: materials[material] || `#${material}`, collision: !drawn.has(materials[material]), offU: 0, offV: 0, sizeU: COLLISION_TILE, sizeV: COLLISION_TILE }
+        if (i < AXIAL_SIDES) {
+          const sign = i % 2 ? 1 : -1
+          const n = [0, 0, 0]
+          n[i >> 1] = sign
+          brushPlanes.push({ n, d: sign * sides.readFloatLE(o), side })
+        } else {
+          const p = sides.readUInt32LE(o) * PLANE_BYTES
+          brushPlanes.push({ n: [planes.readFloatLE(p), planes.readFloatLE(p + 4), planes.readFloatLE(p + 8)], d: planes.readFloatLE(p + 12), side })
+        }
+      }
+      builder.addPolygons(planePolygons(brushPlanes).filter((poly) => poly.side.collision))
+    }
+    for (const g of builder.result()) surfaces.push({ entity: modelEntity.get(mi) ?? 0, collision: true, ...g })
+  })
+  return surfaces
 }
 
 function parseEntities(text) {
