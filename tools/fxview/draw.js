@@ -81,7 +81,7 @@ export function createRenderer(canvas, { materials, models }) {
     gl.linkProgram(program)
     return program
   }
-  // zfeather materials fade out over the last FEATHER_DEPTH units before the view ray meets the ground plane.
+  // Guessed fade depth for zfeather materials, in units along the view ray to the ground plane.
   const FEATHER_DEPTH = 16
   const program = createProgram(`
     layout(location = 0) in vec3 pos; layout(location = 1) in vec2 uv; layout(location = 2) in vec4 col; uniform mat4 vp; out vec2 vUv; out vec4 vCol; out vec3 vPos;
@@ -91,7 +91,8 @@ export function createRenderer(canvas, { materials, models }) {
       vec4 t = texture(tex, vUv) * vCol;
       if (feather) {
         vec3 ray = normalize(vPos - eye);
-        if (ray.z < 0.0) t.a *= clamp((vPos.z - ground) / -ray.z / ${FEATHER_DEPTH}.0, 0.0, 1.0);
+        if (vPos.z < ground) t.a = 0.0;
+        else if (ray.z < 0.0) t.a *= clamp((vPos.z - ground) / -ray.z / float(${FEATHER_DEPTH}), 0.0, 1.0);
       }
       if (mode == 1) o = vec4(t.rgb * t.a, t.a);          // additive, premultiplied
       else if (mode == 2) o = vec4(mix(vec3(1.0), t.rgb, t.a), 1.0); // multiply
@@ -239,10 +240,10 @@ export function createRenderer(canvas, { materials, models }) {
     for (const p of sim.particles) {
       if (!shown(p)) continue
       const q = particleQuad(p, eye, viewRight, viewUp)
-      const at = p.end ? V.mul(V.add(p.pos, p.end), 0.5) : p.pos
       if (!q) continue
+      const at = p.end ? V.mul(V.add(p.pos, p.end), 0.5) : p.pos
       q.depth = V.dot(V.sub(at, eye), viewFwd)
-      q.feather = state.ground !== null && p.type !== 'Decal' && !!materialMeta[q.tex].feather
+      q.feather = state.ground !== null && p.type !== 'Decal' && materialMeta[q.tex].feather
       items.push(q)
     }
     items.sort((a, b) => b.depth - a.depth)
