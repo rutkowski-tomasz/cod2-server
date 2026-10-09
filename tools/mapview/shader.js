@@ -5,8 +5,11 @@ export const BLEND = { opaque: 0, alpha: 1, multiply: 2, add: 3 }
 // Models have no lightmap: in a compiled map they get this much light everywhere, plus the sun by N·L.
 const MODEL_AMBIENT = 0.5
 
+// `clipping` and the clipping_planes chunks let the renderer's planes, such as --cut, clip it like built-in materials.
 export const LIGHTMAP_SHADER = {
-  vertexShader: `attribute vec2 uv1; attribute vec4 rgba;
+  clipping: true,
+  vertexShader: `#include <clipping_planes_pars_vertex>
+attribute vec2 uv1; attribute vec4 rgba;
 varying vec2 vUv; varying vec2 vLm; varying vec3 vNormal; varying vec4 vColor;
 void main() {
   vUv = uv; vLm = uv1; vColor = rgba;
@@ -15,16 +18,20 @@ void main() {
   m = m * instanceMatrix;
   #endif
   vNormal = normalize(mat3(m) * normal);
-  gl_Position = projectionMatrix * viewMatrix * m * vec4(position, 1.0);
+  vec4 mvPosition = viewMatrix * m * vec4(position, 1.0);
+  gl_Position = projectionMatrix * mvPosition;
+  #include <clipping_planes_vertex>
 }`,
   // Mirrors the game's lmap shader: lightmap = indirect light (four coefficients per channel, weighted
   // for a flat normal), plus sun colour scaled by the sun-visibility page and N·L. Vertex colour tints
   // the texel; its alpha fades blended layers. Multiply layers are unlit, like the game's effect_multiply.
-  fragmentShader: `uniform sampler2D map; uniform int hasMap; uniform vec3 color; uniform float alphaTest;
+  fragmentShader: `#include <clipping_planes_pars_fragment>
+uniform sampler2D map; uniform int hasMap; uniform vec3 color; uniform float alphaTest;
 uniform sampler2D lmR; uniform sampler2D lmG; uniform sampler2D lmB; uniform sampler2D lmSun;
 uniform int useLm; uniform int sunShade; uniform vec3 sunDir; uniform vec3 sunColor; uniform int blend;
 varying vec2 vUv; varying vec2 vLm; varying vec3 vNormal; varying vec4 vColor;
 void main() {
+  #include <clipping_planes_fragment>
   vec4 t = hasMap == 1 ? texture2D(map, vUv) : vec4(color, 1.0);
   if (t.a < alphaTest) discard;
   vec4 d = t * vColor;
