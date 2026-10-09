@@ -26,9 +26,11 @@ The image builds [zk_libcod](https://github.com/ibuddieat/zk_libcod) at the comm
 
 `tools/mapview/` draws maps (`.map`, `.d3dbsp`, a map's `.iwd` or a stock name) without the game: `node tools/mapview/mapview.js render <map> --at mp_tdm_spawn` writes a screenshot to look at, `view` an interactive page, `info` the entities and materials. See `tools/mapview/README.md`.
 
+`tools/mapcompile/` compiles a `.map` into a map `.iwd` with the Mod Tools under wine in Docker: `tools/mapcompile/mapcompile.sh <file.map> [-o out.iwd]`. See `tools/mapcompile/README.md`.
+
 `tools/shared/` holds what the tools share: the asset search over iwds and folders, material, xmodel, IWI (with its wavelet formats, GPLv3) and PNG codecs, and the module inliner for their file:// pages.
 
-fxview, menuview and mapview write to `out/<tool>/` (git-ignored) unless `-o` is given; that is scratch.
+fxview, menuview, mapview and mapcompile write to `out/<tool>/` (git-ignored) unless `-o` is given; that is scratch.
 
 Before/after screenshots of a change go on the `pr-assets` branch, which PRs embed images from. Check it out once with `git worktree add ../cod2-server-pr-assets pr-assets`, then follow its `README.md`.
 
