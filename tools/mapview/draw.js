@@ -277,16 +277,24 @@ export function createWorld(map, renderer, scene, onChange) {
     const mat = new THREE.ShaderMaterial({
       uniforms: { sky: { value: cube } },
       vertexShader: `varying vec3 vDir;
-void main() { vDir = position; gl_Position = projectionMatrix * mat4(mat3(modelViewMatrix)) * vec4(position, 1.0); gl_Position.z = gl_Position.w; }`,
+void main() {
+  vec4 view = inverse(projectionMatrix) * vec4(position.xy, 1.0, 1.0);
+  // v * M is transpose(M) * v, which undoes the view rotation: the direction in world space.
+  vDir = (vec4(view.xyz / view.w, 0.0) * viewMatrix).xyz;
+  gl_Position = vec4(position.xy, 1.0, 1.0);
+}`,
       fragmentShader: `uniform samplerCube sky; varying vec3 vDir;
 void main() {
   vec3 d = normalize(vDir);
   gl_FragColor = textureCube(sky, vec3(d.x, -d.z, d.y));
   #include <colorspace_fragment>
 }`,
-      side: THREE.BackSide, depthWrite: false, depthTest: false,
+      depthWrite: false, depthTest: false,
     })
-    const sky = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), mat)
+    // A full-screen triangle, not a box around the camera: SwiftShader drew box faces with a corner on the camera's
+    // plane in one flat colour.
+    const triangle = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), 3))
+    const sky = new THREE.Mesh(triangle, mat)
     sky.frustumCulled = false
     sky.renderOrder = -1000
     scene.add(sky)
