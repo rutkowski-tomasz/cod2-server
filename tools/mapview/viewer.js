@@ -96,6 +96,7 @@ function readParams(p) {
   state.grid = on(p.grid)
   state.tools = on(p.tools)
   state.lightmap = !off(p.lightmap)
+  state.fog = !off(p.fog)
   state.shadows = !off(p.shadows)
   state.hud = !off(p.hud)
 }
@@ -253,7 +254,7 @@ function setupControls() {
     } else state.speed = Math.max(25, Math.min(6400, state.speed * (e.deltaY > 0 ? 0.8 : 1.25)))
     needRender = true
   })
-  const toggles = { KeyL: 'labels', KeyF: 'entities', KeyT: 'textures', KeyG: 'grid', KeyK: 'tools', KeyM: 'lightmap', KeyH: 'hud', Digit1: 'top' }
+  const toggles = { KeyL: 'labels', KeyF: 'entities', KeyT: 'textures', KeyG: 'grid', KeyK: 'tools', KeyM: 'lightmap', KeyO: 'fog', KeyH: 'hud', Digit1: 'top' }
   addEventListener('keydown', (e) => {
     // macOS sends no keyup for keys released while Cmd is held, so they would stay pressed.
     if (e.metaKey) { keys.clear(); return }

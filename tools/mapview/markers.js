@@ -56,23 +56,23 @@ export function createMarkers(map, renderer, scene, occluders) {
     group.position.copy(toThree(...e.origin))
     if (/spawn|info_player_start|intermission/.test(cls)) {
       color = /allied|allies|american|british|russian/.test(cls) ? 0x3a86ff : /axis|german/.test(cls) ? 0xff3355 : 0x2ec4b6
-      const box = new THREE.Mesh(new THREE.BoxGeometry(PLAYER.width, PLAYER.height, PLAYER.width), new THREE.MeshBasicMaterial({ color, wireframe: true }))
+      const box = new THREE.Mesh(new THREE.BoxGeometry(PLAYER.width, PLAYER.height, PLAYER.width), new THREE.MeshBasicMaterial({ color, wireframe: true, fog: false }))
       box.position.y = PLAYER.height / 2
       const yaw = (e.angles ? e.angles[1] : 0) * d2r
-      const arrow = new THREE.Mesh(new THREE.ConeGeometry(8, 28, 8), new THREE.MeshBasicMaterial({ color }))
+      const arrow = new THREE.Mesh(new THREE.ConeGeometry(8, 28, 8), new THREE.MeshBasicMaterial({ color, fog: false }))
       arrow.position.copy(toThree(Math.cos(yaw) * 34, Math.sin(yaw) * 34, 3))
       arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), toThree(Math.cos(yaw), Math.sin(yaw), 0).normalize())
       group.add(box, arrow)
     } else if (cls === 'light') {
       color = 0xffd166
-      group.add(new THREE.Mesh(new THREE.SphereGeometry(8, 12, 8), new THREE.MeshBasicMaterial({ color })))
+      group.add(new THREE.Mesh(new THREE.SphereGeometry(8, 12, 8), new THREE.MeshBasicMaterial({ color, fog: false })))
       label = `light ${e.keys.intensity || ''}`
     } else if (/model/.test(cls) || cls === 'misc_prefab' || cls === 'misc_turret') {
       color = 0xff5dd0
-      if (!map.models[e.keys.model]) group.add(new THREE.Mesh(new THREE.BoxGeometry(32, 32, 32), new THREE.MeshBasicMaterial({ color, wireframe: true })))
+      if (!map.models[e.keys.model]) group.add(new THREE.Mesh(new THREE.BoxGeometry(32, 32, 32), new THREE.MeshBasicMaterial({ color, wireframe: true, fog: false })))
       label = `${cls} ${(e.keys.model || '').split('/').pop()}`
     } else {
-      group.add(new THREE.Mesh(new THREE.OctahedronGeometry(10), new THREE.MeshBasicMaterial({ color })))
+      group.add(new THREE.Mesh(new THREE.OctahedronGeometry(10), new THREE.MeshBasicMaterial({ color, fog: false })))
     }
     if (e.keys.targetname) label += ` [${e.keys.targetname}]`
     markers.add(group)

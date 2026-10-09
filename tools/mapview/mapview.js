@@ -11,6 +11,7 @@ import { loadScene, buildBundle } from './bundle.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const LIBRARY_IWDS = join(homedir(), 'Dev/nl-cod2-library/src/iwds')
+const LIBRARY_SCRIPTS = join(homedir(), 'Dev/nl-cod2-library/src/scripts')
 const USAGE = `usage:
   mapview.js view   <map> [-o out.html] [--open] [view options]   build an interactive page
   mapview.js render <map> [-o out.png] [view options]             headless screenshot
@@ -31,9 +32,9 @@ view options:
   --look x,y,z         aim at a point           --fov 80                  horizontal field of view
   --top                orthographic top-down    --center x,y --span u     top view window
   --cut z              hide everything above z
-  --labels off|all     --ents off   --tex off   --lightmap off   --shadows off   --grid   --tools`
+  --labels off|all     --ents off   --tex off   --lightmap off   --shadows off   --fog off   --grid   --tools`
 
-const VIEW_KEYS = ['pos', 'angles', 'at', 'look', 'fov', 'top', 'center', 'span', 'cut', 'labels', 'ents', 'tex', 'lightmap', 'shadows', 'grid', 'tools']
+const VIEW_KEYS = ['pos', 'angles', 'at', 'look', 'fov', 'top', 'center', 'span', 'cut', 'labels', 'ents', 'tex', 'lightmap', 'shadows', 'fog', 'grid', 'tools']
 const FLAGS = ['open', 'json', 'top', 'grid', 'tools']
 
 const args = process.argv.slice(2)
@@ -52,6 +53,7 @@ while (args.length) {
 // A map's iwd also holds its textures, so it is a source too.
 const iwd = cmd === 'list' ? null : targetIwd(positional[0])
 const search = createSearch([...opts.source, ...(iwd ? [iwd] : [])])
+const sceneOptions = { prefabRoots: opts.prefabs, scriptDir: LIBRARY_SCRIPTS }
 
 switch (cmd) {
   case 'view': view(); break
@@ -101,7 +103,7 @@ function buildHtml(bundle, defaults) {
 }
 
 function load() {
-  const bundle = buildBundle(target(), search, { prefabRoots: opts.prefabs })
+  const bundle = buildBundle(target(), search, sceneOptions)
   reportMissing(bundle)
   return bundle
 }
@@ -144,7 +146,7 @@ async function render() {
 }
 
 function info() {
-  const { scene: s } = loadScene(target(), search, { prefabRoots: opts.prefabs })
+  const { scene: s } = loadScene(target(), search, sceneOptions)
   if (opts.json) { console.log(JSON.stringify({ ...s, surfaces: undefined }, null, 2)); return }
   const r = (v) => v.map((x) => Math.round(x)).join(' ')
   console.log(`${s.name} (${s.kind}) ${s.path}`)
@@ -152,6 +154,7 @@ function info() {
   console.log(`surfaces: ${s.surfaces.length}  models: ${Object.keys(s.models).length}  lightmaps: ${s.lightmapCount}  sky: ${s.materials.find((m) => m.sky)?.image ?? '-'}`)
   const ws = Object.entries(s.worldspawn).filter(([k]) => k !== 'classname').map(([k, v]) => `${k}=${v}`).join(' ')
   if (ws) console.log(`worldspawn: ${ws}`)
+  if (s.fog) console.log(`fog: ${s.fog.kind === 'exp' ? `exp density ${s.fog.density}` : `cull ${s.fog.near}-${s.fog.far}`} color ${s.fog.color.join(' ')}`)
   console.log('\nentities:')
   const byClass = Map.groupBy(s.entities, (e) => e.classname)
   for (const [cls, list] of [...byClass].sort((a, b) => b[1].length - a[1].length)) {
