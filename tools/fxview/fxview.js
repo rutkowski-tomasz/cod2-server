@@ -157,7 +157,7 @@ function info() {
     for (const e of els) console.log(`  ${e.type.padEnd(17)} ${e.name.padEnd(28)} count ${e.count.join('-')}  delay ${e.delay.join('-')}  life ${e.life.join('-')}  ${e.shaders.join(',')}${e.models.length ? ' models:' + e.models.join(',') : ''}${e.playfx ? ' → ' + e.playfx : ''}${e.emitfx ? ' emit ' + e.emitfx : ''}${e.impactfx ? ' impact ' + e.impactfx : ''}`)
   }
   console.log('\nmaterials')
-  for (const [n, m] of Object.entries(data.materials)) console.log(`  ${n.padEnd(28)} ${m.blend.padEnd(8)} ${m.atlas.padEnd(4)} ${m.size.padEnd(9)} ${m.techset}`)
+  for (const [n, m] of Object.entries(data.materials)) console.log(`  ${n.padEnd(28)} ${m.blend.padEnd(10)} ${m.atlas.padEnd(4)} ${m.size.padEnd(9)} ${m.techset}`)
   for (const s of samples) console.log(`t=${s.t}: ${Object.entries(s.counts).map(([k, v]) => `${k}=${v}`).join(' ')}`)
   reportMissing(bundle)
 }
