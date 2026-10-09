@@ -7,11 +7,11 @@ usage() { echo "usage: $0 <file.map> [-o out.iwd] [--fast]" >&2; exit 1; }
 src="$1"; shift
 [ -f "$src" ] || usage
 out=""
-rad=""
+rad_args=""
 while [ $# -gt 0 ]; do
     case "$1" in
         -o) [ $# -ge 2 ] || usage; out="$2"; shift 2 ;;
-        --fast) rad="-Fast"; shift ;;
+        --fast) rad_args="-Fast"; shift ;;
         *) usage ;;
     esac
 done
@@ -34,9 +34,9 @@ docker --context desktop-linux build --platform linux/amd64 -q -t cod2-mapcompil
 docker --context desktop-linux run --rm --platform linux/amd64 \
     -v "$build/maps:/cod2/main/maps" -v "$binaries:/binaries:ro" cod2-mapcompile bash -c "
         set -e
-        ln -s /binaries/1_0/iw_0[06789].iwd /binaries/1_0/iw_1[01234].iwd /binaries/1_3/iw_15.iwd /cod2/main/
+        ln -s /binaries/1_0/iw_0[06789].iwd /binaries/1_0/iw_1[0-4].iwd /binaries/1_3/iw_15.iwd /cod2/main/
         wine cod2map.exe -platform pc 'Z:\\cod2\\main\\maps\\mp\\$map'
-        wine cod2rad.exe -platform pc $rad 'Z:\\cod2\\main\\maps\\mp\\$map'
+        wine cod2rad.exe -platform pc $rad_args 'Z:\\cod2\\main\\maps\\mp\\$map'
     "
 [ -f "$build/maps/mp/$map.d3dbsp" ] || { echo "$map.d3dbsp was not built" >&2; exit 1; }
 
