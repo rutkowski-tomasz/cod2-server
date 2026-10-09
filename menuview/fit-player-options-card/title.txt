@@ -1,1 +1,0 @@
-menuview: fit player options card to its 5 options
