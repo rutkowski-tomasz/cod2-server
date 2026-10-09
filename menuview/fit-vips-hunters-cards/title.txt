@@ -1,1 +1,0 @@
-menuview: fit vips and hunters menu cards to their 6 options
