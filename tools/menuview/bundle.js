@@ -45,25 +45,30 @@ export function buildBundle(target, search, dvars = {}) {
       for (const d of [item.dvar, item.dvartest]) if (d) referenced.add(d)
     }
   }
-  // DVAR_SHADER items draw the material named by a dvar; scripts usually set it with setdvar.
-  const shaderDvars = new Set(parsed.menus.flatMap((m) => m.items.filter((it) => it.style === WINDOW_STYLE_DVAR_SHADER && it.dvar).map((it) => it.dvar.toLowerCase())))
-  const scriptDvars = new Set()
-  for (const def of parsed.menus.flatMap((m) => [m, ...m.items])) {
-    for (const script of [...Object.values(def).filter(isScript), ...Object.values(def.execkeys ?? {})]) {
-      for (const [op, dvar, value] of script) {
-        if (op.toLowerCase() !== 'setdvar' || !dvar) continue
-        scriptDvars.add(dvar)
-        if (shaderDvars.has(dvar.toLowerCase()) && value) loadImage(value)
-      }
-    }
-  }
+  const scriptDvars = scanScriptDvars(parsed.menus)
   for (const [id, file] of Object.entries(FONTS)) loadFont(id, file)
+
+  return { path, menus: parsed.menus, unknown: [...parsed.unknown], images, fonts, strings, missing, dvars: [...referenced].sort(), scriptDvars: [...scriptDvars] }
 
   function macroName(prefix, value) {
     for (const [name, m] of pp.macros) if (name.startsWith(prefix) && !m.params && m.body.length === 1 && Number(m.body[0].s) === value) return name
   }
 
-  return { path, menus: parsed.menus, unknown: [...parsed.unknown], images, fonts, strings, missing, dvars: [...referenced].sort(), scriptDvars: [...scriptDvars] }
+  // Dvars the menus' scripts set. DVAR_SHADER items draw the material named by a dvar; scripts usually set it with setdvar.
+  function scanScriptDvars(menus) {
+    const shaderDvars = new Set(menus.flatMap((m) => m.items.filter((it) => it.style === WINDOW_STYLE_DVAR_SHADER && it.dvar).map((it) => it.dvar.toLowerCase())))
+    const scriptDvars = new Set()
+    for (const def of menus.flatMap((m) => [m, ...m.items])) {
+      for (const script of [...Object.values(def).filter(isScript), ...Object.values(def.execkeys ?? {})]) {
+        for (const [op, dvar, value] of script) {
+          if (op.toLowerCase() !== 'setdvar' || !dvar) continue
+          scriptDvars.add(dvar)
+          if (shaderDvars.has(dvar.toLowerCase()) && value) loadImage(value)
+        }
+      }
+    }
+    return scriptDvars
+  }
 
   function loadTarget(t) {
     if (existsSync(t) && !t.endsWith('/')) {
@@ -82,29 +87,34 @@ export function buildBundle(target, search, dvars = {}) {
   function loadImage(name) {
     if (tried.has(name)) return
     tried.add(name)
-    const buf = search.read(`materials/${name}`)
-    const mat = buf && parseMaterial(buf)
-    if (!mat) { missing.images.push(`${name} (no material)`); return }
-    const iwi = search.read(`images/${mat.image}.iwi`)
-    if (!iwi) { missing.images.push(`${name} → ${mat.image}.iwi`); return }
-    const img = decodeIwi(iwi)
-    if (!img) { missing.images.push(`${name} → ${mat.image}.iwi (unsupported format ${iwi[4]})`); return }
-    images[name] = { blend: mat.blend, width: img.width, height: img.height, png: toPng(img) }
+    const image = readMaterialImage(name)
+    if (image.missing) missing.images.push(`${name} ${image.missing}`)
+    else images[name] = image
   }
 
   function loadFont(id, file) {
     const buf = search.read(`fonts/${file}`)
     if (!buf) { missing.fonts.push(file); return }
     const font = parseFont(buf)
-    const mat = search.read(`materials/${font.material}`)
-    const image = mat && parseMaterial(mat)?.image
-    if (!images[`font:${image}`]) {
-      const iwi = image && search.read(`images/${image}.iwi`)
-      const img = iwi && decodeIwi(iwi)
-      if (!img) { missing.fonts.push(`${file} → ${font.material}`); return }
-      images[`font:${image}`] = { width: img.width, height: img.height, png: toPng(img) }
+    const key = `font:${font.material}`
+    if (!images[key]) {
+      const image = readMaterialImage(font.material)
+      if (image.missing) { missing.fonts.push(`${file} → ${font.material} ${image.missing}`); return }
+      images[key] = image
     }
-    fonts[id] = { name: file, pixelHeight: font.pixelHeight, image: `font:${image}`, glyphs: font.glyphs }
+    fonts[id] = { name: file, pixelHeight: font.pixelHeight, image: key, glyphs: font.glyphs }
+  }
+
+  // A material's image as a PNG data URL, or `missing`: why it could not be read.
+  function readMaterialImage(name) {
+    const buf = search.read(`materials/${name}`)
+    const mat = buf && parseMaterial(buf)
+    if (!mat) return { missing: '(no material)' }
+    const iwi = search.read(`images/${mat.image}.iwi`)
+    if (!iwi) return { missing: `→ ${mat.image}.iwi` }
+    const img = decodeIwi(iwi)
+    if (!img) return { missing: `→ ${mat.image}.iwi (unsupported format ${iwi[4]})` }
+    return { blend: mat.blend, width: img.width, height: img.height, png: toPng(img) }
   }
 
   // "@MENU_BACK" is REFERENCE BACK in localizedstrings/menu.str. File names can hold underscores too
