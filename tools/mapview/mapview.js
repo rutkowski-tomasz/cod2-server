@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process'
 import { createServer } from 'node:http'
 import { createSearch } from '../shared/assets.js'
 import { inlineModules } from '../shared/inline.js'
-import { loadScene, buildBundle, buildRig } from './bundle.js'
+import { loadScene, buildBundle, buildRig, buildWeapon } from './bundle.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const OUT = join(HERE, '..', '..', 'out', 'mapview')
@@ -43,6 +43,12 @@ view options:
 
 const VIEW_KEYS = ['pos', 'angles', 'at', 'look', 'fov', 'top', 'center', 'span', 'cut', 'labels', 'ents', 'tex', 'lightmap', 'normals', 'shadows', 'fog', 'grid', 'tools', 'live']
 const FLAGS = ['open', 'json', 'top', 'grid', 'tools']
+// What the live page fetches by kind and key, which a streamed player names: its rig by its models joined with
+// commas, its weapon's model by the weapon's name.
+const ASSETS = {
+  rigs: { keyOf: (p) => p.models.join(','), build: (key, search) => buildRig(key.split(','), search) },
+  weapons: { keyOf: (p) => p.weapon, build: buildWeapon },
+}
 
 const args = process.argv.slice(2)
 const cmd = args.shift()
@@ -118,7 +124,7 @@ function buildHtml(bundle, defaults) {
 async function load() {
   const bundle = buildBundle(target(), search, sceneOptions)
   reportMissing(bundle)
-  if (opts.live) bundle.rigs = rigsOf((await nextMessage(opts.live))?.players, new Map(), search)
+  if (opts.live) Object.assign(bundle, assetsOf((await nextMessage(opts.live))?.players, new Map(), search))
   return bundle
 }
 
@@ -166,15 +172,15 @@ function live() {
   const port = +(opts.port ?? 8643)
   let latest = null
   let page = null
-  const rigs = new Map()
+  const assets = new Map()
   follow()
   createServer((req, res) => {
     const url = new URL(req.url, 'http://localhost')
     if (url.pathname === '/') return res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(html())
-    if (url.pathname !== '/rig') return res.writeHead(404).end()
-    const models = url.searchParams.get('models').split(',')
-    const rig = rigsOf([{ models }], rigs, search)[models.join(',')]
-    res.writeHead(rig ? 200 : 404, { 'content-type': 'application/json' }).end(JSON.stringify(rig))
+    const kind = url.pathname.slice(1)
+    if (!ASSETS[kind]) return res.writeHead(404).end()
+    const asset = assetOf(kind, url.searchParams.get('key'), assets, search)
+    res.writeHead(asset ? 200 : 404, { 'content-type': 'application/json' }).end(JSON.stringify(asset))
   }).listen(port, () => {
     const address = `http://localhost:${port}/`
     console.log(`${address}  following ${relay}`)
@@ -199,7 +205,7 @@ function live() {
       try {
         const bundle = buildBundle(map, searchFor(map), sceneOptions)
         reportMissing(bundle)
-        bundle.rigs = rigsOf(latest.players, rigs, search)
+        Object.assign(bundle, assetsOf(latest.players, assets, search))
         page = { map, html: buildHtml(bundle, { ents: 'off', ...viewOf(opts), live: relay }) }
       } catch (e) {
         return waitingPage(`${map}: ${e.message}`)
@@ -219,16 +225,21 @@ function nextMessage(relay) {
   })
 }
 
-// The rigs `players` wear, keyed by their models joined with commas as the page asks for them; null for one a model
-// of which is missing. Built once per key into `cache`.
-function rigsOf(players, cache, search) {
-  const rigs = {}
-  for (const { models } of Object.values(players ?? {})) {
-    const key = models.join(',')
-    if (!cache.has(key)) cache.set(key, buildRig(models, search))
-    rigs[key] = cache.get(key)
+// Built once per kind and key into `cache`; null when it cannot be built.
+function assetOf(kind, key, cache, search) {
+  const id = `${kind}/${key}`
+  if (!cache.has(id)) cache.set(id, ASSETS[kind].build(key, search))
+  return cache.get(id)
+}
+
+// Every asset `players` use, as { rigs: { key: asset }, weapons: … }, to bake into a page.
+function assetsOf(players, cache, search) {
+  const out = {}
+  for (const [kind, { keyOf }] of Object.entries(ASSETS)) {
+    out[kind] = {}
+    for (const p of Object.values(players ?? {})) out[kind][keyOf(p)] = assetOf(kind, keyOf(p), cache, search)
   }
-  return rigs
+  return out
 }
 
 function waitingPage(text) {

@@ -21,6 +21,7 @@ export function createPlayers(map, world) {
   const { idle } = map.player
   const base = partsOf(map.player, map, map.materials)
   const rigParts = new Map()
+  const weaponParts = new Map()
   const copies = []
   let lastUpdate = performance.now()
   let frozen = false
@@ -48,6 +49,14 @@ export function createPlayers(map, world) {
         rigParts.set(rig, partsOf(rig, decodeGeometry(rig.geometry), rig.materials))
       }
       return createCopy(0, rigParts.get(rig))
+    },
+    // Puts `weapon` (built like a rig by bundle.js buildWeapon), or nothing for null, in the right hand of the live
+    // copy `outer`, so it follows the hand's animation.
+    hold(outer, weapon) {
+      const copy = copies.find((c) => c.outer === outer)
+      copy.weapon?.removeFromParent()
+      copy.weapon = weapon && weaponMesh(weapon)
+      if (copy.weapon) copy.skeleton.getBoneByName('tag_weapon_right')?.add(copy.weapon)
     },
     remove(outer) {
       const i = copies.findIndex((c) => c.outer === outer)
@@ -80,6 +89,18 @@ export function createPlayers(map, world) {
       frozen = true
       for (const { mixer, start } of copies) mixer.setTime(start)
     },
+  }
+
+  // A weapon drawn rigid in its bind pose, sharing geometry and materials with every other hand holding it.
+  function weaponMesh(weapon) {
+    if (!weaponParts.has(weapon)) {
+      Object.assign(map.images, weapon.images)
+      const data = decodeGeometry(weapon.geometry)
+      weaponParts.set(weapon, weapon.surfaces.map((s) => [geometryOf(data, s), world.modelMaterial(weapon.materials[s.material])]))
+    }
+    const group = new THREE.Group()
+    for (const [geometry, material] of weaponParts.get(weapon)) group.add(new THREE.Mesh(geometry, material))
+    return group
   }
 
   // The geometry, materials and idle clip one rig's copies share; `data` reads the rig's packed arrays.

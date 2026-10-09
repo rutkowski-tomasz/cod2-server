@@ -129,6 +129,14 @@ export function buildRig(models, search) {
   return { bones: rig.bones, surfaces, materials, images: imagesOf(materials, search), geometry: buffer().toString('base64') }
 }
 
+// The model a player holding `weapon` (a weapon file name such as mp40_mp) shows in its hand, built like a rig:
+// the weapon file's worldModel. Null without one, as for "none".
+export function buildWeapon(weapon, search) {
+  const file = search.read(`weapons/mp/${weapon}`)?.toString('latin1').split('\\')
+  const model = file?.[file.indexOf('worldModel') + 1]
+  return model ? buildRig([model], search) : null
+}
+
 // Typed arrays packed one after another, each 4-byte aligned; `push` returns where its array sits.
 function createPacker() {
   const chunks = []
