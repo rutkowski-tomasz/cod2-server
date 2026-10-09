@@ -36,6 +36,7 @@ docker --context desktop-linux run --rm --platform linux/amd64 \
         wine cod2map.exe -platform pc 'Z:\\cod2\\main\\maps\\mp\\$map'
         wine cod2rad.exe -platform pc 'Z:\\cod2\\main\\maps\\mp\\$map'
     "
+[ -f "$build/maps/mp/$map.d3dbsp" ] || { echo "$map.d3dbsp was not built" >&2; exit 1; }
 
 rm -f "$build/maps/mp/$map".{map,d3dpoly,d3dprt,lin} "$out"
 (cd "$build" && zip -q -r "$out" maps mp)
