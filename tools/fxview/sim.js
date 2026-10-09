@@ -90,6 +90,7 @@ export function createSim(bundle, opts = {}) {
     for (let i = 0; i < 3; i++) p.pos[i] += v[i] * dts
     p.vel = v
     p.rot += rotationRate(p, f) * dts
+    if (p.angles) for (let i = 0; i < 3; i++) p.angles[i] += p.angleRate[i] * dts
     if (p.usePhysics && ground !== null && p.pos[2] <= ground && v[2] < 0) {
       p.pos[2] = ground
       // Only the first hit: a resting particle keeps touching the ground every step.
@@ -144,7 +145,7 @@ export function createSim(bundle, opts = {}) {
     const flags = d.flags
     const axis = d.spawnFlags.includes('axisFromSphere') ? axisFrom(randDir(), randDir()) : s.effectAxis
     const pos = [...s.effectPos]
-    if (d.origin) addAxis(pos, [rand([d.origin[0][0], d.origin[1][0]]), rand([d.origin[0][1], d.origin[1][1]]), rand([d.origin[0][2], d.origin[1][2]])], s.effectAxis)
+    if (d.origin) addAxis(pos, randInBox(d.origin), s.effectAxis)
     if (d.spawnFlags.includes('orgOnCylinder')) {
       const a = rng() * Math.PI * 2
       const r = rand(d.radius)
@@ -174,8 +175,8 @@ export function createSim(bundle, opts = {}) {
       pos,
       last: [...pos],
       vel: [0, 0, 0],
-      physVel: d.velocity ? [rand([d.velocity[0][0], d.velocity[1][0]]), rand([d.velocity[0][1], d.velocity[1][1]]), rand([d.velocity[0][2], d.velocity[1][2]])] : [0, 0, 0],
-      accel: d.acceleration ? [rand([d.acceleration[0][0], d.acceleration[1][0]]), rand([d.acceleration[0][1], d.acceleration[1][1]]), rand([d.acceleration[0][2], d.acceleration[1][2]])] : null,
+      physVel: randInBox(d.velocity),
+      accel: d.acceleration ? randInBox(d.acceleration) : null,
       gravity: rand(d.gravity),
       wind: [Math.cos(windAngle) * windSpeed, Math.sin(windAngle) * windSpeed, 0],
       bounce: rand(d.bounce),
@@ -194,6 +195,8 @@ export function createSim(bundle, opts = {}) {
       shader: d.shaders.length ? d.shaders[Math.floor(rng() * d.shaders.length)] : null,
       atlasFrames: 1,
       model: d.models.length ? d.models[Math.floor(rng() * d.models.length)] : null,
+      angles: d.models.length ? randInBox(d.angle) : null,
+      angleRate: d.models.length ? randInBox(d.angleDelta) : null,
       r: {
         size: rng(), size2: rng(), length: rng(), rotDelta: rng(), alpha: rng(), rgb: rng(), vel: [rng(), rng(), rng()], vel2: [rng(), rng(), rng()],
         scale: rng(), frame: rng(),
@@ -251,6 +254,11 @@ export function createSim(bundle, opts = {}) {
 
   function rand(range) {
     return range[0] + (range[1] - range[0]) * rng()
+  }
+  // `box` is [min corner, max corner] or null.
+  function randInBox(box) {
+    if (!box) return [0, 0, 0]
+    return [rand([box[0][0], box[1][0]]), rand([box[0][1], box[1][1]]), rand([box[0][2], box[1][2]])]
   }
   function randInt(range) {
     return Math.round(rand(range))
@@ -350,6 +358,18 @@ function effectDuration(bundle, path, depth, skipDecals) {
     max = Math.max(max, end)
   }
   return max
+}
+
+// World axis of a model particle: its own axis turned by its pitch, yaw and roll in degrees.
+export function modelAxis(p) {
+  const [sp, sy, sr] = p.angles.map((a) => Math.sin((a * Math.PI) / 180))
+  const [cp, cy, cr] = p.angles.map((a) => Math.cos((a * Math.PI) / 180))
+  const local = [
+    [cp * cy, cp * sy, -sp],
+    [sr * sp * cy - cr * sy, sr * sp * sy + cr * cy, sr * cp],
+    [cr * sp * cy + sr * sy, cr * sp * sy - sr * cy, cr * cp],
+  ]
+  return local.map((v) => toWorld(v, p.axis))
 }
 
 // Axis: rows forward, left, up (CoD convention: X forward, Y left, Z up).

@@ -70,7 +70,7 @@ export function normalizeElement(raw) {
     scales,
     sequence: seq,
     shaders: raw.shaders ?? [],
-    models: raw.models ?? [],
+    models: (raw.models ?? []).map((m) => m.replace(/\\/g, '/')),
     playfx: fxPath(raw.playfx),
     emitfx: fxPath(raw.emitfx),
     impactfx: fxPath(raw.impactfx),
