@@ -1,8 +1,11 @@
 // IWI (CoD2 image, version 5) → RGBA of the largest mip, or null for an unsupported format.
 // Header: "IWi", version, format, usage, u16 width, height, depth, 4 × u32 end offsets.
 // Mips are stored smallest first, so the top mip is the last `size` bytes.
-// Formats 6 and 7 hold compressed data in an unknown scheme.
-const FORMATS = { 1: 'argb8', 2: 'rgb8', 3: 'la8', 11: 'dxt1', 12: 'dxt3', 13: 'dxt5' }
+// Formats 6 and 7 are wavelet-compressed argb8 and rgb8.
+import { decodeWavelet } from './iwi-wavelet.js'
+
+const FORMATS = { 1: 'argb8', 2: 'rgb8', 3: 'la8', 6: 'argb8', 7: 'rgb8', 11: 'dxt1', 12: 'dxt3', 13: 'dxt5' }
+const WAVELET = { 6: 4, 7: 3 }
 // Usage bit 4 marks a cube map (skies): six faces, whose top mips are the last six `size` blocks, in face order.
 const USAGE_CUBE = 4
 
@@ -15,6 +18,7 @@ export function iwiInfo(buf) {
 export function decodeIwi(buf) {
   const { format, width, height, cube } = iwiInfo(buf)
   if (!format) return null
+  if (WAVELET[buf[4]]) return { width, height, rgba: decodeMip(format, width, height, decodeWavelet(buf.subarray(28), width, height, WAVELET[buf[4]])) }
   const size = mipSize(format, width, height)
   const faceCount = cube ? 6 : 1
   const faces = []

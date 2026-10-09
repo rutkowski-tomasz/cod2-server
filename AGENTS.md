@@ -26,7 +26,7 @@ The image builds [zk_libcod](https://github.com/ibuddieat/zk_libcod) at the comm
 
 `tools/mapview/` draws maps (`.map`, `.d3dbsp`, a map's `.iwd` or a stock name) without the game: `node tools/mapview/mapview.js render <map> --at mp_tdm_spawn` writes a screenshot to look at, `view` an interactive page, `info` the entities and materials. See `tools/mapview/README.md`.
 
-`tools/shared/` holds what the tools share: the asset search over iwds and folders, material, xmodel, IWI and PNG codecs, and the module inliner for their file:// pages.
+`tools/shared/` holds what the tools share: the asset search over iwds and folders, material, xmodel, IWI (with its wavelet formats, GPLv3) and PNG codecs, and the module inliner for their file:// pages.
 
 # stacks
 
