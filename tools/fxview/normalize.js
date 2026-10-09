@@ -53,6 +53,7 @@ export function normalizeElement(raw) {
     life: range(raw.life ?? [1000]),
     delay: range(raw.delay ?? [0]),
     origin: box(raw.origin),
+    origin2: box(raw.origin2),
     radius: range(raw.radius ?? [0]),
     height: range(raw.height ?? [0]),
     rotation: range(raw.rotation ?? [0]),
