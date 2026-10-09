@@ -1,0 +1,1 @@
+menuview: remove clear/default buttons from perk, skin and zombie tiles
