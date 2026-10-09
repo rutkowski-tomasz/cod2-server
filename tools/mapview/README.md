@@ -20,11 +20,11 @@ Output goes to `tools/mapview/out/` unless `-o` is given. `render` writes the pa
 ## Checking a map as an agent
 
 1. `info`: bounds, worldspawn sun and light keys, entities by classname with the first origins, every material with its image.
-2. `render` from where a player stands: `--at mp_tdm_spawn` (eye 60 units above the entity, facing its angles), `--at 'mp_tdm_spawn[3]'` for the 4th match (quote it, zsh globs brackets), `--at targetname=gate1`, `--at '#12'`. Or `--pos x,y,z --angles pitch,yaw,roll`, the numbers `getOrigin()` + 60 and `getPlayerAngles()` give in game, or `--look x,y,z` to aim at a point.
+2. `render` from where a player stands: `--at mp_tdm_spawn` (eye 60 units above the entity, facing its angles), `--at 'mp_tdm_spawn[3]'` for the 4th match (quote it, zsh globs brackets), `--at targetname=gate1`, `--at '#12'`. Or `--pos x,y,z --angles pitch,yaw,roll`, the numbers `getOrigin()` + 60 and `getPlayerAngles()` give in game, or `--look x,y,z` to aim at a point. Without these, the view starts at `mp_global_intermission`, else the first spawn.
 3. `render --top` for a floor plan with a 256-unit grid and coordinates. `--center x,y --span units` zooms in, `--cut z` hides everything above z (also in perspective), which shows the inside of buildings.
 4. Many views: `--batch shots.json`, an array of objects with the view options as keys plus `name`, such as `[{ "name": "plan", "top": true, "cut": 240 }, { "name": "spawn", "at": "mp_tdm_spawn[2]", "labels": "off" }]`. Each shot starts from the defaults, and all share one browser.
 
-In the page: click to look around, WASD to move, Shift for speed, Space and C for up and down, the wheel for move speed or top-view zoom. L labels (Shift+L all), E entities, T textures, G grid, K tool brushes, M lightmap, 1 top view, H HUD. The HUD shows the `--pos`/`--angles` or `--center`/`--span` that reproduce the view. URL hash params override the baked view options, as `#at=mp_tdm_spawn&labels=off`.
+In the page: click to look around, WASD to move, Shift for speed, E and Q (or Space and C) for up and down, the wheel for move speed or top-view zoom. L labels (Shift+L all), O entities, T textures, G grid, K tool brushes, M lightmap, 1 top view, H HUD and FPS counter. The HUD shows the `--pos`/`--angles` or `--center`/`--span` that reproduce the view. URL hash params override the baked view options, as `#at=mp_tdm_spawn&labels=off`.
 
 ## What is drawn
 
