@@ -3,6 +3,8 @@
 const STEP = 1000 / 120
 const MAX_PARTICLES = 20000
 const MAX_DEPTH = 4
+// org2fromTrace without a ground hit: the trace stops here instead, as if it met a wall.
+const TRACE_RANGE = 512
 // z: pointing up, like playFx without a forward vector or an explosion on the ground. x: level, like a muzzle.
 export const FORWARD = { x: [1, 0, 0], z: [0, 0, 1], '-z': [0, 0, -1], '-x': [-1, 0, 0] }
 
@@ -27,6 +29,7 @@ export function createSim(bundle, opts = {}) {
     seek,
     counts,
     bounds,
+    shake,
   }
   let rng
   // Whole steps taken since reset. The state always sits on this fixed grid, so a seed gives the same result whatever seeks led there.
@@ -67,7 +70,7 @@ export function createSim(bundle, opts = {}) {
       p.age = t1 - p.spawnTime
       if (p.age >= p.life) { onDeath(p, t1); continue }
       const f = p.age / p.life
-      if (p.type !== 'Decal' && p.type !== 'Light') integrate(p, f, dts, t1)
+      if (p.type !== 'Decal' && p.type !== 'Light' && p.type !== 'CameraShake') integrate(p, f, dts, t1)
       if (p.dead) continue
       alive.push(p)
     }
@@ -115,7 +118,7 @@ export function createSim(bundle, opts = {}) {
   }
 
   function onDeath(p, now) {
-    if (p.type === 'Emitter' && p.def.deathfx && p.def.flags.includes('deathFx')) queueEffect(p.def.deathfx, [...p.pos], p.axis, now, p.depth + 1)
+    if ((p.type === 'Emitter' || p.type === 'Line') && p.def.deathfx && p.def.flags.includes('deathFx')) queueEffect(p.def.deathfx, [...p.pos], p.axis, now, p.depth + 1)
   }
 
   function queueEffect(path, pos, axis, time, depth) {
@@ -129,7 +132,6 @@ export function createSim(bundle, opts = {}) {
     if (!effect) return
     sim.instances++
     for (const def of effect.elements) {
-      if (def.type === 'CameraShake' || def.type === 'Line') { sim.warnings.add(`${def.type} not rendered (${path})`); continue }
       const count = randInt(def.count)
       const even = def.spawnFlags.includes('evenDistribution')
       for (let i = 0; i < count; i++) {
@@ -205,9 +207,27 @@ export function createSim(bundle, opts = {}) {
     }
     const material = bundle.materials[p.shader]
     if (material) p.atlasFrames = material.atlasCols * material.atlasRows
+    if (d.type === 'Line') p.end = lineEnd(s, pos)
     if (d.velocity && !p.absVel) p.physVel = toWorld(p.physVel, axis)
     if (p.accel && !p.absVel) p.accel = toWorld(p.accel, axis)
     sim.particles.push(p)
+  }
+
+  // A Line runs from its origin to `origin2` in the effect axis, or to where a trace along the effect forward stops.
+  function lineEnd(s, pos) {
+    const d = s.def
+    if (!d.spawnFlags.includes('org2fromTrace')) {
+      const end = [...s.effectPos]
+      addAxis(end, randInBox(d.origin2), s.effectAxis)
+      return end
+    }
+    const dir = s.effectAxis[0]
+    const groundDist = ground !== null && dir[2] < 0 ? (ground - pos[2]) / dir[2] : Infinity
+    const hitGround = groundDist <= TRACE_RANGE
+    const end = pos.map((x, i) => x + dir[i] * (hitGround ? groundDist : TRACE_RANGE))
+    const normal = hitGround ? [0, 0, 1] : dir.map((x) => -x)
+    if (d.impactfx && d.spawnFlags.includes('traceImpactFx')) queueEffect(d.impactfx, end, axisFrom(normal, Math.abs(normal[2]) > 0.9 ? [1, 0, 0] : [0, 0, 1]), s.time, s.depth + 1)
+    return end
   }
 
   function graphVel(p, f, kx, ky, kz, r, hasRand) {
@@ -225,6 +245,13 @@ export function createSim(bundle, opts = {}) {
     return out
   }
 
+  // Sum of the live camera shakes, read from their size graph.
+  function shake() {
+    let total = 0
+    for (const p of sim.particles) if (p.type === 'CameraShake' && p.spawnTime <= sim.time) total += sampleSize(p)[0]
+    return total
+  }
+
   // Extent of the effect over its whole life, sampled every 50 ms. `radius` covers 90% of the
   // particle sightings around `center`, weighted by sprite area, so a few stray pebbles do not blow up the frame.
   function bounds() {
@@ -236,11 +263,13 @@ export function createSim(bundle, opts = {}) {
     for (let t = 0; t <= sim.duration; t += 50) {
       seek(t)
       for (const p of sim.particles) {
-        if (p.spawnTime > sim.time || (ground !== null && p.pos[2] < ground - 2)) continue
+        if (p.spawnTime > sim.time || p.type === 'CameraShake' || (ground !== null && p.pos[2] < ground - 2)) continue
         const s = sampleSize(p)
         const pad = Math.max(s[0], s[1]) / 2
-        points.push([p.pos[0], p.pos[1], p.pos[2], pad])
-        for (let i = 0; i < 3; i++) { lo[i] = Math.min(lo[i], p.pos[i] - pad); hi[i] = Math.max(hi[i], p.pos[i] + pad) }
+        for (const q of p.end ? [p.pos, p.end] : [p.pos]) {
+          points.push([q[0], q[1], q[2], pad])
+          for (let i = 0; i < 3; i++) { lo[i] = Math.min(lo[i], q[i] - pad); hi[i] = Math.max(hi[i], q[i] + pad) }
+        }
       }
     }
     reset()

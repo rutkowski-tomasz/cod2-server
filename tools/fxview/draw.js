@@ -189,9 +189,10 @@ export function createRenderer(canvas, { materials, models }) {
 
   function render({ sim, cam, state, hidden }) {
     const eye = cameraEye(cam)
+    const target = shakenTarget(eye, cam, sim)
     const aspect = canvas.width / canvas.height
-    const vp = mat4mul(perspective(cam.fov, aspect, 2, 20000), lookAt(eye, cam.target, [0, 0, 1]))
-    const viewFwd = V.norm(V.sub(cam.target, eye))
+    const vp = mat4mul(perspective(cam.fov, aspect, 2, 20000), lookAt(eye, target, [0, 0, 1]))
+    const viewFwd = V.norm(V.sub(target, eye))
     const viewRight = V.norm(V.cross(viewFwd, [0, 0, 1]))
     const viewUp = V.cross(viewRight, viewFwd)
     gl.viewport(0, 0, canvas.width, canvas.height)
@@ -233,6 +234,17 @@ export function createRenderer(canvas, { materials, models }) {
     drawQuads(items)
   }
 
+  // Camera shake turns the view by up to its amplitude in degrees, driven by sim time so the same frame always shakes the same way.
+  function shakenTarget(eye, cam, sim) {
+    const amount = sim.shake()
+    if (amount <= 0) return cam.target
+    const fwd = V.norm(V.sub(cam.target, eye))
+    const right = V.norm(V.cross(fwd, [0, 0, 1]))
+    const up = V.cross(right, fwd)
+    const k = Math.tan((amount * Math.PI) / 180) * cam.dist
+    return V.add(cam.target, V.add(V.mul(right, k * Math.sin(sim.time * 0.071)), V.mul(up, k * Math.sin(sim.time * 0.053 + 1))))
+  }
+
   function particleQuad(p, eye, viewRight, viewUp) {
     const vis = sampleVisual(p)
     const d = p.def
@@ -262,6 +274,14 @@ export function createRenderer(canvas, { materials, models }) {
         const len = Math.max(vis.length, w * 0.5)
         center = V.sub(p.pos, V.mul(dir, len / 2))
         return quad(center, V.mul(side, w / 2), V.mul(dir, len / 2), color, tex, vis.frame)
+      }
+      case 'Line': {
+        const along = V.sub(p.end, p.pos)
+        if (V.len(along) < 1e-3) return null
+        let side = V.cross(along, V.sub(eye, p.pos))
+        if (V.len(side) < 1e-4) side = viewRight
+        center = V.mul(V.add(p.pos, p.end), 0.5)
+        return quad(center, V.mul(V.norm(side), w / 2), V.mul(along, 0.5), color, tex, vis.frame)
       }
       case 'OrientedParticle':
       case 'Decal': {

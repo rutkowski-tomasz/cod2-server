@@ -77,7 +77,8 @@ function updateUi() {
   $('time').max = Math.ceil(sim.activeDuration)
   $('time').value = Math.min(sim.time, sim.activeDuration)
   const live = sim.particles.filter((p) => p.spawnTime <= sim.time).length
-  $('stats').textContent = `t = ${Math.round(sim.time)} ms / ${Math.round(sim.activeDuration)} ms (full ${Math.round(sim.duration)}) · ${live} particles · ${sim.instances} effect instances${sim.dropped ? ` · ${sim.dropped} dropped` : ''}`
+  const shake = sim.shake()
+  $('stats').textContent = `t = ${Math.round(sim.time)} ms / ${Math.round(sim.activeDuration)} ms (full ${Math.round(sim.duration)}) · ${live} particles · ${sim.instances} effect instances${sim.dropped ? ` · ${sim.dropped} dropped` : ''}${shake ? ` · camera shake ${shake.toFixed(2)}` : ''}`
   const counts = {}
   for (const p of sim.particles) if (p.spawnTime <= sim.time) counts[p.def.key] = (counts[p.def.key] ?? 0) + 1
   for (const n of document.querySelectorAll('#elements .n')) n.textContent = counts[n.dataset.key] ?? ''
@@ -192,14 +193,16 @@ window.efx = {
       render()
       const x = (i % cols) * width, y = Math.floor(i / cols) * height
       ctx.drawImage(canvas, x, y)
-      ctx.fillStyle = 'rgba(0,0,0,0.6)'
-      ctx.fillRect(x, y, 110, 18)
-      ctx.fillStyle = '#fff'
+      const shake = sim.shake()
+      const label = `t = ${Math.round(t)} ms${shake ? ` · shake ${shake.toFixed(2)}` : ''}`
       ctx.font = '13px monospace'
-      ctx.fillText(`t = ${Math.round(t)} ms`, x + 4, y + 13)
+      ctx.fillStyle = 'rgba(0,0,0,0.6)'
+      ctx.fillRect(x, y, ctx.measureText(label).width + 8, 18)
+      ctx.fillStyle = '#fff'
+      ctx.fillText(label, x + 4, y + 13)
       ctx.strokeStyle = '#000'
       ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1)
-      frames.push({ t, counts: sim.counts() })
+      frames.push({ t, counts: sim.counts(), ...(shake ? { shake } : {}) })
     })
     document.body.classList.remove('hideui')
     resize()
