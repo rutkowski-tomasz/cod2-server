@@ -11,7 +11,7 @@ export const FORWARD = { x: [1, 0, 0], z: [0, 0, 1], '-z': [0, 0, -1], '-x': [-1
 export function createSim(bundle, opts = {}) {
   const rngSeed = opts.seed ?? 1
   const forward = FORWARD[opts.forward ?? 'z']
-  const axis = axisFrom(forward, Math.abs(forward[2]) > 0.9 ? [1, 0, 0] : [0, 0, 1])
+  const axis = axisFacing(forward)
   const ground = opts.ground === undefined ? 0 : opts.ground
   const origin = [0, 0, 0]
   const sim = {
@@ -97,7 +97,7 @@ export function createSim(bundle, opts = {}) {
     if (p.usePhysics && ground !== null && p.pos[2] <= ground && v[2] < 0) {
       p.pos[2] = ground
       // Only the first hit: a resting particle keeps touching the ground every step.
-      if (d.impactfx && p.bounces === 0) queueEffect(d.impactfx, [p.pos[0], p.pos[1], ground], axisFrom([0, 0, 1], [1, 0, 0]), now, p.depth + 1)
+      if (d.impactfx && p.bounces === 0) queueEffect(d.impactfx, [p.pos[0], p.pos[1], ground], axisFacing([0, 0, 1]), now, p.depth + 1)
       if (p.impactKills) {
         p.dead = true
         return
@@ -207,27 +207,26 @@ export function createSim(bundle, opts = {}) {
     }
     const material = bundle.materials[p.shader]
     if (material) p.atlasFrames = material.atlasCols * material.atlasRows
-    if (d.type === 'Line') p.end = lineEnd(s, pos)
+    // A Line runs from its origin to `origin2` in the effect axis, or to where a trace along the effect forward stops.
+    if (d.type === 'Line' && d.spawnFlags.includes('org2fromTrace')) {
+      const hit = trace(pos, s.effectAxis[0])
+      p.end = hit.end
+      if (d.impactfx && d.spawnFlags.includes('traceImpactFx')) queueEffect(d.impactfx, hit.end, axisFacing(hit.normal), s.time, s.depth + 1)
+    } else if (d.type === 'Line') {
+      p.end = [...s.effectPos]
+      addAxis(p.end, randInBox(d.origin2), s.effectAxis)
+    }
     if (d.velocity && !p.absVel) p.physVel = toWorld(p.physVel, axis)
     if (p.accel && !p.absVel) p.accel = toWorld(p.accel, axis)
     sim.particles.push(p)
   }
 
-  // A Line runs from its origin to `origin2` in the effect axis, or to where a trace along the effect forward stops.
-  function lineEnd(s, pos) {
-    const d = s.def
-    if (!d.spawnFlags.includes('org2fromTrace')) {
-      const end = [...s.effectPos]
-      addAxis(end, randInBox(d.origin2), s.effectAxis)
-      return end
-    }
-    const dir = s.effectAxis[0]
-    const groundDist = ground !== null && dir[2] < 0 ? (ground - pos[2]) / dir[2] : Infinity
-    const hitGround = groundDist <= TRACE_RANGE
-    const end = pos.map((x, i) => x + dir[i] * (hitGround ? groundDist : TRACE_RANGE))
-    const normal = hitGround ? [0, 0, 1] : dir.map((x) => -x)
-    if (d.impactfx && d.spawnFlags.includes('traceImpactFx')) queueEffect(d.impactfx, end, axisFrom(normal, Math.abs(normal[2]) > 0.9 ? [1, 0, 0] : [0, 0, 1]), s.time, s.depth + 1)
-    return end
+  // The only world is the ground plane; a miss stops at TRACE_RANGE facing back along the trace.
+  function trace(from, dir) {
+    const groundDist = ground !== null && dir[2] < 0 ? (ground - from[2]) / dir[2] : Infinity
+    const hitGround = groundDist >= 0 && groundDist <= TRACE_RANGE
+    const end = from.map((x, i) => x + dir[i] * (hitGround ? groundDist : TRACE_RANGE))
+    return { end, normal: hitGround ? [0, 0, 1] : dir.map((x) => -x) }
   }
 
   function graphVel(p, f, kx, ky, kz, r, hasRand) {
@@ -399,6 +398,10 @@ export function modelAxis(p) {
     [cr * sp * cy + sr * sy, cr * sp * sy - sr * cy, cr * cp],
   ]
   return local.map((v) => toWorld(v, p.axis))
+}
+
+function axisFacing(forward) {
+  return axisFrom(forward, Math.abs(forward[2]) > 0.9 ? [1, 0, 0] : [0, 0, 1])
 }
 
 // Axis: rows forward, left, up (CoD convention: X forward, Y left, Z up).

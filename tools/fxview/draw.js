@@ -228,7 +228,8 @@ export function createRenderer(canvas, { materials, models }) {
     for (const p of sim.particles) {
       if (!shown(p)) continue
       const q = particleQuad(p, eye, viewRight, viewUp)
-      if (q) { q.depth = V.dot(V.sub(p.pos, eye), viewFwd); items.push(q) }
+      const at = p.end ? V.mul(V.add(p.pos, p.end), 0.5) : p.pos
+      if (q) { q.depth = V.dot(V.sub(at, eye), viewFwd); items.push(q) }
     }
     items.sort((a, b) => b.depth - a.depth)
     drawQuads(items)
