@@ -2,7 +2,9 @@
 // Header: "IWi", version, format, usage, u16 width, height, depth, 4 × u32 end offsets.
 // Mips are stored smallest first, so the top mip is the last `size` bytes.
 // Formats 6 and 7 hold compressed data in an unknown scheme.
-const FORMATS = { 1: 'argb8', 2: 'rgb8', 3: 'la8', 11: 'dxt1', 12: 'dxt3', 13: 'dxt5' }
+// A cube map (usage 5, skies) stores six faces; their top mips are the last six `size` blocks, in face order.
+export const FORMATS = { 1: 'argb8', 2: 'rgb8', 3: 'la8', 11: 'dxt1', 12: 'dxt3', 13: 'dxt5' }
+const USAGE_CUBE = 5
 
 export function decodeIwi(buf) {
   if (buf.toString('latin1', 0, 3) !== 'IWi') throw new Error('not an IWI')
@@ -11,7 +13,13 @@ export function decodeIwi(buf) {
   const width = buf.readUInt16LE(6)
   const height = buf.readUInt16LE(8)
   const size = mipSize(format, width, height)
-  const data = buf.subarray(buf.length - size)
+  const faceCount = buf[5] === USAGE_CUBE ? 6 : 1
+  const faces = []
+  for (let f = faceCount; f > 0; f--) faces.push(decodeMip(format, width, height, buf.subarray(buf.length - size * f, buf.length - size * (f - 1))))
+  return { width, height, rgba: faces[0], faces: faceCount === 6 ? faces : undefined }
+}
+
+function decodeMip(format, width, height, data) {
   const rgba = new Uint8Array(width * height * 4)
   switch (format) {
     case 'dxt1': decodeDxt(data, width, height, rgba, 1); break
@@ -21,7 +29,7 @@ export function decodeIwi(buf) {
     case 'rgb8': for (let i = 0; i < width * height; i++) { rgba[i * 4] = data[i * 3 + 2]; rgba[i * 4 + 1] = data[i * 3 + 1]; rgba[i * 4 + 2] = data[i * 3]; rgba[i * 4 + 3] = 255 } break
     case 'la8': for (let i = 0; i < width * height; i++) { rgba[i * 4] = rgba[i * 4 + 1] = rgba[i * 4 + 2] = data[i * 2]; rgba[i * 4 + 3] = data[i * 2 + 1] } break
   }
-  return { width, height, rgba }
+  return rgba
 }
 
 function mipSize(format, w, h) {

@@ -1,8 +1,8 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
-<title>CoD2 map view</title>
+<title>mapview</title>
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: #202830; font: 12px/1.4 ui-monospace, Menlo, monospace; color: #e8ecf0; }
   canvas { display: block; }
@@ -18,9 +18,13 @@
 <div id="labels"></div>
 <div id="ticks"></div>
 <div id="hud"></div>
-<div id="legend"></div>
+<div id="legend">WASD move · mouse look · shift fast · space/C up/down
+wheel speed · L labels · E entities · T textures · G grid · K tool brushes · M lightmap · 1 top view · H hide hud</div>
 <div id="status">loading…</div>
-<script type="importmap">{ "imports": { "three": "/three/three.module.js" } }</script>
-<script type="module" src="/viewer/app.js"></script>
+<script id="three" type="text/plain">__THREE__</script>
+<script id="bundle" type="application/json">__BUNDLE__</script>
+<script type="module">
+__SCRIPT__
+</script>
 </body>
 </html>

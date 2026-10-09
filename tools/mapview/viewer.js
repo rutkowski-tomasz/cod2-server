@@ -1,4 +1,6 @@
-import * as THREE from 'three'
+const bundle = JSON.parse(document.getElementById('bundle').textContent)
+const params = { ...bundle.defaults, ...Object.fromEntries(new URLSearchParams(location.hash.slice(1))) }
+let THREE
 
 // CoD2 is Z-up; three.js is Y-up. World coordinates convert as (x, y, z) -> (x, z, -y).
 const toThree = (x, y, z) => new THREE.Vector3(x, z, -y)
@@ -7,24 +9,20 @@ const d2r = Math.PI / 180
 const EYE_HEIGHT = 60
 const PLAYER = { width: 30, height: 72 }
 
-const state = {
-  pos: [0, 0, EYE_HEIGHT], angles: [0, 0, 0], fov: 80,
-  top: false, span: 0, cut: null,
-  labels: true, textures: true, entities: true, grid: false, tools: false, lightmap: true, shadows: true, hud: true,
-  speed: 400,
-}
-const params = new URLSearchParams(location.search)
-const api = { ready: false, error: null }
-window.__mapview = api
+const state = { speed: 400 }
+// View params are the command line's view options: "off" turns a default-on option off.
+const off = (v) => v === undefined ? false : ['off', '0', 'false', false].includes(v)
+const on = (v) => v !== undefined && !off(v)
 
 let renderer, scene, camera, ortho, sceneData, world, markers, labelItems = [], sun, hemi, ambient, skybox, sunInfo
 let pending = 0, needRender = true, occlusionDirty = true, lastChange = 0, occlusion = null
 const materials = []
 const textures = new Map()
 
-init().catch((e) => { api.error = e.stack || String(e); status(String(e)) })
+init().catch((e) => { window.mapError = e.stack || String(e); status(String(e)) })
 
 async function init() {
+  THREE = await import(document.getElementById('three').textContent)
   renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, powerPreference: 'high-performance' })
   renderer.setPixelRatio(1)
   renderer.setSize(innerWidth, innerHeight)
@@ -37,11 +35,8 @@ async function init() {
   ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 131072)
   addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); needRender = true })
 
-  const map = params.get('map')
-  if (!map) throw new Error('missing ?map= parameter')
-  status(`loading ${map}…`)
-  sceneData = await loadScene(`/api/scene?map=${encodeURIComponent(map)}`)
-  document.title = `${sceneData.name} – CoD2 map view`
+  sceneData = decodeGeometry(bundle)
+  document.title = `${sceneData.name} – mapview`
   sunInfo = readSun()
   buildWorld()
   buildLights()
@@ -53,70 +48,63 @@ async function init() {
   status('')
   renderLoop()
   await whenIdle()
-  api.ready = true
+  window.mapReady = true
 }
 
-api.apply = async (p) => {
-  api.ready = false
-  const sp = new URLSearchParams(p)
-  readParams(sp)
-  applyView()
-  needRender = true
-  await whenIdle()
-  api.ready = true
+window.mapview = {
+  // Resets the view to the page defaults plus `p`, waits for the frame, returns the camera.
+  async apply(p) {
+    readParams({ ...bundle.defaults, ...p })
+    applyView()
+    await whenIdle()
+    return { pos: state.pos.map(round), angles: state.angles.map(round), fov: state.fov, top: state.top, span: state.span, cut: state.cut }
+  },
 }
-api.camera = () => ({ pos: state.pos.map(round), angles: state.angles.map(round), fov: state.fov, top: state.top, span: state.span, cut: state.cut })
-api.entities = () => sceneData.entities
+
 function status(text) { document.getElementById('status').style.display = text ? 'block' : 'none'; document.getElementById('status').textContent = text }
 
-async function loadScene(url) {
-  const res = await fetch(url)
-  if (!res.ok) throw new Error(`${url}: ${res.status} ${await res.text()}`)
-  const buf = await res.arrayBuffer()
-  const dv = new DataView(buf)
-  const jsonLength = dv.getUint32(4, true)
-  const json = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 8, jsonLength)))
-  const base = 8 + jsonLength + ((4 - (jsonLength % 4)) % 4)
-  json.f32 = (ref) => new Float32Array(buf, base + ref.offset, ref.count)
-  json.u32 = (ref) => new Uint32Array(buf, base + ref.offset, ref.count)
-  return json
+// The geometry arrives as one base64 blob; surfaces hold { offset, count } refs into it.
+function decodeGeometry(b) {
+  const text = atob(b.geometry)
+  const bytes = new Uint8Array(text.length)
+  for (let i = 0; i < text.length; i++) bytes[i] = text.charCodeAt(i)
+  return { ...b, f32: (ref) => new Float32Array(bytes.buffer, ref.offset, ref.count), u32: (ref) => new Uint32Array(bytes.buffer, ref.offset, ref.count) }
 }
 
-function readParams(sp) {
-  const vec = (k, n) => sp.has(k) ? sp.get(k).split(/[ ,]+/).map(Number).slice(0, n) : null
-  const flag = (k, cur) => sp.has(k) ? sp.get(k) !== '0' && sp.get(k) !== 'false' : cur
-  const pos = vec('pos', 3)
-  const angles = vec('angles', 3)
-  if (pos) state.pos = [pos[0] || 0, pos[1] || 0, pos[2] ?? EYE_HEIGHT]
-  if (angles) state.angles = [angles[0] || 0, angles[1] || 0, angles[2] || 0]
-  if (sp.has('fov')) state.fov = +sp.get('fov') || 80
-  if (sp.has('at')) {
-    const e = findEntity(sp.get('at'))
-    if (!e) throw new Error(`no entity matches "${sp.get('at')}"`)
+function readParams(p) {
+  const vec = (v) => (v === undefined ? null : String(v).split(/[ ,]+/).map(Number))
+  const pos = vec(p.pos)
+  const angles = vec(p.angles)
+  if (p.at !== undefined) {
+    const e = findEntity(p.at)
+    if (!e) throw new Error(`no entity matches "${p.at}"`)
     state.pos = [e.origin[0], e.origin[1], e.origin[2] + EYE_HEIGHT]
-    state.angles = e.angles ? [e.angles[0], e.angles[1], e.angles[2]] : [0, 0, 0]
-    if (sp.has('angles')) state.angles = angles
-  }
-  if (sp.has('look')) {
-    const t = vec('look', 3)
+    state.angles = e.angles ? [...e.angles] : [0, 0, 0]
+  } else if (pos) {
+    state.pos = [pos[0] || 0, pos[1] || 0, pos[2] ?? EYE_HEIGHT]
+    state.angles = [0, 0, 0]
+  } else placeDefault()
+  if (angles) state.angles = [angles[0] || 0, angles[1] || 0, angles[2] || 0]
+  if (p.look !== undefined) {
+    const t = vec(p.look)
     const d = [t[0] - state.pos[0], t[1] - state.pos[1], (t[2] ?? state.pos[2]) - state.pos[2]]
     const yaw = Math.atan2(d[1], d[0]) / d2r
     const pitch = -Math.atan2(d[2], Math.hypot(d[0], d[1])) / d2r
     state.angles = [round(pitch), round(yaw), 0]
   }
-  state.top = flag('top', state.top)
-  if (sp.has('span')) state.span = +sp.get('span') || 0
-  if (sp.has('cut')) state.cut = sp.get('cut') === '' ? null : +sp.get('cut')
-  state.labels = sp.get('labels') === 'all' ? 'all' : flag('labels', state.labels)
-  state.textures = flag('tex', state.textures)
-  state.entities = flag('ents', state.entities)
-  state.grid = flag('grid', state.grid)
-  state.tools = flag('tools', state.tools)
-  state.lightmap = flag('lm', state.lightmap)
-  state.shadows = flag('shadows', state.shadows)
-  state.hud = flag('hud', state.hud)
-  if (!sp.has('pos') && !sp.has('at') && !sp.has('look') && !sp.has('angles') && !state._placed) placeDefault()
-  state._placed = true
+  state.fov = +p.fov || 80
+  state.top = on(p.top)
+  state.span = +p.span || 0
+  if (p.center !== undefined) [state.pos[0], state.pos[1]] = vec(p.center)
+  state.cut = p.cut === undefined || p.cut === '' ? null : +p.cut
+  state.labels = p.labels === 'all' ? 'all' : !off(p.labels)
+  state.textures = !off(p.tex)
+  state.entities = !off(p.ents)
+  state.grid = on(p.grid)
+  state.tools = on(p.tools)
+  state.lightmap = !off(p.lightmap)
+  state.shadows = !off(p.shadows)
+  state.hud = !off(p.hud)
 }
 
 // First match of a selector: classname, key=value, or #index; an optional [n] picks the n-th match.
@@ -178,7 +166,7 @@ void main() {
 
 function materialFor(index, lightmapIndex) {
   const info = sceneData.materials[index]
-  const lightmapped = sceneData.lightmaps > 0
+  const lightmapped = sceneData.lightmapCount > 0
   const key = `${index}/${lightmapped ? lightmapIndex : -1}`
   let mat = materials[key]
   if (mat) return mat
@@ -205,7 +193,7 @@ function materialFor(index, lightmapIndex) {
     materials[key] = mat
     return mat
   }
-  if (info.hasTexture) loadTexture(info.name).then((tex) => { mat.userData.texture = tex; refreshMaterial(mat) })
+  if (bundle.images[info.image]) loadTexture(info.image).then((tex) => { mat.userData.texture = tex; refreshMaterial(mat) })
   materials[key] = mat
   return mat
 }
@@ -216,14 +204,14 @@ function refreshMaterial(mat) {
   if (mat.isShaderMaterial) {
     const u = mat.uniforms
     u.map.value = map; u.hasMap.value = map ? 1 : 0
-    u.alphaTest.value = map && info.alpha ? 0.4 : 0
+    u.alphaTest.value = map && bundle.images[info.image].alpha ? 0.4 : 0
     const useLm = state.lightmap && lightmaps && lightmaps.every(Boolean)
     u.useLm.value = useLm ? 1 : 0
     if (useLm) { u.lmR.value = lightmaps[0]; u.lmG.value = lightmaps[1]; u.lmB.value = lightmaps[2]; u.lmSun.value = lightmaps[3] }
   } else {
     mat.map = map
     mat.color.copy(map ? new THREE.Color(0xffffff) : mat.userData.baseColor)
-    mat.alphaTest = map && info.alpha ? 0.4 : 0
+    mat.alphaTest = map && bundle.images[info.image].alpha ? 0.4 : 0
     mat.needsUpdate = true
   }
   needRender = true
@@ -233,11 +221,11 @@ function loadTexture(name) {
   if (textures.has(name)) return textures.get(name)
   const p = new Promise((resolve) => {
     pending++
-    new THREE.TextureLoader().load(`/api/texture?name=${encodeURIComponent(name)}`, (tex) => {
+    new THREE.TextureLoader().load(bundle.images[name].png, (tex) => {
       tex.flipY = false
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping
       // The game multiplies in gamma space; only the lit (.map) path uses three's linear pipeline.
-      tex.colorSpace = sceneData.lightmaps > 0 ? THREE.NoColorSpace : THREE.SRGBColorSpace
+      tex.colorSpace = sceneData.lightmapCount > 0 ? THREE.NoColorSpace : THREE.SRGBColorSpace
       tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy())
       pending--; resolve(tex)
     }, undefined, () => { pending--; resolve(null) })
@@ -251,7 +239,7 @@ function loadLightmap(index, page) {
   if (textures.has(key)) return textures.get(key)
   const p = new Promise((resolve) => {
     pending++
-    new THREE.TextureLoader().load(`/api/lightmap?map=${encodeURIComponent(params.get('map'))}&index=${index}&page=${page}`, (tex) => {
+    new THREE.TextureLoader().load(bundle.lightmaps[index][page], (tex) => {
       tex.flipY = false
       tex.colorSpace = THREE.NoColorSpace
       tex.generateMipmaps = false
@@ -314,7 +302,7 @@ function buildLights() {
   const ambientColor = new THREE.Color(...vec('_color', [1, 1, 1]))
   const ambientLevel = +(ws.ambient || 0.3)
   const diffuse = new THREE.Color(...vec('sundiffusecolor', [0.8, 0.85, 1]))
-  const hasLightmaps = sceneData.lightmaps > 0
+  const hasLightmaps = sceneData.lightmapCount > 0
   const toSun = sunInfo.dir
   sun = new THREE.DirectionalLight(sunColor, hasLightmaps ? 0 : sunlight * 1.6)
   sun.position.copy(toSun.clone().multiplyScalar(8192))
@@ -349,14 +337,12 @@ function buildLights() {
 }
 
 async function buildSky() {
-  if (!sceneData.sky) return
-  const faces = await Promise.all([0, 1, 2, 3, 4, 5].map((f) => new Promise((resolve) => {
+  if (!bundle.sky) return
+  const faces = await Promise.all(bundle.sky.map((src) => new Promise((resolve) => {
     const img = new Image()
     img.onload = () => resolve(img)
-    img.onerror = () => resolve(null)
-    img.src = `/api/sky?name=${encodeURIComponent(sceneData.sky)}&face=${f}`
+    img.src = src
   })))
-  if (faces.some((f) => !f)) return
   const cube = new THREE.CubeTexture(faces)
   cube.colorSpace = THREE.SRGBColorSpace
   cube.needsUpdate = true
@@ -446,7 +432,6 @@ function applyView() {
   scene.background = state.top ? new THREE.Color(0x101418) : new THREE.Color(0x5b7d9e)
   document.getElementById('hud').style.display = state.hud ? 'block' : 'none'
   document.getElementById('legend').style.display = state.hud ? 'block' : 'none'
-  document.getElementById('legend').textContent = 'WASD move · mouse look · shift fast · space/C up/down\nwheel speed · L labels · E entities · T textures · G grid · K tool brushes · 1 top view · H hide hud'
   needRender = true
 }
 
