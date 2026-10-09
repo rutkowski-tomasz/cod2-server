@@ -1,5 +1,6 @@
 import { createWorld, toThree, fromThree } from './draw.js'
 import { createMarkers } from './markers.js'
+import { createPlayers } from './player.js'
 import { anglesToForward, anglesToMatrix, d2r } from './math.js'
 
 const map = decodeGeometry(JSON.parse(document.getElementById('bundle').textContent))
@@ -28,7 +29,8 @@ const ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 131072)
 addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); needRender = true })
 document.title = `${map.name} – mapview`
 const world = createWorld(map, renderer, scene, () => { needRender = true })
-const markers = createMarkers(map, renderer, scene, world)
+const players = map.player && createPlayers(map, world)
+const markers = createMarkers(map, renderer, scene, world.occluders, players)
 
 readParams(params)
 applyView()
@@ -41,7 +43,7 @@ window.mapview = {
   // Resets the view to the page defaults plus `p`, waits for the frame, returns the camera.
   // Only headless renders call this; they hold the players still, so a view renders the same every time.
   async apply(p) {
-    markers.freezePlayers()
+    players?.freeze()
     readParams(withDefaults(p))
     applyView()
     await whenIdle()
@@ -173,7 +175,7 @@ function updateCamera() {
 function renderLoop() {
   const cam = updateCamera()
   const changed = move() || needRender || world.loading()
-  const animated = markers.animate()
+  const animated = !!players && players.update(cam) && state.entities
   // The players' animation alone moves no label, so it leaves label occlusion settled.
   if (changed || animated) {
     markers.hideNear(cam, state.top)

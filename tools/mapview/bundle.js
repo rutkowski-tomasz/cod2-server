@@ -107,7 +107,7 @@ export function loadScene(target, search, { prefabRoots = [], scriptDir } = {}) 
       // Animated bones the rig lacks, such as other uniforms' coat tails, would only warn on the page.
       animation.bones = animation.bones.filter((b) => rig.bones.some((r) => r.name === b.name))
       player = { classname: PLAYER.classname, bones: rig.bones, surfaces, idle: animation }
-    } else missingPlayer = [...PLAYER.models, PLAYER.idle]
+    } else missingPlayer = { classname: PLAYER.classname, files: [...PLAYER.models, PLAYER.idle] }
   }
 
   const scene = {

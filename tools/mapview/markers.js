@@ -1,7 +1,6 @@
 // Entity markers, players at their spawns, and the labels; THREE comes from the page script. Labels hide behind walls, past LABEL_RANGE and where they would overlap.
 import { toThree } from './draw.js'
 import { d2r } from './math.js'
-import { createPlayers } from './player.js'
 
 const SPAWN_BOX = { width: 30, height: 72 }
 const LABEL_RANGE = 2000
@@ -15,11 +14,10 @@ const NO_MARKER = /^node_|^info_vehicle_node|^actor_/
 const SKIPPED = /^misc_model|^script_model|^misc_prefab|^info_null|^script_origin|^light$/
 const ANONYMOUS = /^info_null|^script_origin/
 
-// `world` gives the occluders that hide labels, and what players need from the map.
-export function createMarkers(map, renderer, scene, world) {
+// `players` stand in for the spawns of their classname, when the map has them.
+export function createMarkers(map, renderer, scene, occluders, players) {
   const labelsDiv = document.getElementById('labels')
   const markers = new THREE.Group()
-  const players = map.player && createPlayers(map, world)
   const items = map.entities.filter((e) => e.origin && e.classname !== 'worldspawn' && !NO_MARKER.test(e.classname)).map(buildMarker)
   scene.add(markers)
   let dirty = true
@@ -54,13 +52,6 @@ export function createMarkers(map, renderer, scene, world) {
       place(cam, top)
     },
     settled: () => !dirty,
-    // Moves the players on; true while they move on view, so the page has to draw again.
-    animate() {
-      return !!players && players.update() && markers.visible
-    },
-    freezePlayers() {
-      players?.freeze()
-    },
   }
 
   function buildMarker(e) {
@@ -69,13 +60,14 @@ export function createMarkers(map, renderer, scene, world) {
     let label = cls
     const group = new THREE.Group()
     group.position.copy(toThree(...e.origin))
+    if (/spawn|info_player_start|intermission/.test(cls)) {
+      color = /allied|allies|american|british|russian/.test(cls) ? 0x3a86ff : /axis|german/.test(cls) ? 0xff3355 : 0x2ec4b6
+    }
     if (cls === map.player?.classname) {
-      color = 0x3a86ff
       const player = players.create(e)
       group.add(player)
       group.userData.hides = player.userData.hides
     } else if (/spawn|info_player_start|intermission/.test(cls)) {
-      color = /allied|allies|american|british|russian/.test(cls) ? 0x3a86ff : /axis|german/.test(cls) ? 0xff3355 : 0x2ec4b6
       const box = new THREE.Mesh(new THREE.BoxGeometry(SPAWN_BOX.width, SPAWN_BOX.height, SPAWN_BOX.width), new THREE.MeshBasicMaterial({ color, wireframe: true, fog: false }))
       box.position.y = SPAWN_BOX.height / 2
       const yaw = (e.angles ? e.angles[1] : 0) * d2r
@@ -146,13 +138,13 @@ export function createMarkers(map, renderer, scene, world) {
     const points = new THREE.Points(geom, new THREE.PointsMaterial({ size: 5, sizeAttenuation: false, vertexColors: true }))
     points.frustumCulled = false
     o.scene.overrideMaterial = o.depthMaterial
-    o.scene.add(world.occluders)
+    o.scene.add(occluders)
     renderer.setRenderTarget(o.target)
     renderer.setClearColor(0x000000, 1)
     renderer.clear()
     renderer.render(o.scene, cam)
     o.scene.overrideMaterial = null
-    scene.add(world.occluders)
+    scene.add(occluders)
     o.scene.add(points)
     renderer.autoClear = false
     renderer.render(o.scene, cam)

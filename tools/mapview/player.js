@@ -12,13 +12,16 @@ const MAX_DROP = 4096
 // its spawn, as when standing on the spawn: `--at` puts the eye 60 units above it.
 const HIDE_RADIUS = 24
 const HIDE_TOP = 80
+// A sphere around a standing player, for telling whether it is on view.
+const BODY_CENTER = 36
+const BODY_RADIUS = 50
 
 // `world` gives the floor the players stand on and the material models draw with.
 export function createPlayers(map, world) {
   const { bones, surfaces, idle } = map.player
   const geometries = surfaces.map((s) => [geometryOf(map, s), world.modelMaterial(map.materials[s.material])])
   const clip = buildClip(bones, idle)
-  const mixers = []
+  const copies = []
   let lastUpdate = performance.now()
   let frozen = false
   // The floor is found by casting rays at the world before its first frame has placed its brush models.
@@ -48,31 +51,37 @@ export function createPlayers(map, world) {
       }
       body.rotation.z = (e.angles ? e.angles[1] : 0) * d2r
       const mixer = new THREE.AnimationMixer(body)
-      const start = (mixers.length * PHASE_STEP) % clip.duration
+      const start = (copies.length * PHASE_STEP) % clip.duration
       mixer.clipAction(clip).play().time = start
-      mixers.push({ mixer, start })
       const drop = floorDrop(e.origin)
       const outer = new THREE.Group()
       outer.rotation.x = -Math.PI / 2
       outer.position.y = -drop
       outer.add(body)
+      copies.push({ outer, mixer, start })
       // `offset` is the camera's position relative to the spawn, in three.js's frame.
       outer.userData.hides = (offset) => Math.hypot(offset.x, offset.z) < HIDE_RADIUS && offset.y > -drop && offset.y < HIDE_TOP
       return outer
     },
-    // Moves the copies on by the time since the last call; false once frozen.
-    update() {
+    // Moves the copies on by the time since the last call; true when one is in `cam`'s view, so the page has to
+    // draw again. False once frozen.
+    update(cam) {
       const now = performance.now()
       const seconds = (now - lastUpdate) / 1000
       lastUpdate = now
       if (frozen) return false
-      for (const { mixer } of mixers) mixer.update(seconds)
-      return true
+      for (const { mixer } of copies) mixer.update(seconds)
+      const frustum = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse))
+      const center = new THREE.Vector3()
+      return copies.some(({ outer }) => {
+        outer.getWorldPosition(center).y += BODY_CENTER
+        return frustum.intersectsSphere(new THREE.Sphere(center, BODY_RADIUS))
+      })
     },
     // Holds every copy at its starting pose, so a headless render of the same view gives the same image.
     freeze() {
       frozen = true
-      for (const { mixer, start } of mixers) mixer.setTime(start)
+      for (const { mixer, start } of copies) mixer.setTime(start)
     },
   }
 
