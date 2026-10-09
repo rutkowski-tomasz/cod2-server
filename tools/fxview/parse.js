@@ -2,7 +2,8 @@
 // Keys with one value become that value, several values an array,
 // `{}` blocks nested objects, `[]` lists arrays of rows.
 export function parseEfx(text) {
-  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('//'))
+  // Some shipped files carry a stray non-ASCII byte after a brace, which the game ignores.
+  const lines = text.replace(/\/\*[\s\S]*?\*\//g, '').split(/\r?\n/).map((l) => l.replace(/[^\x20-\x7e]/g, ' ').trim()).filter((l) => l && !l.startsWith('//'))
   let i = 0
   const elements = []
   while (i < lines.length) {
