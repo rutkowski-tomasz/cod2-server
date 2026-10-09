@@ -36,11 +36,11 @@ export function serveLive({ relay, port, search, buildPage, onListen }) {
     // Anyone can ask, so a bad request or an unreadable asset answers 404 rather than ending the server.
     let asset = null
     try {
-      asset = ASSETS[kind] && key && assetOf(kind, key, cache, search)
+      if (Object.hasOwn(ASSETS, kind) && key) asset = assetOf(kind, key, cache, search)
     } catch (e) {
       console.error(`${kind} ${key}: ${e.message}`)
     }
-    res.writeHead(asset ? 200 : 404, { 'content-type': 'application/json' }).end(JSON.stringify(asset ?? null))
+    res.writeHead(asset ? 200 : 404, { 'content-type': 'application/json' }).end(JSON.stringify(asset))
   }).listen(port, () => onListen(`http://localhost:${port}/`))
 
   function follow() {

@@ -66,7 +66,6 @@ function withDefaults(p) {
   return { ...rest, at, pos, angles, look: p.angles !== undefined ? undefined : look, ...p }
 }
 
-
 function readParams(p) {
   const vec = (v) => (v === undefined ? null : String(v).split(/[ ,]+/).map(Number))
   const pos = vec(p.pos)
