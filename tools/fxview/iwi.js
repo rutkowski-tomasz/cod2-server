@@ -1,12 +1,13 @@
-// IWI (CoD2 image, version 5) → RGBA of the largest mip.
+// IWI (CoD2 image, version 5) → RGBA of the largest mip, or null for an unsupported format.
 // Header: "IWi", version, format, usage, u16 width, height, depth, 4 × u32 end offsets.
 // Mips are stored smallest first, so the top mip is the last `size` bytes.
-const FORMATS = { 1: 'argb8', 2: 'rgb8', 3: 'argb4', 5: 'a8', 6: 'l8', 7: 'la8', 11: 'dxt1', 12: 'dxt3', 13: 'dxt5' }
+// Formats 6 and 7 hold compressed data in an unknown scheme.
+const FORMATS = { 1: 'argb8', 2: 'rgb8', 3: 'la8', 11: 'dxt1', 12: 'dxt3', 13: 'dxt5' }
 
 export function decodeIwi(buf) {
   if (buf.toString('latin1', 0, 3) !== 'IWi') throw new Error('not an IWI')
   const format = FORMATS[buf[4]]
-  if (!format) throw new Error(`unsupported IWI format ${buf[4]}`)
+  if (!format) return null
   const width = buf.readUInt16LE(6)
   const height = buf.readUInt16LE(8)
   const size = mipSize(format, width, height)
@@ -18,9 +19,6 @@ export function decodeIwi(buf) {
     case 'dxt5': decodeDxt(data, width, height, rgba, 5); break
     case 'argb8': for (let i = 0; i < width * height; i++) { rgba[i * 4] = data[i * 4 + 2]; rgba[i * 4 + 1] = data[i * 4 + 1]; rgba[i * 4 + 2] = data[i * 4]; rgba[i * 4 + 3] = data[i * 4 + 3] } break
     case 'rgb8': for (let i = 0; i < width * height; i++) { rgba[i * 4] = data[i * 3 + 2]; rgba[i * 4 + 1] = data[i * 3 + 1]; rgba[i * 4 + 2] = data[i * 3]; rgba[i * 4 + 3] = 255 } break
-    case 'argb4': for (let i = 0; i < width * height; i++) { const v = data.readUInt16LE(i * 2); rgba[i * 4] = ((v >> 8) & 15) * 17; rgba[i * 4 + 1] = ((v >> 4) & 15) * 17; rgba[i * 4 + 2] = (v & 15) * 17; rgba[i * 4 + 3] = (v >> 12) * 17 } break
-    case 'a8': for (let i = 0; i < width * height; i++) { rgba[i * 4] = rgba[i * 4 + 1] = rgba[i * 4 + 2] = 255; rgba[i * 4 + 3] = data[i] } break
-    case 'l8': for (let i = 0; i < width * height; i++) { rgba[i * 4] = rgba[i * 4 + 1] = rgba[i * 4 + 2] = data[i]; rgba[i * 4 + 3] = 255 } break
     case 'la8': for (let i = 0; i < width * height; i++) { rgba[i * 4] = rgba[i * 4 + 1] = rgba[i * 4 + 2] = data[i * 2]; rgba[i * 4 + 3] = data[i * 2 + 1] } break
   }
   return { width, height, format, rgba }
@@ -33,8 +31,7 @@ function mipSize(format, w, h) {
     case 'dxt3': case 'dxt5': return blocks * 16
     case 'argb8': return w * h * 4
     case 'rgb8': return w * h * 3
-    case 'argb4': case 'la8': return w * h * 2
-    default: return w * h
+    case 'la8': return w * h * 2
   }
 }
 

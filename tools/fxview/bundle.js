@@ -91,6 +91,7 @@ export function buildBundle(target, search) {
     const iwi = search.read(`images/${mat.image}.iwi`)
     if (!iwi) { missing.images.push(`${name} → ${mat.image}.iwi`); return }
     const img = decodeIwi(iwi)
+    if (!img) { missing.images.push(`${name} → ${mat.image}.iwi (unsupported format ${iwi[4]})`); return }
     materials[name] = {
       image: mat.image,
       techset: mat.techset,
