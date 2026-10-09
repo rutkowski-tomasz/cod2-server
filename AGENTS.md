@@ -20,6 +20,8 @@ The image builds [zk_libcod](https://github.com/ibuddieat/zk_libcod) at the comm
 
 # tools
 
+The tools are tested but can still have bugs or missing parts. If one gets in your way while you work on something else, fix it when the fix is small. Otherwise, suggest the fix.
+
 `tools/fxview/` previews `.efx` effects without the game: `node tools/fxview/fxview.js render <efx>` writes a contact sheet to look at, `view` an interactive page, `info` the element list. See `tools/fxview/README.md`.
 
 `tools/menuview/` previews `.menu` files without the game: `node tools/menuview/menuview.js render <menu>` writes a screenshot to look at, `view` an interactive page, `info` the items and their boxes. See `tools/menuview/README.md`.
