@@ -16,7 +16,7 @@ Output goes to `tools/fxview/out/` unless `-o` is given. `render` writes the pag
 
 ## Checking an effect as an agent
 
-1. `info` — element list, materials, blend modes, missing assets. A missing material or image means the effect will not look right in game either, except images listed as an unsupported format: IWI formats 6 and 7 use a compression the tool cannot decode.
+1. `info` — element list, materials, blend modes, missing assets. A missing material or image means the effect will not look right in game either.
 2. `render` with `--forward` matching how the effect is played. The default `z` points up: `playFx` without a forward vector, explosions, impacts and decals (the engine passes the surface normal as forward). Use `x` for muzzle flashes, tracers, anything attached to a tag, and fire or ambient smoke authored with Z up.
 3. Look at the sheet: size against the 72-unit player outline and 64-unit grid cells, timing across frames, colour, whether particles leave the ground or fly through it. Use `--bg mid` when the effect is dark smoke or a decal.
 4. Default frames are spread over the active duration, denser early; `--times` to pick moments, `--seed` to check randomness, `--cam yaw,pitch,dist` for a fixed view between iterations. Parts can vanish at some camera distances, as in game; `--ranges off` shows everything.

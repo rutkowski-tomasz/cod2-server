@@ -2,7 +2,7 @@
 // THREE comes from the page script, which imports it before this module runs.
 import { anglesToForward, parseVec } from './math.js'
 import { buildModels } from './models.js'
-import { BLEND, LIGHTMAP_SHADER, blendOf, replaceFogChunks } from './shader.js'
+import { BLEND, LIGHTMAP_SHADER, blendOf, ignoresAlpha, replaceFogChunks } from './shader.js'
 
 // CoD2 is Z-up; three.js is Y-up. World coordinates convert as (x, y, z) -> (x, z, -y).
 export const toThree = (x, y, z) => new THREE.Vector3(x, z, -y)
@@ -178,7 +178,7 @@ export function createWorld(map, renderer, scene, onChange) {
     if (!info) return
     const colorMap = view.textures && texture ? texture : null
     // Tool images are a faint translucent colour, red for clip, as Radiant shows them; an alpha test would discard it.
-    const alphaTest = colorMap && !tool && map.images[info.image].alpha && blend === BLEND.opaque ? ALPHA_TEST : 0
+    const alphaTest = colorMap && !tool && map.images[info.image].alpha && blend === BLEND.opaque && !ignoresAlpha(info.techset) ? ALPHA_TEST : 0
     if (mat.isShaderMaterial) {
       const u = mat.uniforms
       u.map.value = colorMap
