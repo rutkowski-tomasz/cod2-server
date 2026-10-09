@@ -24,7 +24,7 @@ Output goes to `tools/mapview/out/` unless `-o` is given. `render` writes the pa
 3. `render --top` for a floor plan with a 256-unit grid and coordinates. `--center x,y --span units` zooms in, `--cut z` hides everything above z (also in perspective), which shows the inside of buildings.
 4. Many views: `--batch shots.json`, an array of objects with the view options as keys plus `name` and `size` (`400x300`; `--size` or 1280x720 otherwise), such as `[{ "name": "plan", "top": true, "cut": 240 }, { "name": "spawn", "at": "mp_tdm_spawn[2]", "labels": "off" }]`. Each shot starts from the defaults, and all share one browser.
 
-In the page: click to look around, WASD to move, Shift for speed, E and Q for up and down, the wheel for move speed or top-view zoom. L labels (Shift+L all), F entities, T textures, G grid, K tool brushes, M lightmap, 1 top view, H HUD and FPS counter. The HUD shows the `--pos`/`--angles` or `--center`/`--span` that reproduce the view. URL hash params override the baked view options, as `#at=mp_tdm_spawn&labels=off`.
+In the page: click to look around, WASD to move, Shift for speed, E and Q for up and down, the wheel for move speed or top-view zoom. L labels (Shift+L all), F entities, T textures, G grid, K tool brushes, M lightmap, O fog, 1 top view, H HUD and FPS counter. The HUD shows the `--pos`/`--angles` or `--center`/`--span` that reproduce the view. URL hash params override the baked view options, as `#at=mp_tdm_spawn&labels=off`.
 
 ## What is drawn
 
@@ -33,13 +33,15 @@ In the page: click to look around, WASD to move, Shift for speed, E and Q for up
 - `.d3dbsp` (IBSP 4): draw surfaces, brush models, entities, lightmaps, and the faces of collision brushes that no draw surface uses (clip, caulk, mantle, ladder, triggers), rebuilt from their planes and tiled every 64 units. The lightmap is applied like the game's `lmap` shader: four 512×512 pages per lightmap (R, G and B coefficients, then sun visibility), plus direct sun from the surface normal. No three.js lights or shadows are added, except for a `.d3dbsp` compiled without lightmaps, which is lit like a `.map`.
 - Materials: the colour map, downscaled to 512, alpha-tested at 0.4 when the image has alpha. In a `.d3dbsp` with lightmaps, vertex colours tint it, and the techset decides how a surface meets what is behind it: `blend` layers (snow edges, terrain, mud) fade by texture alpha times vertex alpha, `multiply` layers (stains) darken it unlit, `add` layers brighten it. The sky material's cube map is the background. Tool materials (caulk, clip, hint, …) and collision-only faces are hidden unless `--tools`, and draw at 35% opacity (unlit in a compiled map) with no alpha test, so their images' faint fill shows, red for clip, as in Radiant; `water` techsets are flat translucent blue; decals are pulled toward the camera.
 - Models (`misc_model`, `script_model` and the like): the first LOD of each xmodel, placed by `origin`, `angles` and `modelscale`, with its textures and vertex colours. They have no lightmap, so in a compiled map they get a flat 50% light plus the sun by N·L. Missing, skinned and bone-bound xmodels stay boxes. Needs `iw_14` (model geometry) pulled.
+- Fog: the first `setExpFog` or `setCullFog` with literal numbers in the map's script, `maps/mp/<name>.gsc` in the sources or `~/Dev/nl-cod2-library/src/scripts/<name>.gsc`; `info` prints it. Computed like the game's shaders (`materials/shaders/lib/fogcalc.hlsl` in `iw_07`): by distance from the eye, exp fog as `exp(-density · distance)`, cull fog linear from near to far. The sky, markers and the top view are not fogged; `--fog off` and O turn it off.
 - Markers: player-sized boxes with a yaw arrow for spawns (red axis, blue allied, teal other), yellow spheres for lights, magenta boxes for models that are not drawn, orange translucent volumes for triggers; `--ents off` and F hide them all. Labels show `classname [targetname]`, hide behind walls and past 2000 units, and skip lights, models, prefabs, `info_null` and `script_origin` unless `--labels all`; lights, models and prefabs with a targetname keep theirs.
 
 Not drawn:
-- Effects, fog, normal and specular maps, animated or scrolling materials.
+- Effects, normal and specular maps, animated or scrolling materials.
 - Rotation of brush models: an entity's `angles` does not turn its brush model in a `.d3dbsp`. No stock or nL library map sets `angles` on one.
 
 Guesses that may be off:
+- Exp fog density: the shader is given `-density`. The engine may scale it first; the scale is not in the shaders.
 - How three.js lights a `.map`, which has no lightmaps.
 - Patches draw from both sides, since which side Radiant treats as the front is not known.
 - `--fov` is applied horizontally at the image's aspect. If the game widens the view for widescreen from a 4:3 base, renders are narrower than in game.

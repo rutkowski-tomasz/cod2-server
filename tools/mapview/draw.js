@@ -2,7 +2,7 @@
 // THREE comes from the page script, which imports it before this module runs.
 import { anglesToForward, parseVec } from './math.js'
 import { buildModels } from './models.js'
-import { BLEND, LIGHTMAP_SHADER, blendOf } from './shader.js'
+import { BLEND, LIGHTMAP_SHADER, blendOf, replaceFogChunks } from './shader.js'
 
 // CoD2 is Z-up; three.js is Y-up. World coordinates convert as (x, y, z) -> (x, z, -y).
 export const toThree = (x, y, z) => new THREE.Vector3(x, z, -y)
@@ -20,6 +20,7 @@ const PULL_FORWARD = { polygonOffset: true, polygonOffsetFactor: -2, polygonOffs
 
 // `onChange` is called when a texture arrives, so the page draws again.
 export function createWorld(map, renderer, scene, onChange) {
+  replaceFogChunks()
   // Compiled maps carry their light in lightmaps; a .map is lit by three.js lights.
   const lit = map.lightmapCount > 0
   const ws = map.worldspawn
@@ -31,6 +32,7 @@ export function createWorld(map, renderer, scene, onChange) {
   const materials = new Map()
   const textures = new Map()
   const view = { textures: true, lightmap: true }
+  const fog = buildFog()
   let pending = 0
 
   // Triggers and tool brushes are translucent, so they stay out of `occluders`, which hide labels behind them.
@@ -41,7 +43,7 @@ export function createWorld(map, renderer, scene, onChange) {
     const info = map.materials[s.material]
     if (info.sky) continue
     if (/^trigger/.test(map.entities[s.entity].classname)) {
-      triggers.add(buildMesh(s, new THREE.MeshBasicMaterial({ color: TRIGGER_COLOR, transparent: true, opacity: 0.25, depthWrite: false })))
+      triggers.add(buildMesh(s, new THREE.MeshBasicMaterial({ color: TRIGGER_COLOR, transparent: true, opacity: 0.25, depthWrite: false, fog: false })))
       continue
     }
     const tool = info.tool || !!s.collision
@@ -73,6 +75,7 @@ export function createWorld(map, renderer, scene, onChange) {
       renderer.clippingPlanes = state.cut == null ? [] : [new THREE.Plane(new THREE.Vector3(0, -1, 0), state.cut)]
       if (sky) sky.visible = !state.top && state.cut == null
       scene.background = new THREE.Color(state.top ? TOP_COLOR : SKY_COLOR)
+      scene.fog = state.fog && !state.top ? fog : null
       grid.visible = state.grid || state.top
       triggers.visible = state.entities
     },
@@ -161,6 +164,7 @@ export function createWorld(map, renderer, scene, onChange) {
       ...LIGHTMAP_SHADER,
       uniforms: {
         map: { value: null }, hasMap: { value: 0 }, color: { value: baseColor }, alphaTest: { value: 0 },
+        ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
         lmR: { value: null }, lmG: { value: null }, lmB: { value: null }, lmSun: { value: null },
         useLm: { value: 0 }, sunShade: { value: 0 }, sunDir: { value: sunDir }, sunColor: { value: sunColor.clone().multiplyScalar(sunlight) },
         blend: { value: blend },
@@ -235,6 +239,14 @@ export function createWorld(map, renderer, scene, onChange) {
       scene.add(light)
     }
     return sun
+  }
+
+  // The script's fog. Its colour is used raw: the game blends fog in gamma space, and three.js mixes it in after
+  // the colour space conversion.
+  function buildFog() {
+    if (!map.fog) return null
+    const color = new THREE.Color(...map.fog.color)
+    return map.fog.kind === 'exp' ? new THREE.FogExp2(color, map.fog.density) : new THREE.Fog(color, map.fog.near, map.fog.far)
   }
 
   // A 256-unit grid under the map, for the top view and --grid.

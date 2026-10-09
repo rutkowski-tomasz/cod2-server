@@ -1,6 +1,6 @@
 // Builds the self-contained map bundle: geometry, entities, and the textures, lightmaps and sky it draws with.
 import { readFileSync, existsSync } from 'node:fs'
-import { resolve, basename } from 'node:path'
+import { resolve, basename, join } from 'node:path'
 import { parseMaterial } from '../shared/material.js'
 import { decodeIwi, iwiInfo } from '../shared/iwi.js'
 import { pngDataUrl } from '../shared/png.js'
@@ -16,7 +16,8 @@ const DEFAULT_BOUNDS = { min: [-512, -512, -64], max: [512, 512, 256] }
 
 // `target` is a .map or .d3dbsp file, or a game path or stock name like mp_harbor.
 // Returns the scene as JSON, its geometry as one buffer that surfaces point into, and the lightmap pages.
-export function loadScene(target, search, { prefabRoots = [] } = {}) {
+// `scriptDir` holds map scripts by name, `<name>.gsc`, for maps whose script is not in the sources.
+export function loadScene(target, search, { prefabRoots = [], scriptDir } = {}) {
   const source = loadTarget(target, search)
   const parsed = source.kind === 'map' ? readMap(source.path, prefabRoots) : readBsp(source.buffer)
   const entities = parsed.entities.map(entityInfo)
@@ -72,6 +73,7 @@ export function loadScene(target, search, { prefabRoots = [] } = {}) {
     name: source.name, kind: source.kind, path: source.path,
     bounds: Number.isFinite(bounds.min[0]) ? bounds : DEFAULT_BOUNDS,
     worldspawn: entities[0]?.keys ?? {},
+    fog: readFog(source.name, search, scriptDir),
     materials, surfaces, entities, models, boxModels,
     lightmapCount: parsed.lightmaps?.length ?? 0,
     missingPrefabs: parsed.missingPrefabs ?? [],
@@ -113,6 +115,22 @@ function describeMaterial(name, search) {
   const { format, width, height } = iwiInfo(iwi)
   if (!format) return { ...info, missing: `→ ${mat.image}.iwi (unsupported format ${iwi[4]})` }
   return { ...info, width, height }
+}
+
+// The fog the map's script sets: its first setExpFog or setCullFog called with numbers.
+function readFog(name, search, scriptDir) {
+  const file = join(scriptDir, `${name}.gsc`)
+  const script = search.read(`maps/mp/${name}.gsc`) ?? (existsSync(file) ? readFileSync(file) : null)
+  if (!script) return null
+  const code = script.toString('latin1').replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '')
+  for (const [, kind, args] of code.matchAll(/\bset(exp|cull)fog\s*\(([^)]*)\)/gi)) {
+    const n = args.split(',').map((a) => (a.trim() ? +a : NaN))
+    if (n.some(Number.isNaN)) continue
+    const k = kind.toLowerCase()
+    if (k === 'exp' && n.length >= 4) return { kind: 'exp', density: n[0], color: n.slice(1, 4) }
+    if (k === 'cull' && n.length >= 5) return { kind: 'cull', near: n[0], far: n[1], color: n.slice(2, 5) }
+  }
+  return null
 }
 
 // A map's own iwd is added as a source by the caller, so its map is found by name like a stock one.

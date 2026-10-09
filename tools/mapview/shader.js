@@ -1,14 +1,36 @@
-// The lightmap shader compiled maps draw with, and how a material's techset sets its blending.
+// The lightmap shader compiled maps draw with, how a material's techset sets its blending, and the game's fog.
 
 // How a surface's techset combines it with what is behind it; the shader's `blend` uniform.
 export const BLEND = { opaque: 0, alpha: 1, multiply: 2, add: 3 }
 // Models have no lightmap: in a compiled map they get this much light everywhere, plus the sun by N·L.
 const MODEL_AMBIENT = 0.5
 
-// `clipping` and the clipping_planes chunks let the renderer's planes, such as --cut, clip it like built-in materials.
+// The game fogs by distance from the eye: exp fog as exp(-density · d), cull fog linear from near to far
+// (materials/shaders/lib/fogcalc.hlsl in iw_07). three.js fogs by depth, squares the exponent and smoothsteps.
+const FOG_AMOUNT = `#ifdef FOG_EXP2
+  float fogAmount = 1.0 - exp(-fogDensity * vFogDepth);
+#else
+  float fogAmount = clamp((vFogDepth - fogNear) / (fogFar - fogNear), 0.0, 1.0);
+#endif`
+
+// Replaces three.js's fog chunks, so built-in materials fog like the game too.
+export function replaceFogChunks() {
+  THREE.ShaderChunk.fog_vertex = `#ifdef USE_FOG
+  vFogDepth = length(mvPosition.xyz);
+#endif`
+  THREE.ShaderChunk.fog_fragment = `#ifdef USE_FOG
+${FOG_AMOUNT}
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, fogAmount);
+#endif`
+}
+
+// `clipping` and the clipping_planes chunks let the renderer's planes, such as --cut, clip it like built-in materials;
+// `fog` and the fog chunks give it the scene's fog.
 export const LIGHTMAP_SHADER = {
   clipping: true,
+  fog: true,
   vertexShader: `#include <clipping_planes_pars_vertex>
+#include <fog_pars_vertex>
 attribute vec2 uv1; attribute vec4 rgba;
 varying vec2 vUv; varying vec2 vLm; varying vec3 vNormal; varying vec4 vColor;
 void main() {
@@ -21,11 +43,14 @@ void main() {
   vec4 mvPosition = viewMatrix * m * vec4(position, 1.0);
   gl_Position = projectionMatrix * mvPosition;
   #include <clipping_planes_vertex>
+  #include <fog_vertex>
 }`,
   // Mirrors the game's lmap shader: lightmap = indirect light (four coefficients per channel, weighted
   // for a flat normal), plus sun colour scaled by the sun-visibility page and N·L. Vertex colour tints
   // the texel; its alpha fades blended layers. Multiply layers are unlit, like the game's effect_multiply.
+  // Fog fades multiply layers to white and add layers to black, so the fogged surface under them shows unchanged.
   fragmentShader: `#include <clipping_planes_pars_fragment>
+#include <fog_pars_fragment>
 uniform sampler2D map; uniform int hasMap; uniform vec3 color; uniform float alphaTest;
 uniform sampler2D lmR; uniform sampler2D lmG; uniform sampler2D lmB; uniform sampler2D lmSun;
 uniform int useLm; uniform int sunShade; uniform vec3 sunDir; uniform vec3 sunColor; uniform int blend;
@@ -35,17 +60,24 @@ void main() {
   vec4 t = hasMap == 1 ? texture2D(map, vUv) : vec4(color, 1.0);
   if (t.a < alphaTest) discard;
   vec4 d = t * vColor;
-  if (blend == ${BLEND.multiply}) { gl_FragColor = vec4(mix(vec3(1.0), d.rgb, d.a), 1.0); return; }
-  vec3 light = vec3(1.0);
-  if (useLm == 1) {
-    vec4 w = vec4(0.25);
-    vec3 lm = vec3(dot(texture2D(lmR, vLm), w), dot(texture2D(lmG, vLm), w), dot(texture2D(lmB, vLm), w));
-    float sunVis = texture2D(lmSun, vLm).r;
-    light = lm + sunVis * max(0.0, dot(normalize(vNormal), sunDir)) * sunColor;
-  } else if (sunShade == 1) {
-    light = vec3(${MODEL_AMBIENT.toFixed(2)}) + max(0.0, dot(normalize(vNormal), sunDir)) * sunColor;
+  if (blend == ${BLEND.multiply}) gl_FragColor = vec4(mix(vec3(1.0), d.rgb, d.a), 1.0);
+  else {
+    vec3 light = vec3(1.0);
+    if (useLm == 1) {
+      vec4 w = vec4(0.25);
+      vec3 lm = vec3(dot(texture2D(lmR, vLm), w), dot(texture2D(lmG, vLm), w), dot(texture2D(lmB, vLm), w));
+      float sunVis = texture2D(lmSun, vLm).r;
+      light = lm + sunVis * max(0.0, dot(normalize(vNormal), sunDir)) * sunColor;
+    } else if (sunShade == 1) {
+      light = vec3(${MODEL_AMBIENT.toFixed(2)}) + max(0.0, dot(normalize(vNormal), sunDir)) * sunColor;
+    }
+    gl_FragColor = vec4(d.rgb * light, blend == ${BLEND.opaque} ? 1.0 : d.a);
   }
-  gl_FragColor = vec4(d.rgb * light, blend == ${BLEND.opaque} ? 1.0 : d.a);
+  #ifdef USE_FOG
+  ${FOG_AMOUNT}
+  vec3 fogTarget = blend == ${BLEND.multiply} ? vec3(1.0) : blend == ${BLEND.add} ? vec3(0.0) : fogColor;
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, fogTarget, fogAmount);
+  #endif
 }`,
 }
 
