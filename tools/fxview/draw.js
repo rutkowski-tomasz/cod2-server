@@ -222,7 +222,8 @@ export function createRenderer(canvas, { materials, models }) {
 
   function render({ sim, cam, state, hidden }) {
     const eye = cameraEye(cam)
-    const target = shakenTarget(eye, cam, sim)
+    const shake = sim.shake(state.ranges ? eye : null)
+    const target = shakenTarget(eye, cam, shake, sim.time)
     const aspect = canvas.width / canvas.height
     const vp = mat4mul(perspective(cam.fov, aspect, 2, 20000), lookAt(eye, target, [0, 0, 1]))
     const viewFwd = V.norm(V.sub(target, eye))
@@ -276,18 +277,17 @@ export function createRenderer(canvas, { materials, models }) {
     const isDistortion = (q) => materialMeta[q.tex].blend === 'distortion'
     drawQuads(items.filter((q) => !isDistortion(q)))
     drawQuads(items.filter(isDistortion))
-    return { outOfViewRange }
+    return { outOfViewRange, shake }
   }
 
   // Camera shake turns the view by up to its amplitude in degrees, driven by sim time so the same frame always shakes the same way.
-  function shakenTarget(eye, cam, sim) {
-    const amount = sim.shake()
+  function shakenTarget(eye, cam, amount, time) {
     if (amount <= 0) return cam.target
     const fwd = V.norm(V.sub(cam.target, eye))
     const right = V.norm(V.cross(fwd, [0, 0, 1]))
     const up = V.cross(right, fwd)
     const k = Math.tan((amount * Math.PI) / 180) * cam.dist
-    return V.add(cam.target, V.add(V.mul(right, k * Math.sin(sim.time * 0.071)), V.mul(up, k * Math.sin(sim.time * 0.053 + 1))))
+    return V.add(cam.target, V.add(V.mul(right, k * Math.sin(time * 0.071)), V.mul(up, k * Math.sin(time * 0.053 + 1))))
   }
 
   function particleQuad(p, eye, viewRight, viewUp) {

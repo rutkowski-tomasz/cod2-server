@@ -34,7 +34,7 @@ function makeSim() {
   return createSim(bundle, { seed: state.seed, forward: state.forward, ground: state.ground })
 }
 
-let lastFrame = { outOfViewRange: 0 }
+let lastFrame = { outOfViewRange: 0, shake: 0 }
 function render() {
   lastFrame = renderer.render({ sim, cam, state, hidden })
 }
@@ -79,7 +79,7 @@ function updateUi() {
   $('time').max = Math.ceil(sim.activeDuration)
   $('time').value = Math.min(sim.time, sim.activeDuration)
   const live = sim.particles.filter((p) => p.spawnTime <= sim.time).length
-  const shake = sim.shake()
+  const { shake } = lastFrame
   $('stats').textContent = [
     `t = ${Math.round(sim.time)} ms / ${Math.round(sim.activeDuration)} ms (full ${Math.round(sim.duration)})`,
     `${live} particles`,
@@ -205,8 +205,7 @@ window.efx = {
       render()
       const x = (i % cols) * width, y = Math.floor(i / cols) * height
       ctx.drawImage(canvas, x, y)
-      const shake = sim.shake()
-      const { outOfViewRange } = lastFrame
+      const { shake, outOfViewRange } = lastFrame
       const label = `t = ${Math.round(t)} ms${shake ? ` · shake ${shake.toFixed(2)}` : ''}${outOfViewRange ? ` · ${outOfViewRange} out of view range` : ''}`
       ctx.font = '13px monospace'
       ctx.fillStyle = 'rgba(0,0,0,0.6)'
