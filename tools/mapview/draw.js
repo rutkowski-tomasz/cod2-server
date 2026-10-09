@@ -129,7 +129,7 @@ export function createWorld(map, renderer, scene, onChange) {
       mat.onBeforeCompile = (shader) => { shader.fragmentShader = shader.fragmentShader.replace('#include <colorspace_fragment>', '') }
     }
     else mat = lightmapMaterial(baseColor, blend)
-    mat.userData = { info, baseColor, blend, sunShade }
+    mat.userData = { info, baseColor, blend, sunShade, tool }
     if (blend !== BLEND.opaque) {
       Object.assign(mat, { transparent: true, depthWrite: false, ...PULL_FORWARD })
       if (blend === BLEND.add) mat.blending = THREE.AdditiveBlending
@@ -170,11 +170,11 @@ export function createWorld(map, renderer, scene, onChange) {
 
   // Water has no info: it looks the same whatever the view options.
   function refresh(mat) {
-    const { info, texture, lightmaps, baseColor, blend, sunShade } = mat.userData
+    const { info, texture, lightmaps, baseColor, blend, sunShade, tool } = mat.userData
     if (!info) return
     const colorMap = view.textures && texture ? texture : null
-    // three.js tests opacity times texel alpha, so translucent tools need a threshold scaled to match.
-    const alphaTest = colorMap && map.images[info.image].alpha && blend === BLEND.opaque ? ALPHA_TEST * mat.opacity : 0
+    // Tool images are a faint translucent colour, red for clip, as Radiant shows them; an alpha test would discard it.
+    const alphaTest = colorMap && !tool && map.images[info.image].alpha && blend === BLEND.opaque ? ALPHA_TEST : 0
     if (mat.isShaderMaterial) {
       const u = mat.uniforms
       u.map.value = colorMap
