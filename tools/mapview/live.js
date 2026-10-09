@@ -25,7 +25,7 @@ export function createLive(map, scene, players, url, onMapChange) {
   const group = new THREE.Group()
   scene.add(group)
   const shown = new Map()
-  const assets = { rigs: new Map(), weapons: new Map() }
+  const assets = { rigs: new Map(), weapons: new Map(), anims: new Map() }
   let lastMessage = 0
   let connected = false
   // A removal must reach the screen even when no players are left to keep the page drawing.
@@ -85,7 +85,8 @@ export function createLive(map, scene, players, url, onMapChange) {
     ws.onmessage = (e) => receive(JSON.parse(e.data))
   }
 
-  // { map, players: [{ id, name, team, origin, view, pitch, yaw, models, weapon }] }; `view` is the eye.; the server sends an empty players list as {}.
+  // { map, players: [{ id, name, team, origin, view, pitch, yaw, models, weapon, legs, torso }] }; `view` is the eye,
+  // `legs` and `torso` the names of the player animations they play.; the server sends an empty players list as {}.
   function receive(msg) {
     lastMessage = performance.now()
     if (msg.map !== map.name) return onMapChange(msg.map)
@@ -112,7 +113,7 @@ export function createLive(map, scene, players, url, onMapChange) {
     const label = document.createElement('div')
     labelsDiv.appendChild(label)
     const p = {
-      group: g, material, label, model: null, modelsKey: null, weapon: null, weaponName: null,
+      group: g, material, label, model: null, modelsKey: null, weapon: null, weaponName: null, anims: null, legsName: null, torsoName: null,
       from: new THREE.Vector3(), to: new THREE.Vector3(), fromYaw: 0, toYaw: 0, pitch: 0, fromPitch: 0, toPitch: 0,
       eye: new THREE.Vector3(), fromEye: new THREE.Vector3(), toEye: new THREE.Vector3(), start: 0, fresh: true,
     }
@@ -121,7 +122,7 @@ export function createLive(map, scene, players, url, onMapChange) {
     return p
   }
 
-  function update(p, { name, team, origin, view, pitch, yaw, models, weapon }) {
+  function update(p, { name, team, origin, view, pitch, yaw, models, weapon, legs, torso }) {
     const key = models.join(',')
     if (players && key !== p.modelsKey) {
       p.modelsKey = key
@@ -133,6 +134,15 @@ export function createLive(map, scene, players, url, onMapChange) {
         if (p.weaponName !== weapon || !p.group.parent) return
         p.weapon = w
         players.hold(p.model, w)
+      })
+    }
+    if (players && (legs !== p.legsName || torso !== p.torsoName)) {
+      p.legsName = legs
+      p.torsoName = torso
+      Promise.all([assetOf('anims', legs), assetOf('anims', torso)]).then((anims) => {
+        if (p.legsName !== legs || p.torsoName !== torso || !p.group.parent) return
+        p.anims = anims
+        players.pose(p.model, ...anims)
       })
     }
     const to = toThree(...origin)
@@ -161,9 +171,10 @@ export function createLive(map, scene, players, url, onMapChange) {
     p.group.add(model)
     p.model = model
     if (p.weapon) players.hold(model, p.weapon)
+    if (p.anims) players.pose(model, ...p.anims)
   }
 
-  // A player's rig or weapon (`kind` rigs or weapons) by key: baked into the page, or fetched from the live server.
+  // A player's rig, weapon or animation (`kind` rigs, weapons or anims) by key: baked into the page, or fetched from the live server.
   // Null when the live server cannot build it, or the page has no live server to ask.
   function assetOf(kind, key) {
     const cache = assets[kind]

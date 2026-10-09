@@ -9,6 +9,7 @@ import { createServer } from 'node:http'
 import { createSearch } from '../shared/assets.js'
 import { inlineModules } from '../shared/inline.js'
 import { loadScene, buildBundle, buildRig, buildWeapon } from './bundle.js'
+import { parseXAnim } from './xanim.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const OUT = join(HERE, '..', '..', 'out', 'mapview')
@@ -45,10 +46,17 @@ view options:
 const VIEW_KEYS = ['pos', 'angles', 'at', 'look', 'fov', 'top', 'center', 'span', 'cut', 'labels', 'ents', 'tex', 'lightmap', 'normals', 'shadows', 'fog', 'grid', 'tools', 'live', 'follow']
 const FLAGS = ['open', 'json', 'top', 'grid', 'tools']
 // What the live page fetches by kind and key, which a streamed player names: its rig by its models joined with
-// commas, its weapon's model by the weapon's name.
+// commas, its weapon's model by the weapon's name, its legs' and torso's animations by theirs.
 const ASSETS = {
-  rigs: { keyOf: (p) => p.models.join(','), build: (key, search) => buildRig(key.split(','), search) },
-  weapons: { keyOf: (p) => p.weapon, build: buildWeapon },
+  rigs: { keysOf: (p) => [p.models.join(',')], build: (key, search) => buildRig(key.split(','), search) },
+  weapons: { keysOf: (p) => [p.weapon], build: buildWeapon },
+  anims: { keysOf: (p) => [p.legs, p.torso], build: readAnim },
+}
+
+// Null for a name without an xanim, such as `root`, which the torso plays when only the legs animate.
+function readAnim(name, search) {
+  const buf = search.read(`xanim/${name}`)
+  return buf && parseXAnim(buf)
 }
 
 const args = process.argv.slice(2)
@@ -236,9 +244,9 @@ function assetOf(kind, key, cache, search) {
 // Every asset `players` use, as { rigs: { key: asset }, weapons: … }, to bake into a page.
 function assetsOf(players, cache, search) {
   const out = {}
-  for (const [kind, { keyOf }] of Object.entries(ASSETS)) {
+  for (const [kind, { keysOf }] of Object.entries(ASSETS)) {
     out[kind] = {}
-    for (const p of Object.values(players ?? {})) out[kind][keyOf(p)] = assetOf(kind, keyOf(p), cache, search)
+    for (const p of Object.values(players ?? {})) for (const key of keysOf(p)) out[kind][key] = assetOf(kind, key, cache, search)
   }
   return out
 }

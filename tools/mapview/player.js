@@ -12,6 +12,10 @@ const MAX_DROP = 4096
 // its spawn, as when standing on the spawn: `--at` puts the eye 60 units above it.
 const HIDE_RADIUS = 24
 const HIDE_TOP = 80
+// Seconds a live copy takes to blend into its next animation.
+const FADE = 0.2
+// The bone the upper body hangs from: a torso animation moves it and every bone below it, the legs the rest.
+const UPPER_BODY = 'torso_stabilizer'
 // A sphere around a standing player, for telling whether it is on view.
 const BODY_CENTER = 36
 const BODY_RADIUS = 50
@@ -58,6 +62,25 @@ export function createPlayers(map, world) {
       copy.weapon = weapon && weaponMesh(weapon)
       if (copy.weapon) copy.skeleton.getBoneByName('tag_weapon_right')?.add(copy.weapon)
     },
+    // Plays the parsed xanim `legs` on the live copy `outer`, with `torso` over its upper body when given, blending
+    // from what it played. With neither it keeps what it plays.
+    pose(outer, legs, torso) {
+      const copy = copies.find((c) => c.outer === outer)
+      const next = [
+        legs && copy.mixer.clipAction(clipOf(copy.parts, legs, torso ? 'lower' : 'all')),
+        torso && copy.mixer.clipAction(clipOf(copy.parts, torso, 'upper')),
+      ].filter(Boolean)
+      if (!next.length) return
+      // A frozen render draws the new pose at once, as no frame will blend it in.
+      for (const a of copy.actions) if (!next.includes(a)) frozen ? a.stop() : a.fadeOut(FADE)
+      for (const a of next) {
+        if (copy.actions.includes(a)) continue
+        a.reset().play()
+        if (!frozen) a.fadeIn(FADE)
+      }
+      copy.actions = next
+      if (frozen) copy.mixer.update(0)
+    },
     remove(outer) {
       const i = copies.findIndex((c) => c.outer === outer)
       copies[i].skeleton.dispose()
@@ -103,16 +126,28 @@ export function createPlayers(map, world) {
     return group
   }
 
-  // The geometry, materials and idle clip one rig's copies share; `data` reads the rig's packed arrays.
+  // The geometry, materials and clips one rig's copies share; `data` reads the rig's packed arrays.
   function partsOf(rig, data, materials) {
     return {
       bones: rig.bones,
       geometries: rig.surfaces.map((s) => [geometryOf(data, s), world.modelMaterial(materials[s.material])]),
-      clip: buildClip(rig.bones, idle),
+      clip: buildClip(rig.bones, idle, () => true),
+      upper: upperBody(rig.bones),
+      clips: new Map(),
     }
   }
 
-  function createCopy(yaw, { bones, geometries, clip }) {
+  // The clip of `anim` for one rig over all its bones, or only the `upper` or `lower` body.
+  function clipOf(parts, anim, part) {
+    if (!parts.clips.has(anim)) parts.clips.set(anim, {})
+    const clips = parts.clips.get(anim)
+    const keep = { all: () => true, upper: (name) => parts.upper.has(name), lower: (name) => !parts.upper.has(name) }[part]
+    clips[part] ??= buildClip(parts.bones, anim, keep)
+    return clips[part]
+  }
+
+  function createCopy(yaw, parts) {
+    const { bones, geometries, clip } = parts
     const body = new THREE.Group()
     const skeleton = new THREE.Skeleton(bones.map((b) => {
       const bone = new THREE.Bone()
@@ -134,11 +169,12 @@ export function createPlayers(map, world) {
     body.rotation.z = yaw
     const mixer = new THREE.AnimationMixer(body)
     const start = (copies.length * PHASE_STEP) % clip.duration
-    mixer.clipAction(clip).play().time = start
+    const action = mixer.clipAction(clip)
+    action.play().time = start
     const outer = new THREE.Group()
     outer.rotation.x = -Math.PI / 2
     outer.add(body)
-    copies.push({ outer, mixer, start, skeleton })
+    copies.push({ outer, mixer, start, skeleton, parts, actions: [action] })
     return outer
   }
 
@@ -174,12 +210,19 @@ function decodeGeometry(base64) {
   }
 }
 
+// The names of the upper body's bones: UPPER_BODY and every bone below it.
+function upperBody(bones) {
+  const upper = new Set()
+  bones.forEach((b) => { if (b.name === UPPER_BODY || upper.has(bones[b.parent]?.name)) upper.add(b.name) })
+  return upper
+}
+
 // Animated rotations replace the bone's own; animated translations are offsets from its own position.
-// Animated bones the rig lacks, such as another uniform's coat tails, are left out.
-function buildClip(bones, anim) {
+// Only the bones `keep` takes by name are animated; ones the rig lacks, such as another uniform's coat tails, never are.
+function buildClip(bones, anim, keep) {
   const times = (keys) => keys.frames.map((f) => f / anim.fps)
   const tracks = []
-  for (const b of anim.bones.filter((a) => bones.some((r) => r.name === a.name))) {
+  for (const b of anim.bones.filter((a) => keep(a.name) && bones.some((r) => r.name === a.name))) {
     if (b.rotations) tracks.push(new THREE.QuaternionKeyframeTrack(`${b.name}.quaternion`, times(b.rotations), b.rotations.values))
     if (b.translations) {
       const own = bones.find((x) => x.name === b.name).offset
