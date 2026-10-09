@@ -147,7 +147,7 @@ function info() {
   const r = (v) => v.map((x) => Math.round(x)).join(' ')
   console.log(`${s.name} (${s.kind}) ${s.path}`)
   console.log(`bounds: min ${r(s.bounds.min)}  max ${r(s.bounds.max)}  size ${r([0, 1, 2].map((i) => s.bounds.max[i] - s.bounds.min[i]))}`)
-  console.log(`surfaces: ${s.surfaces.length}  lightmaps: ${s.lightmapCount}  sky: ${s.materials.find((m) => m.sky)?.image ?? '-'}`)
+  console.log(`surfaces: ${s.surfaces.length}  models: ${Object.keys(s.models).length}  lightmaps: ${s.lightmapCount}  sky: ${s.materials.find((m) => m.sky)?.image ?? '-'}`)
   const ws = Object.entries(s.worldspawn).filter(([k]) => k !== 'classname').map(([k, v]) => `${k}=${v}`).join(' ')
   if (ws) console.log(`worldspawn: ${ws}`)
   console.log('\nentities:')
@@ -173,5 +173,6 @@ function list() {
 function reportMissing(scene) {
   const missing = scene.materials.filter((m) => m.missing && !m.tool)
   if (missing.length) console.log(`missing images: ${missing.map((m) => `${m.name} ${m.missing}`).join(', ')}`)
+  if (scene.boxModels.length) console.log(`models drawn as boxes (missing, skinned or bone-bound): ${scene.boxModels.join(', ')}`)
   if (scene.missingPrefabs.length) console.log(`missing prefabs: ${scene.missingPrefabs.join(', ')} (use --prefabs <dir>)`)
 }

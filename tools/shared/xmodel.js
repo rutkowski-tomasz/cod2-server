@@ -47,15 +47,27 @@ export function parseSurfaces(buf) {
     o += 7
     const positions = []
     const normals = []
+    const colors = []
     const uvs = []
     for (let v = 0; v < vertexCount; v++, o += 60) {
       normals.push(buf.readFloatLE(o), buf.readFloatLE(o + 4), buf.readFloatLE(o + 8))
+      colors.push(buf[o + 12], buf[o + 13], buf[o + 14], buf[o + 15])
       uvs.push(buf.readFloatLE(o + 16), buf.readFloatLE(o + 20))
       positions.push(buf.readFloatLE(o + 48), buf.readFloatLE(o + 52), buf.readFloatLE(o + 56))
     }
     const indices = []
     for (let t = 0; t < triangleCount * 3; t++, o += 2) indices.push(buf.readUInt16LE(o))
-    surfaces.push({ positions, normals, uvs, indices })
+    surfaces.push({ positions, normals, colors, uvs, indices })
   }
   return surfaces
+}
+
+// The first LOD's surfaces of the xmodel at `name`, each with its material, or null when the model is missing,
+// skinned or bound to a bone other than the root.
+export function readXModel(name, search) {
+  const xmodel = search.read(name)
+  const parsed = xmodel && parseXModel(xmodel)
+  const file = parsed && search.read(`xmodelsurfs/${parsed.surfaces}`)
+  const surfaces = file && parseSurfaces(file)
+  return surfaces ? surfaces.map((s, i) => ({ ...s, material: parsed.materials[i] })) : null
 }
