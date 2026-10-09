@@ -1,4 +1,4 @@
-import { createSim } from './sim.js'
+import { createSim, inViewRange } from './sim.js'
 import { createRenderer, cameraEye, V } from './draw.js'
 
 const bundle = JSON.parse(document.getElementById('bundle').textContent)
@@ -23,6 +23,7 @@ const state = {
   bg: BG[params.bg ?? 'dark'],
   grid: params.grid !== 'off',
   player: params.player !== 'off',
+  ranges: params.ranges !== 'off',
 }
 let sim = makeSim()
 const cam = { target: [0, 0, 40], dist: 400, yaw: 35, pitch: 18, fov: 60 }
@@ -35,6 +36,12 @@ function makeSim() {
 
 function render() {
   renderer.render({ sim, cam, state, hidden })
+}
+
+function outOfRange() {
+  if (!state.ranges) return 0
+  const eye = cameraEye(cam)
+  return sim.particles.filter((p) => p.spawnTime <= sim.time && !inViewRange(p, eye)).length
 }
 
 // ---------- camera fit ----------
@@ -78,7 +85,8 @@ function updateUi() {
   $('time').value = Math.min(sim.time, sim.activeDuration)
   const live = sim.particles.filter((p) => p.spawnTime <= sim.time).length
   const shake = sim.shake()
-  $('stats').textContent = `t = ${Math.round(sim.time)} ms / ${Math.round(sim.activeDuration)} ms (full ${Math.round(sim.duration)}) · ${live} particles · ${sim.instances} effect instances${sim.dropped ? ` · ${sim.dropped} dropped` : ''}${shake ? ` · camera shake ${shake.toFixed(2)}` : ''}`
+  const hiddenByRange = outOfRange()
+  $('stats').textContent = `t = ${Math.round(sim.time)} ms / ${Math.round(sim.activeDuration)} ms (full ${Math.round(sim.duration)}) · ${live} particles · ${sim.instances} effect instances${sim.dropped ? ` · ${sim.dropped} dropped` : ''}${shake ? ` · camera shake ${shake.toFixed(2)}` : ''} · camera ${Math.round(V.len(cameraEye(cam)))} units away${hiddenByRange ? ` · ${hiddenByRange} out of view range` : ''}`
   const counts = {}
   for (const p of sim.particles) if (p.spawnTime <= sim.time) counts[p.def.key] = (counts[p.def.key] ?? 0) + 1
   for (const n of document.querySelectorAll('#elements .n')) n.textContent = counts[n.dataset.key] ?? ''
@@ -108,6 +116,8 @@ $('grid').checked = state.grid
 $('grid').onchange = (e) => { state.grid = e.target.checked }
 $('player').checked = state.player
 $('player').onchange = (e) => { state.player = e.target.checked }
+$('ranges').checked = state.ranges
+$('ranges').onchange = (e) => { state.ranges = e.target.checked }
 buildElementList()
 
 let drag = null
@@ -194,7 +204,8 @@ window.efx = {
       const x = (i % cols) * width, y = Math.floor(i / cols) * height
       ctx.drawImage(canvas, x, y)
       const shake = sim.shake()
-      const label = `t = ${Math.round(t)} ms${shake ? ` · shake ${shake.toFixed(2)}` : ''}`
+      const hiddenByRange = outOfRange()
+      const label = `t = ${Math.round(t)} ms${shake ? ` · shake ${shake.toFixed(2)}` : ''}${hiddenByRange ? ` · ${hiddenByRange} out of range` : ''}`
       ctx.font = '13px monospace'
       ctx.fillStyle = 'rgba(0,0,0,0.6)'
       ctx.fillRect(x, y, ctx.measureText(label).width + 8, 18)
@@ -202,7 +213,7 @@ window.efx = {
       ctx.fillText(label, x + 4, y + 13)
       ctx.strokeStyle = '#000'
       ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1)
-      frames.push({ t, counts: sim.counts(), ...(shake ? { shake } : {}) })
+      frames.push({ t, counts: sim.counts(), ...(shake ? { shake } : {}), ...(hiddenByRange ? { outOfRange: hiddenByRange } : {}) })
     })
     document.body.classList.remove('hideui')
     resize()

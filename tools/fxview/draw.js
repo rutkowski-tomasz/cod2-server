@@ -1,5 +1,5 @@
 // WebGL drawing: reference lines, then opaque models, then particles far to near, batched by material, then distortion particles over a copy of the frame.
-import { sampleVisual, modelAxis } from './sim.js'
+import { sampleVisual, modelAxis, inViewRange } from './sim.js'
 
 export const V = {
   add: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]],
@@ -239,7 +239,7 @@ export function createRenderer(canvas, { materials, models }) {
     gl.uniformMatrix4fv(uVp, false, vp)
     gl.uniform3fv(uEye, eye)
     gl.uniform1f(uGround, state.ground ?? 0)
-    const shown = (p) => p.spawnTime <= sim.time && !hidden.has(p.def.key) && (state.ground === null || p.pos[2] >= state.ground - 2 || p.type === 'Decal')
+    const shown = (p) => p.spawnTime <= sim.time && !hidden.has(p.def.key) && (state.ground === null || p.pos[2] >= state.ground - 2 || p.type === 'Decal') && (!state.ranges || inViewRange(p, eye))
 
     // Reference lines and models, with depth write so particles sort against them.
     sceneLines(sim, state, eye)
