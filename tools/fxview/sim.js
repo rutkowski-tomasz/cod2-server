@@ -87,9 +87,10 @@ export function createSim(bundle, opts = {}) {
     p.rot += rotationRate(p, f) * dts
     if (p.usePhysics && ground !== null && p.pos[2] <= ground && v[2] < 0) {
       p.pos[2] = ground
+      // Only the first hit: a resting particle keeps touching the ground every step.
+      if (d.impactfx && p.bounces === 0) queueEffect(d.impactfx, [p.pos[0], p.pos[1], ground], axisFrom([0, 0, 1], [1, 0, 0]), now, p.depth + 1)
       if (p.impactKills) {
         p.dead = true
-        if (d.impactfx) queueEffect(d.impactfx, [p.pos[0], p.pos[1], ground], axisFrom([0, 0, 1], [1, 0, 0]), now, p.depth + 1)
         return
       }
       p.physVel[2] = -p.physVel[2] * p.bounce
