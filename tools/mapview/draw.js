@@ -64,9 +64,10 @@ export function createWorld(map, renderer, scene, onChange) {
   const view = { textures: true, lightmap: true }
   let pending = 0
 
-  // Triggers are translucent, so they stay out of `occluders`, which hide labels behind them.
+  // Triggers and tool brushes are translucent, so they stay out of `occluders`, which hide labels behind them.
   const occluders = new THREE.Group()
   const triggers = new THREE.Group()
+  const tools = new THREE.Group()
   for (const [order, s] of map.surfaces.entries()) {
     const info = map.materials[s.material]
     if (info.sky) continue
@@ -74,13 +75,15 @@ export function createWorld(map, renderer, scene, onChange) {
       triggers.add(buildMesh(s, new THREE.MeshBasicMaterial({ color: TRIGGER_COLOR, transparent: true, opacity: 0.25, depthWrite: false })))
       continue
     }
-    const mesh = buildMesh(s, materialFor(info, s.lightmap, s.doubleSided), info.tool)
+    const tool = info.tool || !!s.collision
+    const mesh = buildMesh(s, materialFor(info, s.lightmap, s.doubleSided, tool))
     // A compiled map's translucent surfaces draw in its surface order, like the game, so layers on one surface
     // stack right. A .map has no such order and the game never draws tools, so those sort by distance.
-    if (lit && mesh.material.transparent && !info.tool) mesh.renderOrder = order
-    occluders.add(mesh)
+    if (lit && mesh.material.transparent && !tool) mesh.renderOrder = order
+    if (tool) tools.add(mesh)
+    else occluders.add(mesh)
   }
-  scene.add(occluders, triggers)
+  scene.add(occluders, triggers, tools)
   const sun = lit ? null : addLights()
   const grid = buildGrid()
   const sky = buildSky()
@@ -91,7 +94,7 @@ export function createWorld(map, renderer, scene, onChange) {
     setView(state) {
       view.textures = state.textures
       view.lightmap = state.lightmap
-      for (const m of occluders.children) m.visible = !m.userData.tool || state.tools
+      tools.visible = state.tools
       for (const mat of materials.values()) refresh(mat)
       const shadows = state.shadows && !state.top
       renderer.shadowMap.enabled = shadows
@@ -100,10 +103,11 @@ export function createWorld(map, renderer, scene, onChange) {
       if (sky) sky.visible = !state.top && state.cut == null
       scene.background = new THREE.Color(state.top ? TOP_COLOR : SKY_COLOR)
       grid.visible = state.grid || state.top
+      triggers.visible = state.entities
     },
   }
 
-  function buildMesh(s, material, tool = false) {
+  function buildMesh(s, material) {
     const geom = new THREE.BufferGeometry()
     const pos = map.f32(s.positions), nor = map.f32(s.normals)
     const p3 = new Float32Array(pos.length), n3 = new Float32Array(nor.length)
@@ -119,46 +123,43 @@ export function createWorld(map, renderer, scene, onChange) {
     geom.setIndex(new THREE.BufferAttribute(map.u32(s.indices), 1))
     const ent = map.entities[s.entity]
     const mesh = new THREE.Mesh(geom, material)
-    mesh.userData = { tool }
     mesh.castShadow = mesh.receiveShadow = !material.transparent
     // Brush model vertices in a .d3dbsp are relative to their entity's origin.
     if (ent.origin && ent.index > 0 && map.kind === 'bsp') mesh.position.copy(toThree(...ent.origin))
     return mesh
   }
 
-  function materialFor(info, lightmap, doubleSided) {
-    const key = `${info.name}/${lit ? lightmap : -1}/${!!doubleSided}`
+  function materialFor(info, lightmap, doubleSided, tool) {
+    const key = `${info.name}/${lit ? lightmap : -1}/${!!doubleSided}/${tool}`
     if (!materials.has(key)) {
-      const mat = makeMaterial(info, lightmap)
+      const mat = makeMaterial(info, lightmap, tool)
       if (doubleSided) mat.side = THREE.DoubleSide
       materials.set(key, mat)
     }
     return materials.get(key)
   }
 
-  function makeMaterial(info, lightmap) {
+  function makeMaterial(info, lightmap, tool) {
     if (/water/.test(info.techset ?? '') || /^water/.test(info.name)) return new THREE.MeshBasicMaterial({ color: WATER_COLOR, transparent: true, opacity: 0.55, depthWrite: false })
     const baseColor = hashColor(info.name)
-    // Only the lightmap shader blends by techset; a .map draws every material opaque.
-    const blend = lit ? blendOf(info.techset) : BLEND.opaque
-    const mat = lit
-      ? new THREE.ShaderMaterial({
-          ...LIGHTMAP_SHADER,
-          uniforms: {
-            map: { value: null }, hasMap: { value: 0 }, color: { value: baseColor }, alphaTest: { value: 0 },
-            lmR: { value: null }, lmG: { value: null }, lmB: { value: null }, lmSun: { value: null },
-            useLm: { value: 0 }, sunDir: { value: sunDir }, sunColor: { value: sunColor.clone().multiplyScalar(sunlight) },
-            blend: { value: blend },
-          },
-        })
-      : new THREE.MeshLambertMaterial({ color: baseColor })
+    // Only the lightmap shader blends by techset; a .map and tool brushes draw every material opaque.
+    const blend = lit && !tool ? blendOf(info.techset) : BLEND.opaque
+    let mat
+    if (!lit) mat = new THREE.MeshLambertMaterial({ color: baseColor })
+    // A compiled map has no three.js lights, and its collision brushes no lightmap, so tool brushes there draw unlit.
+    else if (tool) {
+      mat = new THREE.MeshBasicMaterial({ color: baseColor })
+      // Lit maps load textures raw, as the lightmap shader wants them, so skip three.js's sRGB encode here too.
+      mat.onBeforeCompile = (shader) => { shader.fragmentShader = shader.fragmentShader.replace('#include <colorspace_fragment>', '') }
+    }
+    else mat = lightmapMaterial(baseColor, blend)
     mat.userData = { info, baseColor, blend }
     if (blend !== BLEND.opaque) {
       Object.assign(mat, { transparent: true, depthWrite: false, ...PULL_FORWARD })
       if (blend === BLEND.add) mat.blending = THREE.AdditiveBlending
       if (blend === BLEND.multiply) Object.assign(mat, { blending: THREE.CustomBlending, blendSrc: THREE.DstColorFactor, blendDst: THREE.ZeroFactor })
     }
-    if (info.tool) Object.assign(mat, { transparent: true, opacity: 0.35, depthWrite: false })
+    if (tool) Object.assign(mat, { transparent: true, opacity: 0.35, depthWrite: false })
     if (/decal/.test(info.name) || /decal/.test(info.techset ?? '')) Object.assign(mat, PULL_FORWARD)
     const image = map.images[info.image]
     if (image) {
@@ -179,12 +180,25 @@ export function createWorld(map, renderer, scene, onChange) {
     return mat
   }
 
+  function lightmapMaterial(baseColor, blend) {
+    return new THREE.ShaderMaterial({
+      ...LIGHTMAP_SHADER,
+      uniforms: {
+        map: { value: null }, hasMap: { value: 0 }, color: { value: baseColor }, alphaTest: { value: 0 },
+        lmR: { value: null }, lmG: { value: null }, lmB: { value: null }, lmSun: { value: null },
+        useLm: { value: 0 }, sunDir: { value: sunDir }, sunColor: { value: sunColor.clone().multiplyScalar(sunlight) },
+        blend: { value: blend },
+      },
+    })
+  }
+
   // Water has no info: it looks the same whatever the view options.
   function refresh(mat) {
     const { info, texture, lightmaps, baseColor, blend } = mat.userData
     if (!info) return
     const colorMap = view.textures && texture ? texture : null
-    const alphaTest = colorMap && map.images[info.image].alpha && blend === BLEND.opaque ? ALPHA_TEST : 0
+    // three.js tests opacity times texel alpha, so translucent tools need a threshold scaled to match.
+    const alphaTest = colorMap && map.images[info.image].alpha && blend === BLEND.opaque ? ALPHA_TEST * mat.opacity : 0
     if (mat.isShaderMaterial) {
       const u = mat.uniforms
       u.map.value = colorMap

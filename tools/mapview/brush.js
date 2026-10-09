@@ -1,15 +1,20 @@
-// Turns .map brushes and patches into triangle meshes grouped by material.
+// Turns brushes (from .map sides or bare planes) and patches into triangle meshes grouped by material.
 import { add, cross, dot, normalize, scale, sub } from './math.js'
 
 const EPS = 0.01
 const HUGE = 1 << 17
 
+// A .map side names its plane by three points on it.
 function brushPolygons(brush) {
-  const planes = brush.sides.map((s) => {
+  return planePolygons(brush.sides.map((s) => {
     const [a, b, c] = s.points
     const n = normalize(cross(sub(c, a), sub(b, a)))
     return { n, d: dot(n, a), side: s }
-  })
+  }))
+}
+
+// The brush is the space inside every plane (n·x <= d); each plane's face is a huge quad cut by the others.
+export function planePolygons(planes) {
   const polys = []
   for (let i = 0; i < planes.length; i++) {
     const pl = planes[i]
@@ -78,7 +83,12 @@ export class MeshBuilder {
   }
 
   addBrush(brush) {
-    for (const poly of brushPolygons(brush)) {
+    this.addPolygons(brushPolygons(brush))
+  }
+
+  // `side` gives each polygon its material and texture mapping.
+  addPolygons(polys) {
+    for (const poly of polys) {
       const g = this.group(poly.side.material)
       const base = g.positions.length / 3
       for (const p of poly.points) {

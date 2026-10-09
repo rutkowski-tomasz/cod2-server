@@ -42,9 +42,9 @@ export function loadScene(target, search, { prefabRoots = [] } = {}) {
   const surfaces = parsed.surfaces.map((s) => {
     const material = materialId(s.material)
     const positions = Float32Array.from(s.positions)
-    if (s.entity === 0 && !materials[material].sky) for (let i = 0; i < positions.length; i += 3) grow(positions.subarray(i, i + 3))
+    if (s.entity === 0 && !s.collision && !materials[material].sky) for (let i = 0; i < positions.length; i += 3) grow(positions.subarray(i, i + 3))
     return {
-      material, entity: s.entity, lightmap: s.lightmap ?? -1, doubleSided: s.doubleSided,
+      material, entity: s.entity, lightmap: s.lightmap ?? -1, doubleSided: s.doubleSided, collision: s.collision,
       positions: push(positions),
       normals: push(Float32Array.from(s.normals)),
       colors: s.colors ? push(Uint8Array.from(s.colors)) : null,
