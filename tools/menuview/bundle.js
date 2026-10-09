@@ -9,7 +9,7 @@ import { parseMenuFile } from './parse.js'
 import { parseFont } from './font.js'
 
 // textfont values (UI_FONT_*); 0 picks one of normal, small and big by text scale in the viewer.
-export const FONTS = { 1: 'normalFont', 2: 'bigFont', 3: 'smallFont', 4: 'boldFont', 5: 'consoleFont' }
+const FONTS = { 1: 'normalFont', 2: 'bigFont', 3: 'smallFont', 4: 'boldFont', 5: 'consoleFont' }
 const WINDOW_STYLE_DVAR_SHADER = 6
 
 // `target` is a file path or a game path like ui_mp/scriptmenus/ingame(.menu). `dvars` name → value, for DVAR_SHADER images.
@@ -57,7 +57,7 @@ export function buildBundle(target, search, dvars = {}) {
       }
     }
   }
-  for (const [id, file] of [...Object.entries(FONTS), ['extra', 'extraBigFont']]) loadFont(id, file)
+  for (const [id, file] of Object.entries(FONTS)) loadFont(id, file)
 
   function macroName(prefix, value) {
     for (const [name, m] of pp.macros) if (name.startsWith(prefix) && !m.params && m.body.length === 1 && Number(m.body[0].s) === value) return name

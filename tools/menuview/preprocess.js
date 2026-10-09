@@ -115,7 +115,7 @@ function lines(source) {
   return text.replace(/\r/g, '').replace(/\\[ \t]*\n/g, ' ').split('\n')
 }
 
-export function tokenize(text) {
+function tokenize(text) {
   const tokens = []
   const re = /"([^"\n]*)"?|##|[{}(),;]|[^\s{}(),;"]+/g
   for (const m of text.matchAll(re)) tokens.push(m[1] !== undefined ? { s: m[1], q: true } : { s: m[0], q: false })
