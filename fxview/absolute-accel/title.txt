@@ -1,1 +1,0 @@
-fxview: turn acceleration into world axes only with absoluteAccel
