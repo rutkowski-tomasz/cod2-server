@@ -28,6 +28,7 @@ export function createPlayers(map, world) {
   world.occluders.updateMatrixWorld(true)
 
   return {
+    classname: map.player.classname,
     // A copy for the spawn `e`, to place at its origin. The game drops these spawns to the floor below them
     // (placeSpawnpoint in the gametype script), so the copy stands there.
     create(e) {
@@ -63,9 +64,10 @@ export function createPlayers(map, world) {
       outer.userData.hides = (offset) => Math.hypot(offset.x, offset.z) < HIDE_RADIUS && offset.y > -drop && offset.y < HIDE_TOP
       return outer
     },
-    // Moves the copies on by the time since the last call; true when one is in `cam`'s view, so the page has to
-    // draw again. False once frozen.
-    update(cam) {
+    // Moves the copies on by the time since the last call; true when one is drawn in `cam`'s view, so the page has
+    // to draw again. A copy is not drawn while its marker hides it or `cut`, a height or null, clips its feet away.
+    // False once frozen.
+    update(cam, cut) {
       const now = performance.now()
       const seconds = (now - lastUpdate) / 1000
       lastUpdate = now
@@ -74,6 +76,7 @@ export function createPlayers(map, world) {
       const frustum = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse))
       const center = new THREE.Vector3()
       return copies.some(({ outer }) => {
+        if (!outer.parent.visible || (cut != null && outer.getWorldPosition(center).y > cut)) return false
         outer.getWorldPosition(center).y += BODY_CENTER
         return frustum.intersectsSphere(new THREE.Sphere(center, BODY_RADIUS))
       })

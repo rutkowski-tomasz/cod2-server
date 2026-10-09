@@ -175,7 +175,7 @@ function updateCamera() {
 function renderLoop() {
   const cam = updateCamera()
   const changed = move() || needRender || world.loading()
-  const animated = !!players && players.update(cam) && state.entities
+  const animated = !!players && players.update(cam, state.cut) && state.entities
   // The players' animation alone moves no label, so it leaves label occlusion settled.
   if (changed || animated) {
     markers.hideNear(cam, state.top)
@@ -192,7 +192,7 @@ function renderLoop() {
   requestAnimationFrame(renderLoop)
 }
 
-// Frames are drawn only when the view changes or players are shown, so this counts drawn frames and says idle when none were.
+// Frames are drawn only when the view changes or a player is on view, so this counts drawn frames and says idle when none were.
 function updateFps() {
   const elapsed = performance.now() - fps.since
   if (elapsed < 500) return

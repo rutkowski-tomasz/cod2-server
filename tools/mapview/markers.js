@@ -60,14 +60,13 @@ export function createMarkers(map, renderer, scene, occluders, players) {
     let label = cls
     const group = new THREE.Group()
     group.position.copy(toThree(...e.origin))
-    if (/spawn|info_player_start|intermission/.test(cls)) {
-      color = /allied|allies|american|british|russian/.test(cls) ? 0x3a86ff : /axis|german/.test(cls) ? 0xff3355 : 0x2ec4b6
-    }
-    if (cls === map.player?.classname) {
+    if (cls === players?.classname) {
+      color = 0x3a86ff
       const player = players.create(e)
       group.add(player)
       group.userData.hides = player.userData.hides
     } else if (/spawn|info_player_start|intermission/.test(cls)) {
+      color = /allied|allies|american|british|russian/.test(cls) ? 0x3a86ff : /axis|german/.test(cls) ? 0xff3355 : 0x2ec4b6
       const box = new THREE.Mesh(new THREE.BoxGeometry(SPAWN_BOX.width, SPAWN_BOX.height, SPAWN_BOX.width), new THREE.MeshBasicMaterial({ color, wireframe: true, fog: false }))
       box.position.y = SPAWN_BOX.height / 2
       const yaw = (e.angles ? e.angles[1] : 0) * d2r

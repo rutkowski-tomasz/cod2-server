@@ -149,7 +149,7 @@ async function render() {
 
 function info() {
   const { scene: s } = loadScene(target(), search, sceneOptions)
-  if (opts.json) { console.log(JSON.stringify({ ...s, surfaces: undefined }, null, 2)); return }
+  if (opts.json) { console.log(JSON.stringify({ ...s, surfaces: undefined, player: s.player?.classname }, null, 2)); return }
   const r = (v) => v.map((x) => Math.round(x)).join(' ')
   console.log(`${s.name} (${s.kind}) ${s.path}`)
   console.log(`bounds: min ${r(s.bounds.min)}  max ${r(s.bounds.max)}  size ${r([0, 1, 2].map((i) => s.bounds.max[i] - s.bounds.min[i]))}`)
