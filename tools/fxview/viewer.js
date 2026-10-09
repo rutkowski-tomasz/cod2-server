@@ -27,7 +27,7 @@ const state = {
 let sim = makeSim()
 const cam = { target: [0, 0, 40], dist: 400, yaw: 35, pitch: 18, fov: 60 }
 
-const renderer = createRenderer(canvas, bundle.materials)
+const renderer = createRenderer(canvas, bundle)
 
 function makeSim() {
   return createSim(bundle, { seed: state.seed, forward: state.forward, ground: state.ground })

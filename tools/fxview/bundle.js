@@ -1,4 +1,4 @@
-// Builds the self-contained effect bundle: root effect, every effect it references, and the textures they use.
+// Builds the self-contained effect bundle: root effect, every effect it references, and the models and textures they use.
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve, basename } from 'node:path'
 import { parseEfx } from './parse.js'
@@ -6,12 +6,14 @@ import { normalizeElement } from './normalize.js'
 import { parseMaterial } from './material.js'
 import { decodeIwi } from './iwi.js'
 import { encodePng } from './png.js'
+import { parseXModel, parseSurfaces } from './xmodel.js'
 
 // `target` is a file path (ending in .efx) or an fx path like fx/explosions/grenade_flash.
 export function buildBundle(target, search) {
   const effects = {}
   const materials = {}
-  const missing = { effects: [], materials: [], images: [], models: new Set() }
+  const models = {}
+  const missing = { effects: [], materials: [], images: [], models: [] }
   const rootPath = loadRoot(target)
   const queue = [rootPath]
   while (queue.length) {
@@ -26,10 +28,10 @@ export function buildBundle(target, search) {
         queue.push(sub)
       }
       for (const shader of el.shaders) loadMaterial(shader)
-      for (const model of el.models) missing.models.add(model)
+      for (const model of el.models) loadModel(model)
     }
   }
-  return { root: rootPath, effects, materials, missing: { ...missing, models: [...missing.models] } }
+  return { root: rootPath, effects, materials, models, missing }
 
   function loadRoot(t) {
     if (t.endsWith('.efx') && existsSync(t)) {
@@ -54,6 +56,20 @@ export function buildBundle(target, search) {
   function loadEffect(text, path) {
     const parsed = parseEfx(text)
     return { path, elements: parsed.elements.map(normalizeElement) }
+  }
+
+  function loadModel(name) {
+    if (models[name] || missing.models.includes(name)) return
+    const xmodel = search.read(name)
+    const parsed = xmodel && parseXModel(xmodel)
+    const surfaceFile = parsed && search.read(`xmodelsurfs/${parsed.surfaces}`)
+    const surfaces = surfaceFile && parseSurfaces(surfaceFile)
+    if (!surfaces) { missing.models.push(name); return }
+    surfaces.forEach((s, i) => {
+      s.material = parsed.materials[i]
+      loadMaterial(s.material)
+    })
+    models[name] = { surfaces }
   }
 
   function loadMaterial(name) {

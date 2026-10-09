@@ -1,5 +1,5 @@
-// WebGL drawing: reference lines, then particles far to near, batched by material.
-import { sampleVisual } from './sim.js'
+// WebGL drawing: reference lines, then opaque models, then particles far to near, batched by material.
+import { sampleVisual, modelAxis } from './sim.js'
 
 export const V = {
   add: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]],
@@ -31,7 +31,7 @@ export function cameraEye(cam) {
   return V.add(cam.target, [Math.cos(pitch) * Math.cos(yaw) * cam.dist, Math.cos(pitch) * Math.sin(yaw) * cam.dist, Math.sin(pitch) * cam.dist])
 }
 
-export function createRenderer(canvas, materials) {
+export function createRenderer(canvas, { materials, models }) {
   const gl = canvas.getContext('webgl2', { preserveDrawingBuffer: true, antialias: true, alpha: false })
   // ---------- textures ----------
   const textures = {}
@@ -43,14 +43,14 @@ export function createRenderer(canvas, materials) {
     fill(ctx, w, h)
     return uploadTexture(c)
   }
-  function uploadTexture(src) {
+  function uploadTexture(src, wrap = gl.CLAMP_TO_EDGE) {
     const tex = gl.createTexture()
     gl.bindTexture(gl.TEXTURE_2D, tex)
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src)
     gl.generateMipmap(gl.TEXTURE_2D)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap)
     return tex
   }
   textures.white = solidTexture(2, 2, (ctx, w, h) => { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h) })
@@ -59,36 +59,65 @@ export function createRenderer(canvas, materials) {
   textures.model = solidTexture(32, 32, (ctx, w, h) => { ctx.fillStyle = '#9a9a9a'; ctx.fillRect(2, 2, w - 4, h - 4); ctx.strokeStyle = '#333'; ctx.lineWidth = 2; ctx.strokeRect(3, 3, w - 6, h - 6) })
   materialMeta.white = materialMeta.missing = materialMeta.model = { blend: 'blend', atlasCols: 1, atlasRows: 1 }
   materialMeta.light = { blend: 'add', atlasCols: 1, atlasRows: 1 }
+  // Model UVs run past 0..1 and expect the texture to tile.
+  const modelMaterials = new Set(Object.values(models).flatMap((m) => m.surfaces.map((s) => s.material)))
   const textureLoads = Object.entries(materials).map(([name, m]) => new Promise((resolve) => {
     const img = new Image()
-    img.onload = () => { textures[name] = uploadTexture(img); materialMeta[name] = m; resolve() }
+    img.onload = () => { textures[name] = uploadTexture(img, modelMaterials.has(name) ? gl.REPEAT : gl.CLAMP_TO_EDGE); materialMeta[name] = m; resolve() }
     img.onerror = resolve
     img.src = m.png
   }))
 
   // ---------- shaders ----------
-  const program = gl.createProgram()
-  for (const [type, src] of [[gl.VERTEX_SHADER, `#version 300 es
-    in vec3 pos; in vec2 uv; in vec4 col; uniform mat4 vp; out vec2 vUv; out vec4 vCol;
-    void main() { gl_Position = vp * vec4(pos, 1.0); vUv = uv; vCol = col; }`],
-    [gl.FRAGMENT_SHADER, `#version 300 es
+  function createProgram(vertex, fragment) {
+    const program = gl.createProgram()
+    for (const [type, src] of [[gl.VERTEX_SHADER, vertex], [gl.FRAGMENT_SHADER, fragment]]) {
+      const sh = gl.createShader(type)
+      gl.shaderSource(sh, `#version 300 es\n${src}`)
+      gl.compileShader(sh)
+      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh))
+      gl.attachShader(program, sh)
+    }
+    gl.linkProgram(program)
+    return program
+  }
+  const program = createProgram(`
+    layout(location = 0) in vec3 pos; layout(location = 1) in vec2 uv; layout(location = 2) in vec4 col; uniform mat4 vp; out vec2 vUv; out vec4 vCol;
+    void main() { gl_Position = vp * vec4(pos, 1.0); vUv = uv; vCol = col; }`, `
     precision mediump float; in vec2 vUv; in vec4 vCol; uniform sampler2D tex; uniform int mode; out vec4 o;
     void main() {
       vec4 t = texture(tex, vUv) * vCol;
       if (mode == 1) o = vec4(t.rgb * t.a, t.a);          // additive, premultiplied
       else if (mode == 2) o = vec4(mix(vec3(1.0), t.rgb, t.a), 1.0); // multiply
       else o = t;
-    }`]]) {
-    const sh = gl.createShader(type)
-    gl.shaderSource(sh, src)
-    gl.compileShader(sh)
-    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh))
-    gl.attachShader(program, sh)
-  }
-  gl.linkProgram(program)
-  gl.useProgram(program)
+    }`)
   const uVp = gl.getUniformLocation(program, 'vp')
   const uMode = gl.getUniformLocation(program, 'mode')
+  // Models get a fixed light from above so their shape reads without the level's lighting.
+  const meshProgram = createProgram(`
+    layout(location = 0) in vec3 pos; layout(location = 1) in vec3 nrm; layout(location = 2) in vec2 uv;
+    uniform mat4 vp; uniform mat4 model; out vec2 vUv; out float vLight;
+    void main() {
+      gl_Position = vp * model * vec4(pos, 1.0);
+      vUv = uv;
+      vLight = 0.5 + 0.5 * max(dot(normalize(mat3(model) * nrm), normalize(vec3(0.4, 0.3, 0.85))), 0.0);
+    }`, `
+    precision mediump float; in vec2 vUv; in float vLight; uniform sampler2D tex; uniform int mode; out vec4 o;
+    void main() {
+      vec4 t = texture(tex, vUv);
+      if (mode == 1 && t.a < 0.5) discard;
+      o = vec4(t.rgb * vLight, mode == 2 ? t.a : 1.0);
+    }`)
+  const uMeshVp = gl.getUniformLocation(meshProgram, 'vp')
+  const uMeshModel = gl.getUniformLocation(meshProgram, 'model')
+  const uMeshMode = gl.getUniformLocation(meshProgram, 'mode')
+  // From the material's technique set: phong_replace*, phong_alphatest*, phong_blend.
+  const MESH_MODES = { opaque: 0, alphaTest: 1, blend: 2 }
+  function meshMode(techset = '') {
+    if (techset.includes('_blend')) return MESH_MODES.blend
+    if (techset.includes('alphatest')) return MESH_MODES.alphaTest
+    return MESH_MODES.opaque
+  }
   const vbo = gl.createBuffer()
   const ibo = gl.createBuffer()
   const vao = gl.createVertexArray()
@@ -107,6 +136,22 @@ export function createRenderer(canvas, materials) {
   function fillIndices(quads) {
     for (let q = 0; q < quads; q++) { const v = q * 4, i = q * 6; indices[i] = v; indices[i + 1] = v + 1; indices[i + 2] = v + 2; indices[i + 3] = v; indices[i + 4] = v + 2; indices[i + 5] = v + 3 }
   }
+
+  // ---------- model meshes ----------
+  const meshes = {}
+  for (const [name, model] of Object.entries(models)) meshes[name] = model.surfaces.map((s) => {
+    const meshVao = gl.createVertexArray()
+    gl.bindVertexArray(meshVao)
+    for (const [i, data, size] of [[0, s.positions, 3], [1, s.normals, 3], [2, s.uvs, 2]]) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer())
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW)
+      gl.enableVertexAttribArray(i)
+      gl.vertexAttribPointer(i, size, gl.FLOAT, false, 0, 0)
+    }
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer())
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(s.indices), gl.STATIC_DRAW)
+    return { vao: meshVao, count: s.indices.length, material: s.material, mode: meshMode(materials[s.material]?.techset) }
+  })
 
   // ---------- drawing ----------
   const lineQuads = []
@@ -154,11 +199,15 @@ export function createRenderer(canvas, materials) {
     gl.depthMask(true)
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
     gl.enable(gl.DEPTH_TEST)
-    gl.enable(gl.BLEND)
+    gl.useProgram(meshProgram)
+    gl.uniformMatrix4fv(uMeshVp, false, vp)
+    gl.useProgram(program)
     gl.uniformMatrix4fv(uVp, false, vp)
+    const shown = (p) => p.spawnTime <= sim.time && !hidden.has(p.def.key) && (state.ground === null || p.pos[2] >= state.ground - 2 || p.type === 'Decal')
 
-    // Reference lines, with depth write so particles sort against the ground.
+    // Reference lines and models, with depth write so particles sort against them.
     sceneLines(sim, state, eye)
+    gl.enable(gl.BLEND)
     gl.depthMask(true)
     // Screen-constant line width: each end is widened in proportion to its distance from the eye.
     const lq = lineQuads.map((l) => {
@@ -169,14 +218,14 @@ export function createRenderer(canvas, materials) {
       return { corners: [V.add(l.a, sideA), V.add(l.b, sideB), V.sub(l.b, sideB), V.sub(l.a, sideA)], color: l.color, tex: 'white', frame: 0 }
     })
     drawQuads(lq)
+    drawModels(sim.particles.filter((p) => meshes[p.model] && shown(p)), eye, viewFwd)
+    gl.enable(gl.BLEND)
     gl.depthMask(false)
 
     // Particles, far to near, batched by material.
     const items = []
-    const now = sim.time
     for (const p of sim.particles) {
-      if (p.spawnTime > now || hidden.has(p.def.key)) continue
-      if (state.ground !== null && p.pos[2] < state.ground - 2 && p.type !== 'Decal') continue
+      if (!shown(p)) continue
       const q = particleQuad(p, eye, viewRight, viewUp)
       if (q) { q.depth = V.dot(V.sub(p.pos, eye), viewFwd); items.push(q) }
     }
@@ -228,6 +277,7 @@ export function createRenderer(canvas, materials) {
         return quad(center, V.mul(viewRight, r / 2), V.mul(viewUp, r / 2), [color[0], color[1], color[2], color[3] * 0.35], 'light', 0)
       }
       case 'Emitter': {
+        if (meshes[p.model]) return null
         const size = d.flags.includes('useModel') ? 10 * Math.max(0.2, w) : 4
         return quad(center, V.mul(viewRight, size / 2), V.mul(viewUp, size / 2), d.flags.includes('useModel') ? [0.8, 0.8, 0.8, 1] : [1, 1, 0, 0.6], 'model', 0)
       }
@@ -239,9 +289,42 @@ export function createRenderer(canvas, materials) {
     return { corners: [V.sub(V.sub(center, r), u), V.sub(V.add(center, r), u), V.add(V.add(center, r), u), V.add(V.sub(center, r), u)], color, tex, frame }
   }
 
+  // Opaque and alpha-tested surfaces first, then blended ones far to near without depth write.
+  function drawModels(particles, eye, viewFwd) {
+    gl.useProgram(meshProgram)
+    const placed = []
+    for (const p of particles) {
+      const scale = sampleVisual(p).width
+      if (scale <= 0) continue
+      const [f, l, u] = modelAxis(p).map((a) => V.mul(a, scale))
+      placed.push({ matrix: [...f, 0, ...l, 0, ...u, 0, ...p.pos, 1], surfaces: meshes[p.model], depth: V.dot(V.sub(p.pos, eye), viewFwd) })
+    }
+    gl.disable(gl.BLEND)
+    drawSurfaces(placed, (s) => s.mode !== MESH_MODES.blend)
+    gl.enable(gl.BLEND)
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+    gl.depthMask(false)
+    drawSurfaces(placed.sort((a, b) => b.depth - a.depth), (s) => s.mode === MESH_MODES.blend)
+  }
+
+  function drawSurfaces(placed, include) {
+    for (const { matrix, surfaces } of placed) {
+      gl.uniformMatrix4fv(uMeshModel, false, matrix)
+      for (const surface of surfaces) {
+        if (!include(surface)) continue
+        gl.uniform1i(uMeshMode, surface.mode)
+        gl.bindTexture(gl.TEXTURE_2D, textures[surface.material] ?? textures.missing)
+        gl.bindVertexArray(surface.vao)
+        gl.drawElements(gl.TRIANGLES, surface.count, gl.UNSIGNED_SHORT, 0)
+      }
+    }
+  }
+
   const MODES = { blend: 0, add: 1, multiply: 2 }
   function drawQuads(items) {
     if (!items.length) return
+    gl.useProgram(program)
+    gl.bindVertexArray(vao)
     ensureCapacity(items.length)
     let n = 0
     let batchTex = null
