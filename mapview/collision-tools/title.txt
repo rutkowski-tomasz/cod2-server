@@ -1,1 +1,0 @@
-mapview: rebuild tool brushes and triggers from .d3dbsp collision brushes
