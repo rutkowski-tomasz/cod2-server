@@ -12,7 +12,7 @@ node tools/fxview/fxview.js list   fx/muzzleflashes
 
 Targets are a file path or an fx path. Fx paths, sub-effects (`playfx`, `emitfx`, `impactfx`, `deathfx`), materials and `.iwi` images are looked up, ignoring case like the game, in (later wins): `~/Dev/cod2-binaries/1_0`, `~/Dev/cod2-binaries/1_3` (LFS pointers that were not pulled are skipped), every `~/Dev/nl-cod2-zom-iwds/iwds/<iwd>/<feature>/` folder, then `--source <dir|iwd>`. Needs `iw_07` (fx), `iw_13` (materials, models), `iw_14` (model geometry) and `iw_08`–`iw_12` (images) pulled.
 
-Output goes to `tools/fxview/out/` unless `-o` is given. `render` writes the page next to the sheet, so the same frames can be inspected interactively. `--stats` adds a JSON with duration, bounds, warnings, missing assets and per-frame particle counts.
+Output goes to `out/fxview/` unless `-o` is given. `render` writes the page next to the sheet, so the same frames can be inspected interactively. `--stats` adds a JSON with duration, bounds, warnings, missing assets and per-frame particle counts.
 
 ## Checking an effect as an agent
 

@@ -9,6 +9,7 @@ import { inlineModules } from '../shared/inline.js'
 import { buildBundle } from './bundle.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
+const OUT = join(HERE, '..', '..', 'out', 'menuview')
 const USAGE = `usage:
   menuview.js view   <menu-file | ui_mp/path> [-o out.html] [--open]   build an interactive page
   menuview.js render <menu-file | ui_mp/path> [-o out.png] [options]    headless screenshot
@@ -59,7 +60,7 @@ function target() {
 }
 
 function outName(ext) {
-  const out = opts.out ?? join(HERE, 'out', `${basename(target(), '.menu')}.${ext}`)
+  const out = opts.out ?? join(OUT, `${basename(target(), '.menu')}.${ext}`)
   mkdirSync(dirname(out), { recursive: true })
   return out
 }

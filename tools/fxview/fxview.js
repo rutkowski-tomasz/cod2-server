@@ -10,6 +10,7 @@ import { inlineModules } from '../shared/inline.js'
 import { createSim, FORWARD } from './sim.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
+const OUT = join(HERE, '..', '..', 'out', 'fxview')
 const USAGE = `usage:
   fxview.js view   <efx-file | fx/path> [-o out.html] [--open]     build a standalone player page
   fxview.js render <efx-file | fx/path> [-o out.png] [options]      headless frames into one contact sheet
@@ -61,7 +62,7 @@ function target() {
 
 function outName(ext) {
   const name = basename(target(), '.efx')
-  const out = opts.out ?? join(HERE, 'out', `${name}.${ext}`)
+  const out = opts.out ?? join(OUT, `${name}.${ext}`)
   mkdirSync(dirname(out), { recursive: true })
   return out
 }

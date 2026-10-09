@@ -28,6 +28,10 @@ The image builds [zk_libcod](https://github.com/ibuddieat/zk_libcod) at the comm
 
 `tools/shared/` holds what the tools share: the asset search over iwds and folders, material, xmodel, IWI (with its wavelet formats, GPLv3) and PNG codecs, and the module inliner for their file:// pages.
 
+fxview, menuview and mapview write to `out/<tool>/` (git-ignored) unless `-o` is given; that is scratch.
+
+Before/after screenshots of a change go on the `pr-assets` branch, which PRs embed images from. Check it out once with `git worktree add ../cod2-server-pr-assets pr-assets`, then follow its `README.md`.
+
 # stacks
 
 Pushing changes under `stacks/<name>/` to `master` deploys that stack to production. Each stack has a small `deploy-<name>.yml` workflow that calls the shared `deploy-stack.yml`. Config names end with `${CONFIG_HASH}`, a hash of every file in the stack folder except `compose.yml`, so editing a config file is enough to roll it out. After deploying, the workflow removes the stack's old configs. Image digests stay pinned unless the image changes (`--resolve-image changed`).

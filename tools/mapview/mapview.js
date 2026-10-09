@@ -10,6 +10,7 @@ import { inlineModules } from '../shared/inline.js'
 import { loadScene, buildBundle } from './bundle.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
+const OUT = join(HERE, '..', '..', 'out', 'mapview')
 const LIBRARY_IWDS = join(homedir(), 'Dev/nl-cod2-library/src/iwds')
 const LIBRARY_SCRIPTS = join(homedir(), 'Dev/nl-cod2-library/src/scripts')
 const USAGE = `usage:
@@ -78,7 +79,7 @@ function targetIwd(name) {
 }
 
 function outName(ext) {
-  const out = opts.out ?? join(HERE, 'out', `${basename(target()).replace(/\.(map|d3dbsp|iwd)$/, '')}.${ext}`)
+  const out = opts.out ?? join(OUT, `${basename(target()).replace(/\.(map|d3dbsp|iwd)$/, '')}.${ext}`)
   mkdirSync(dirname(out), { recursive: true })
   return out
 }
@@ -119,7 +120,7 @@ function view() {
 async function render() {
   const bundle = load()
   const shots = opts.batch ? JSON.parse(readFileSync(opts.batch, 'utf8')) : [{ ...viewOf(opts), out: outName('png') }]
-  const outDir = opts.batch ? opts.out ?? join(HERE, 'out') : dirname(shots[0].out)
+  const outDir = opts.batch ? opts.out ?? OUT : dirname(shots[0].out)
   mkdirSync(outDir, { recursive: true })
   const html = join(outDir, `${opts.batch ? bundle.name : basename(shots[0].out, '.png')}.html`)
   writeFileSync(html, buildHtml(bundle, opts.batch ? {} : viewOf(opts)))
