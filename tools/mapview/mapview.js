@@ -23,7 +23,7 @@ const USAGE = `usage:
 options:
   --source <dir|iwd>   extra asset source, repeatable; mod folders beat stock
   --prefabs <dir>      where misc_prefab paths resolve, repeatable (.map)
-  --size 1280x720      image size (render)
+  --size 1280x720      image size (render); a batch shot can set its own size
 
 view options:
   --pos x,y,z          eye position             --angles pitch,yaw,roll   CoD view angles
@@ -120,11 +120,12 @@ async function render() {
   mkdirSync(outDir, { recursive: true })
   const html = join(outDir, `${opts.batch ? bundle.name : basename(shots[0].out, '.png')}.html`)
   writeFileSync(html, buildHtml(bundle, opts.batch ? {} : viewOf(opts)))
-  const [width, height] = (opts.size ?? '1280x720').split('x').map(Number)
+  const viewport = (size) => { const [width, height] = size.split('x').map(Number); return { width, height } }
+  const defaultSize = opts.size ?? '1280x720'
   const { chromium } = await import('playwright-core')
   const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
   try {
-    const page = await browser.newPage({ viewport: { width, height } })
+    const page = await browser.newPage({ viewport: viewport(defaultSize) })
     page.on('pageerror', (e) => console.error('page error:', e.message))
     await page.goto(pathToFileURL(html).href)
     await page.waitForFunction('window.mapReady || window.mapError', null, { timeout: 180000 })
@@ -132,6 +133,7 @@ async function render() {
     if (error) throw new Error(`page: ${error}`)
     for (const shot of shots) {
       const out = resolve(outDir, shot.out ?? `${shot.name ?? 'shot'}.png`)
+      await page.setViewportSize(viewport(shot.size ?? defaultSize))
       const cam = await page.evaluate((p) => window.mapview.apply(p), { ...viewOf(shot), hud: 'off' })
       await page.screenshot({ path: out })
       console.log(`${out}  ${cam.top ? 'top view' : `pos ${cam.pos.join(',')} angles ${cam.angles.join(',')} fov ${cam.fov}`}`)
