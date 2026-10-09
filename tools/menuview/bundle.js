@@ -107,17 +107,20 @@ export function buildBundle(target, search, dvars = {}) {
     fonts[id] = { name: file, pixelHeight: font.pixelHeight, image: `font:${image}`, glyphs: font.glyphs }
   }
 
-  // "@MENU_BACK" is REFERENCE BACK in localizedstrings/menu.str. Only English and unlocalized iwds count:
-  // the Polish iwds that are pulled would otherwise override them.
+  // "@MENU_BACK" is REFERENCE BACK in localizedstrings/menu.str. File names can hold underscores too
+  // (@PC_PATCH_1_1_SD_OBJECTIVES is in pc_patch_1_1.str), so every split is tried, longest file name first.
+  // Only English and unlocalized iwds count: the Polish iwds that are pulled would otherwise override them.
   function loadString(key) {
     if (tried.has(`@${key}`)) return
     tried.add(`@${key}`)
-    const file = `localizedstrings/${key.slice(0, key.indexOf('_')).toLowerCase()}.str`
-    const ref = key.slice(key.indexOf('_') + 1)
-    for (const { path, buf } of search.readAll(file)) {
-      if (/localized_(?!english)/i.test(path)) continue
-      const m = buf.toString('latin1').match(new RegExp(`^REFERENCE\\s+${ref}\\s*\\r?\\nLANG_ENGLISH\\s+"(.*)"`, 'm'))
-      if (m) { strings[key] = m[1].replace(/\\n/g, '\n'); return }
+    for (let split = key.lastIndexOf('_'); split > 0; split = key.lastIndexOf('_', split - 1)) {
+      const file = `localizedstrings/${key.slice(0, split).toLowerCase()}.str`
+      const ref = key.slice(split + 1)
+      for (const { path, buf } of search.readAll(file)) {
+        if (/localized_(?!english)/i.test(path)) continue
+        const m = buf.toString('latin1').match(new RegExp(`^REFERENCE\\s+${ref}\\s*\\r?\\nLANG_ENGLISH\\s+"(.*)"`, 'm'))
+        if (m) { strings[key] = m[1].replace(/\\n/g, '\n'); return }
+      }
     }
     missing.strings.push(key)
   }
