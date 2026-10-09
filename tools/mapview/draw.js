@@ -57,7 +57,7 @@ export function createWorld(map, renderer, scene, onChange) {
   const view = { textures: true, lightmap: true }
   let pending = 0
 
-  // Triggers are translucent, so they stay out of `world`, which hides labels behind it.
+  // Triggers are translucent, so they stay out of `world`: the occluders that hide labels behind them.
   const world = new THREE.Group()
   const triggers = new THREE.Group()
   for (const s of map.surfaces) {
@@ -72,7 +72,7 @@ export function createWorld(map, renderer, scene, onChange) {
   const sky = buildSky()
 
   return {
-    world,
+    occluders: world,
     loading: () => pending > 0,
     setView(state) {
       view.textures = state.textures

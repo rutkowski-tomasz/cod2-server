@@ -11,7 +11,7 @@ const QUIET_MS = 150
 // Entities without a marker: AI paths and actors.
 const NO_MARKER = /^node_|^info_vehicle_node|^actor_/
 // Entities whose label shows only with --labels all.
-const SKIPPED = /^misc_model|^script_model|^misc_prefab|^info_null|^script_origin|^node_|^light$/
+const SKIPPED = /^misc_model|^script_model|^misc_prefab|^info_null|^script_origin|^light$/
 const ANONYMOUS = /^info_null|^script_origin/
 
 export function createMarkers(map, renderer, scene, world) {

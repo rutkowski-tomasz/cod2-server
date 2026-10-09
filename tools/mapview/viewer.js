@@ -3,7 +3,8 @@ import { createMarkers } from './markers.js'
 import { anglesToForward, anglesToMatrix, d2r } from './math.js'
 
 const map = decodeGeometry(JSON.parse(document.getElementById('bundle').textContent))
-const params = { ...map.defaults, ...Object.fromEntries(new URLSearchParams(location.hash.slice(1))) }
+const hash = Object.fromEntries(new URLSearchParams(location.hash.slice(1)))
+const params = { ...withoutCamera(map.defaults, hash), ...hash }
 const $ = (id) => document.getElementById(id)
 const EYE_HEIGHT = 60
 const TOP_MARGIN = 1.05
@@ -26,7 +27,7 @@ const ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 131072)
 addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); needRender = true })
 document.title = `${map.name} – mapview`
 const world = createWorld(map, renderer, scene, () => { needRender = true })
-const markers = createMarkers(map, renderer, scene, world.world)
+const markers = createMarkers(map, renderer, scene, world.occluders)
 
 readParams(params)
 applyView()
@@ -38,11 +39,18 @@ whenIdle().then(() => { window.mapReady = true })
 window.mapview = {
   // Resets the view to the page defaults plus `p`, waits for the frame, returns the camera.
   async apply(p) {
-    readParams({ ...map.defaults, ...p })
+    readParams({ ...withoutCamera(map.defaults, p), ...p })
     applyView()
     await whenIdle()
     return { pos: state.pos.map(round), angles: state.angles.map(round), fov: state.fov, top: state.top }
   },
+}
+
+// A position or angles in the hash replace the baked ones that would otherwise win over them.
+function withoutCamera(defaults, hash) {
+  const { at, pos, look, ...rest } = defaults
+  if (hash.at !== undefined || hash.pos !== undefined) return rest
+  return { ...rest, at, pos, look: hash.angles !== undefined ? undefined : look }
 }
 
 // The geometry arrives as one base64 blob; surfaces hold { offset, count } refs into it.
