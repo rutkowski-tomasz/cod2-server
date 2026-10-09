@@ -222,7 +222,8 @@ export function createRenderer(canvas, { materials, models }) {
 
   function render({ sim, cam, state, hidden }) {
     const eye = cameraEye(cam)
-    const shake = sim.shake(state.ranges ? eye : null)
+    const inRange = (p) => !state.ranges || inViewRange(p, eye)
+    const shake = sim.shake(inRange)
     const target = shakenTarget(eye, cam, shake, sim.time)
     const aspect = canvas.width / canvas.height
     const vp = mat4mul(perspective(cam.fov, aspect, 2, 20000), lookAt(eye, target, [0, 0, 1]))
@@ -241,7 +242,6 @@ export function createRenderer(canvas, { materials, models }) {
     gl.uniform3fv(uEye, eye)
     gl.uniform1f(uGround, state.ground ?? 0)
     const visible = (p) => p.spawnTime <= sim.time && !hidden.has(p.def.key) && (state.ground === null || p.pos[2] >= state.ground - 2 || p.type === 'Decal')
-    const inRange = (p) => !state.ranges || inViewRange(p, eye)
 
     // Reference lines and models, with depth write so particles sort against them.
     sceneLines(sim, state, eye)
