@@ -3,6 +3,8 @@ const SCRIPTS = new Set(['onopen', 'onclose', 'onesc', 'onfocus', 'leavefocus', 
 const LISTS = new Set(['showdvar', 'hidedvar', 'enabledvar', 'disabledvar', 'focusdvar', 'dvarstrlist', 'dvarfloatlist'])
 const STRINGS = new Set(['name', 'text', 'group', 'background', 'dvar', 'dvartest', 'soundloop', 'cinematic', 'focussound', 'localvar', 'special', 'asset_model', 'asset_shader', 'allowbinding'])
 const NUMBER = /^-?(\d+\.?\d*|\.\d+|0x[\da-f]+)$/i
+// execKeyInt codes of keys whose browser KeyboardEvent.key is a name, not the character.
+const KEY_NAMES = { 9: 'Tab', 13: 'Enter', 27: 'Escape', 127: 'Backspace' }
 
 export function parseMenuFile(tokens) {
   let i = 0
@@ -44,7 +46,7 @@ export function parseMenuFile(tokens) {
         const k = next().s
         next()
         def.execkeys ??= {}
-        def.execkeys[key === 'execkey' ? k : String.fromCharCode(Number(k))] = parseScript()
+        def.execkeys[key === 'execkey' ? k : KEY_NAMES[k] ?? String.fromCharCode(Number(k))] = parseScript()
       } else if (STRINGS.has(key)) {
         def[key] = next().s
       } else {
