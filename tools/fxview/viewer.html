@@ -73,16 +73,7 @@ let sim = makeSim()
 const cam = { target: [0, 0, 40], dist: 400, yaw: 35, pitch: 18, fov: 60 }
 
 function makeSim() {
-  const s = createSim(bundle, { seed: state.seed, forward: state.forward, ground: state.ground })
-  s.activeDuration = activeDuration(s.duration)
-  return s
-}
-
-// Duration without long-lived decals, used for the slider and frame defaults.
-function activeDuration(full) {
-  let max = 0
-  for (const effect of Object.values(bundle.effects)) for (const d of effect.elements) if (d.type !== 'Decal') max = Math.max(max, d.delay[1] + d.life[1])
-  return Math.max(100, Math.min(max, full))
+  return createSim(bundle, { seed: state.seed, forward: state.forward, ground: state.ground })
 }
 
 // ---------- textures ----------

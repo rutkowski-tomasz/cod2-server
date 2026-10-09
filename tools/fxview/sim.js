@@ -17,7 +17,9 @@ export function createSim(bundle, opts = {}) {
     instances: 0,
     dropped: 0,
     warnings: new Set(),
-    duration: effectDuration(bundle, bundle.root, 0),
+    duration: effectDuration(bundle, bundle.root, 0, false),
+    // Without long-lived decals, used for the slider and default render frames.
+    activeDuration: Math.max(100, effectDuration(bundle, bundle.root, 0, true)),
     reset,
     step,
     seek,
@@ -330,13 +332,15 @@ function colorAt(curve, f) {
   return pick(curve.length - 1)
 }
 
-export function effectDuration(bundle, path, depth) {
+// Upper bound: a runner starts its effect at its delay, other sub-effects start at the latest before the particle dies.
+function effectDuration(bundle, path, depth, skipDecals) {
   const effect = bundle.effects[path]
   if (!effect || depth > MAX_DEPTH) return 0
+  const sub = (p) => (p ? effectDuration(bundle, p, depth + 1, skipDecals) : 0)
   let max = 0
   for (const d of effect.elements) {
-    let end = d.delay[1] + d.life[1]
-    for (const sub of [d.playfx, d.emitfx, d.deathfx]) if (sub) end += effectDuration(bundle, sub, depth + 1)
+    if (skipDecals && d.type === 'Decal') continue
+    const end = d.type === 'FxRunner' ? d.delay[1] + sub(d.playfx) : d.delay[1] + d.life[1] + Math.max(sub(d.emitfx), sub(d.impactfx), sub(d.deathfx))
     max = Math.max(max, end)
   }
   return max

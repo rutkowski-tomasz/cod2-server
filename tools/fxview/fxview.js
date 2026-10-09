@@ -130,11 +130,11 @@ function info() {
     sim.seek(t)
     samples.push({ t, counts: sim.counts() })
   }
-  const data = { root: bundle.root, duration: sim.duration, bounds, missing: bundle.missing, warnings: [...sim.warnings], effects: {}, materials: {}, samples }
+  const data = { root: bundle.root, duration: sim.duration, activeDuration: sim.activeDuration, bounds, missing: bundle.missing, warnings: [...sim.warnings], effects: {}, materials: {}, samples }
   for (const [path, e] of Object.entries(bundle.effects)) data.effects[path] = e.elements.map(({ curves, scales, sequence, ...rest }) => rest)
   for (const [name, m] of Object.entries(bundle.materials)) data.materials[name] = { image: m.image, techset: m.techset, blend: m.blend, atlas: `${m.atlasCols}x${m.atlasRows}`, size: `${m.width}x${m.height}` }
   if (opts.json) { console.log(JSON.stringify(data, null, 2)); return }
-  console.log(`${data.root}: ${Object.keys(bundle.effects).length} effect(s), ${sim.duration} ms, bounds ${bounds.lo.map(Math.round)} .. ${bounds.hi.map(Math.round)}`)
+  console.log(`${data.root}: ${Object.keys(bundle.effects).length} effect(s), ${sim.duration} ms (active ${sim.activeDuration} ms), bounds ${bounds.lo.map(Math.round)} .. ${bounds.hi.map(Math.round)}`)
   for (const [path, els] of Object.entries(data.effects)) {
     console.log(`\n${path}`)
     for (const e of els) console.log(`  ${e.type.padEnd(17)} ${e.name.padEnd(28)} count ${e.count.join('-')}  delay ${e.delay.join('-')}  life ${e.life.join('-')}  ${e.shaders.join(',')}${e.models.length ? ' models:' + e.models.join(',') : ''}${e.playfx ? ' → ' + e.playfx : ''}${e.emitfx ? ' emit ' + e.emitfx : ''}${e.impactfx ? ' impact ' + e.impactfx : ''}`)
