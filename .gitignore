@@ -6,3 +6,4 @@ server/zk_libcod/
 .DS_Store
 node_modules/
 tools/fxview/out/
+tools/menuview/out/

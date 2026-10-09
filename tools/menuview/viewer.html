@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>menuview</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #202020; color: #ddd; font: 12px/1.4 system-ui, sans-serif; overflow: hidden; }
+  #ui { position: absolute; left: 0; top: 0; bottom: 0; width: 280px; padding: 8px; box-sizing: border-box; background: #111; overflow-y: auto; }
+  #ui h1 { font-size: 12px; margin: 0 0 6px; word-break: break-all; }
+  #ui h2 { font-size: 11px; margin: 10px 0 2px; color: #999; font-weight: normal; text-transform: uppercase; }
+  #ui label { display: block; margin: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #ui select, #ui input[type=text] { background: #333; color: #ddd; border: 1px solid #555; box-sizing: border-box; }
+  #ui .row { display: flex; gap: 6px; align-items: center; margin: 4px 0; }
+  #dvars label { display: flex; gap: 4px; }
+  #dvars span { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+  #dvars input { width: 110px; }
+  #item, #log { white-space: pre-wrap; font: 11px/1.35 monospace; color: #bbb; }
+  #log { color: #8c8; max-height: 160px; overflow-y: auto; }
+  #warn { color: #f88; white-space: pre-wrap; }
+  canvas { position: absolute; left: 280px; top: 0; cursor: default; }
+  .hideui #ui { display: none; }
+  .hideui canvas { left: 0; }
+</style>
+</head>
+<body>
+<div id="ui">
+  <h1 id="title"></h1>
+  <div class="row"><label>Background <select id="bg"><option>mid</option><option>dark</option><option>light</option><option>checker</option><option>black</option></select></label>
+  <label><input id="outline" type="checkbox"> Outlines</label></div>
+  <h2>Menus</h2><div id="menus"></div>
+  <h2>Dvars</h2><div id="dvars"></div>
+  <h2>Item under mouse</h2><div id="item"></div>
+  <h2>Script log</h2><div id="log"></div>
+  <div id="warn"></div>
+  <p style="color:#777">Hover runs mouseEnter/onFocus and mouseExit/leaveFocus, click runs action, keys run execKey, Esc runs onEsc. H hides this panel, R resets.</p>
+</div>
+<canvas id="screen"></canvas>
+<script id="bundle" type="application/json">__BUNDLE__</script>
+<script>
+__SCRIPT__
+</script>
+</body>
+</html>

@@ -6,6 +6,7 @@ Everything needed to run a Call of Duty 2 server:
 - [`infra/`](infra) — Terraform for the VPS
 - [`stacks/`](stacks) — Docker Swarm stacks running on the VPS, deployed by the `deploy-<stack>` workflows
 - [`tools/fxview/`](tools/fxview) — plays `.efx` effects outside the game, for people and for agents checking their own effects
+- [`tools/menuview/`](tools/menuview) — draws `.menu` files outside the game, for people and for agents checking their own menus
 
 See [AGENTS.md](AGENTS.md) for the local build command and how libcod is built.
 
