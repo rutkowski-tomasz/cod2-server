@@ -14,8 +14,10 @@ const BRUSH_BYTES = 4
 const AXIAL_SIDES = 6
 // Collision faces have no texture mapping; their texture repeats every this many units.
 const COLLISION_TILE = 64
-// A lightmap holds four 512x512 RGBA pages: directional coefficients for R, G and B, then sun visibility.
+// A lightmap holds three 512x512 RGBA pages of directional coefficients for R, G and B, then sun visibility
+// as one 1024x1024 grey page, the size of one RGBA page.
 const LIGHTMAP_PAGE = 512
+const SUN_PAGE = LIGHTMAP_PAGE * 2
 
 export function readBsp(buf) {
   if (buf.toString('latin1', 0, 4) !== 'IBSP') throw new Error('not an IBSP file')
@@ -90,9 +92,17 @@ export function readBsp(buf) {
   const pageBytes = LIGHTMAP_PAGE * LIGHTMAP_PAGE * 4
   const lightmaps = []
   for (let o = 0; o + pageBytes * 4 <= lm.length; o += pageBytes * 4) {
-    lightmaps.push([0, 1, 2, 3].map((p) => ({ width: LIGHTMAP_PAGE, height: LIGHTMAP_PAGE, rgba: lm.subarray(o + p * pageBytes, o + (p + 1) * pageBytes) })))
+    const page = (p) => lm.subarray(o + p * pageBytes, o + (p + 1) * pageBytes)
+    const coefficients = [0, 1, 2].map((p) => ({ width: LIGHTMAP_PAGE, height: LIGHTMAP_PAGE, rgba: page(p) }))
+    lightmaps.push([...coefficients, sunPage(page(3))])
   }
   return { entities, surfaces, lightmaps }
+}
+
+function sunPage(grey) {
+  const rgba = Buffer.alloc(grey.length * 4, 255)
+  for (let i = 0; i < grey.length; i++) rgba[i * 4] = rgba[i * 4 + 1] = rgba[i * 4 + 2] = grey[i]
+  return { width: SUN_PAGE, height: SUN_PAGE, rgba }
 }
 
 // Faces of collision brushes whose material no draw surface uses: clip, caulk, mantle, ladder and the like.
