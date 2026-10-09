@@ -1,1 +1,0 @@
-mapview: add Q/E vertical movement, FPS counter and intermission start view
