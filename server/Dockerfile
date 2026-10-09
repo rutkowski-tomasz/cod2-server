@@ -8,6 +8,8 @@ RUN dpkg --add-architecture i386 \
 RUN apt-get update && apt-get upgrade -y && apt-get install -y \
         g++-multilib \
         git \
+        cmake \
+        libmbedtls-dev:i386 \
     >/dev/null
 
 # speex requirements
@@ -68,7 +70,8 @@ ARG enable_unsafe="true"
 RUN ./doit.sh \
         "$([ "$mysql_variant" = 0 ] && echo nomysql || echo "mysql${mysql_variant}")" \
         "$([ "$enable_speex" = true ] || echo nospeex)" \
-        "$([ "$enable_unsafe" = true ] && echo unsafe)"
+        "$([ "$enable_unsafe" = true ] && echo unsafe)" \
+        http
 
 RUN mkdir /cod2
 

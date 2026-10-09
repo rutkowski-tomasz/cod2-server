@@ -1,0 +1,29 @@
+services:
+  livemap:
+    image: oven/bun:1-alpine
+    command: bun /relay.js
+    configs:
+      - source: relay
+        target: /relay.js
+    ports:
+      - target: 8081
+        published: 28970
+        protocol: tcp
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 5s
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+
+configs:
+  relay:
+    name: livemap_relay_${CONFIG_HASH}
+    file: relay.js
+
+networks:
+  default:
+    name: stack_network
+    external: true
