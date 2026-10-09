@@ -13,7 +13,22 @@ node tools/mapview/mapview.js info   mp_harbor
 node tools/mapview/mapview.js list   mp_
 ```
 
-Targets are a `.map` source (what `nl-cod2-library/map_source` generates), a compiled `.d3dbsp`, a map's `.iwd`, a game path or stock name like `mp_harbor`, or the name of a map in `~/Dev/nl-cod2-library/src/iwds/`, like `mp_square`, which opens that map's iwd. Maps, materials and `.iwi` images are looked up, ignoring case, in the same sources as fxview (later wins): `~/Dev/cod2-binaries/1_0`, `~/Dev/cod2-binaries/1_3`, every `~/Dev/nl-cod2-zom-iwds/iwds/<iwd>/<feature>/` folder, then `--source <dir|iwd>`. A target `.iwd` is added as a source, and its map is the one named like the iwd. `misc_prefab` paths in a `.map` resolve next to the map, one and two folders up, and in `--prefabs <dir>`. Needs `iw_13` (materials) and `iw_08`–`iw_12` (images) pulled. Stock maps: `1_3/iw_15` has `mp_harbor` and `mp_rhine`, `iw_00` seven single-player maps, `iw_01`–`iw_05` the rest; `list` shows the ones found, then the library's iwds.
+## Pull the iwds first
+
+A map draws correctly only when every iwd it reads is pulled from Git LFS. An iwd still left as an LFS pointer is skipped without an error: its materials draw in flat colours, its models as boxes, and its maps are not found. Pull them all once:
+
+```bash
+cd ~/Dev/cod2-binaries && git lfs pull --include "1_0/iw_0[0-5].iwd,1_0/iw_0[7-9].iwd,1_0/iw_1*.iwd,1_3/iw_15.iwd,1_0/localized_polish_iw10.iwd"
+```
+
+- `iw_00`–`iw_05`, `1_3/iw_15`: stock maps. `iw_15` has `mp_harbor` and `mp_rhine`, `iw_00` seven single-player maps, `iw_01`–`iw_05` the rest.
+- `iw_07`, `1_3/iw_15`: map scripts, for the fog.
+- `iw_08`–`iw_12`: images.
+- `iw_13`: materials and xmodels.
+- `iw_14`: model geometry.
+- `localized_polish_iw10`: the censored German materials and images, such as `mtl_dak_crate`, `mtl_barrel_silver` and `mtl_kubel_africa`.
+
+Targets are a `.map` source (what `nl-cod2-library/map_source` generates), a compiled `.d3dbsp`, a map's `.iwd`, a game path or stock name like `mp_harbor`, or the name of a map in `~/Dev/nl-cod2-library/src/iwds/`, like `mp_square`, which opens that map's iwd. Maps, materials and `.iwi` images are looked up, ignoring case, in the same sources as fxview (later wins): `~/Dev/cod2-binaries/1_0`, `~/Dev/cod2-binaries/1_3`, every `~/Dev/nl-cod2-zom-iwds/iwds/<iwd>/<feature>/` folder, then `--source <dir|iwd>`. A target `.iwd` is added as a source, and its map is the one named like the iwd. `misc_prefab` paths in a `.map` resolve next to the map, one and two folders up, and in `--prefabs <dir>`. `list` shows the stock maps found, then the library's iwds.
 
 Output goes to `tools/mapview/out/` unless `-o` is given. `render` writes the page next to the PNG and prints the camera, so the same view can be explored interactively. All three commands print materials that draw without their image, models drawn as boxes, and prefabs not found.
 
@@ -32,7 +47,7 @@ In the page: click to look around, WASD to move, Shift for speed, E and Q for up
 - `.map`: brushes (plane intersection, cod2map's axial texture mapping), mesh and bezier `curve` patches, `misc_prefab` contents. Lit by three.js from worldspawn `sundirection`, `suncolor`, `sunlight`, `ambient`, `_color`, `sundiffusecolor`, `diffusefraction` and the first 64 `light` entities, with sun shadows.
 - `.d3dbsp` (IBSP 4): draw surfaces, brush models, entities, lightmaps, and the faces of collision brushes that no draw surface uses (clip, caulk, mantle, ladder, triggers), rebuilt from their planes and tiled every 64 units. The lightmap is applied like the game's `lmap` shader: four 512×512 pages per lightmap (R, G and B coefficients, then sun visibility), plus direct sun from the surface normal. No three.js lights or shadows are added, except for a `.d3dbsp` compiled without lightmaps, which is lit like a `.map`.
 - Materials: the colour map, downscaled to 512, alpha-tested at 0.4 when the image has alpha. In a `.d3dbsp` with lightmaps, vertex colours tint it, and the techset decides how a surface meets what is behind it: `blend` layers (snow edges, terrain, mud) fade by texture alpha times vertex alpha, `multiply` layers (stains) darken it unlit, `add` layers brighten it. The sky material's cube map is the background. Tool materials (caulk, clip, hint, …) and collision-only faces are hidden unless `--tools`, and draw at 35% opacity (unlit in a compiled map) with no alpha test, so their images' faint fill shows, red for clip, as in Radiant; `water` techsets are flat translucent blue; decals are pulled toward the camera.
-- Models (`misc_model`, `script_model` and the like): the first LOD of each xmodel, placed by `origin`, `angles` and `modelscale`, with its textures and vertex colours. They have no lightmap, so in a compiled map they get a flat 50% light plus the sun by N·L. Missing, skinned and bone-bound xmodels stay boxes. Needs `iw_14` (model geometry) pulled.
+- Models (`misc_model`, `script_model` and the like): the first LOD of each xmodel, placed by `origin`, `angles` and `modelscale`, with its textures and vertex colours. They have no lightmap, so in a compiled map they get a flat 50% light plus the sun by N·L. Missing, skinned and bone-bound xmodels stay boxes.
 - Fog: the first `setExpFog` or `setCullFog` with literal numbers in the map's script, `maps/mp/<name>.gsc` in the sources or `~/Dev/nl-cod2-library/src/scripts/<name>.gsc`; `info` prints it. Computed like the game's shaders (`materials/shaders/lib/fogcalc.hlsl` in `iw_07`): by distance from the eye, exp fog as `exp(-density · distance)`, cull fog linear from near to far. The sky, markers and the top view are not fogged; `--fog off` and O turn it off.
 - Markers: player-sized boxes with a yaw arrow for spawns (red axis, blue allied, teal other), yellow spheres for lights, magenta boxes for models that are not drawn, orange translucent volumes for triggers; `--ents off` and F hide them all. Labels show `classname [targetname]`, hide behind walls and past 2000 units, and skip lights, models, prefabs, `info_null` and `script_origin` unless `--labels all`; lights, models and prefabs with a targetname keep theirs.
 
@@ -47,7 +62,6 @@ Guesses that may be off:
 - `--fov` is applied horizontally at the image's aspect. If the game widens the view for widescreen from a 4:3 base, renders are narrower than in game.
 
 Limits:
-- Stock maps other than `mp_harbor`, `mp_rhine` and the `iw_00` single-player maps need `iw_01`–`iw_05` pulled.
 - The page embeds every texture and model, so it is large: about 77 MB for `mp_harbor`.
 - A batch stops at the first shot whose `at` matches no entity.
 - `list` matches the name prefix with case.
