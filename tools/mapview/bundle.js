@@ -5,9 +5,9 @@ import { parseMaterial } from '../shared/material.js'
 import { decodeIwi, iwiInfo } from '../shared/iwi.js'
 import { pngDataUrl } from '../shared/png.js'
 import { readXModel, readRig } from '../shared/xmodel.js'
-import { parseXAnim } from '../shared/xanim.js'
 import { readBsp } from './bsp.js'
 import { readMap } from './map.js'
+import { parseXAnim } from './xanim.js'
 import { parseVec } from './math.js'
 
 const TOOL_MATERIALS = /^(caulk|clip|nodraw|hint|skip|trigger|portal|lightgrid|ladder|mantle|sky$|origin|areaportal|sun_|lightmap_|\$|util_|physics|mirror|textures\/common)/i
@@ -56,7 +56,6 @@ export function loadScene(target, search, { prefabRoots = [], scriptDir } = {}) 
   const packGeometry = (s, material) => {
     const bumped = materials[material].normalMap && s.tangents
     return {
-      ...(s.skinIndices && { skinIndices: push(Uint16Array.from(s.skinIndices)), skinWeights: push(Float32Array.from(s.skinWeights)) }),
       positions: push(Float32Array.from(s.positions)),
       normals: push(Float32Array.from(s.normals)),
       colors: s.colors ? push(Uint8Array.from(s.colors)) : null,
@@ -92,19 +91,23 @@ export function loadScene(target, search, { prefabRoots = [], scriptDir } = {}) 
     else boxModels.push(name)
   }
   let player = null
+  let missingPlayer = null
   if (entities.some((e) => e.classname === PLAYER.classname)) {
     const rig = readRig(PLAYER.models, search)
     const idle = search.read(PLAYER.idle)
-    if (rig && idle) {
+    const animation = idle && parseXAnim(idle)
+    if (rig && animation) {
       const surfaces = rig.surfaces.map((s) => {
         const material = materialId(s.material)
-        return { material, ...packGeometry(s, material) }
+        return {
+          material, ...packGeometry(s, material),
+          skinIndices: push(Uint16Array.from(s.skinIndices)), skinWeights: push(Float32Array.from(s.skinWeights)),
+        }
       })
-      const animation = parseXAnim(idle)
       // Animated bones the rig lacks, such as other uniforms' coat tails, would only warn on the page.
       animation.bones = animation.bones.filter((b) => rig.bones.some((r) => r.name === b.name))
       player = { classname: PLAYER.classname, bones: rig.bones, surfaces, idle: animation }
-    } else boxModels.push(...PLAYER.models, PLAYER.idle)
+    } else missingPlayer = [...PLAYER.models, PLAYER.idle]
   }
 
   const scene = {
@@ -112,7 +115,7 @@ export function loadScene(target, search, { prefabRoots = [], scriptDir } = {}) 
     bounds: Number.isFinite(bounds.min[0]) ? bounds : DEFAULT_BOUNDS,
     worldspawn: entities[0]?.keys ?? {},
     fog: readFog(source.name, search, scriptDir),
-    materials, surfaces, entities, models, boxModels, player,
+    materials, surfaces, entities, models, boxModels, player, missingPlayer,
     lightmapCount: parsed.lightmaps?.length ?? 0,
     missingPrefabs: parsed.missingPrefabs ?? [],
   }

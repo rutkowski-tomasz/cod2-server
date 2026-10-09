@@ -1,5 +1,5 @@
 // CoD2 animations, version 14: per bone, rotations and translations relative to the parent, each at its own frames.
-import { shortQuaternion } from './xmodel.js'
+import { shortQuaternion } from '../shared/xmodel.js'
 
 const VERSION = 14
 const LOOPING = 1
@@ -17,6 +17,7 @@ export function parseXAnim(buf) {
   const flags = buf[6]
   const fps = buf.readUInt16LE(7)
   let o = 9
+  if (flags & LOOPING) frames++
 
   // A key list: its count, then frame numbers unless it keys one frame or every frame, then the values.
   const keys = (read) => {
@@ -25,7 +26,7 @@ export function parseXAnim(buf) {
     if (n === 0) return null
     let numbers = [...Array(n).keys()]
     if (n !== 1 && n !== frames) {
-      const wide = frames > 255
+      const wide = frames > 256
       numbers = numbers.map(() => { const f = wide ? buf.readUInt16LE(o) : buf[o]; o += wide ? 2 : 1; return f })
     }
     return { frames: numbers, values: numbers.flatMap(read) }
@@ -35,7 +36,6 @@ export function parseXAnim(buf) {
   const translations = () => keys(() => { const v = [0, 4, 8].map((k) => buf.readFloatLE(o + k)); o += 12; return v })
 
   if (flags & DELTA) { rotations(true); translations() }
-  if (flags & LOOPING) frames++
   // Reading the first set as negative w crosses the idle's left leg behind the right, off the floor.
   const setSize = ((count - 1) >> 3) + 1
   const zOnly = buf.subarray(o + setSize, o + 2 * setSize)

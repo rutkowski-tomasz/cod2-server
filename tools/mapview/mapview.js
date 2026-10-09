@@ -181,5 +181,6 @@ function reportMissing(scene) {
   const missing = scene.materials.filter((m) => m.missing && !m.tool)
   if (missing.length) console.log(`missing images: ${missing.map((m) => `${m.name} ${m.missing}`).join(', ')}`)
   if (scene.boxModels.length) console.log(`models drawn as boxes (missing, skinned or bone-bound): ${scene.boxModels.join(', ')}`)
+  if (scene.missingPlayer) console.log(`mp_ctf_spawn_allied drawn as spawn boxes: one of ${scene.missingPlayer.join(', ')} is missing or unreadable`)
   if (scene.missingPrefabs.length) console.log(`missing prefabs: ${scene.missingPrefabs.join(', ')} (use --prefabs <dir>)`)
 }

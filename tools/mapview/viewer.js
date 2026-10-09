@@ -39,7 +39,9 @@ whenIdle().then(() => { window.mapReady = true })
 
 window.mapview = {
   // Resets the view to the page defaults plus `p`, waits for the frame, returns the camera.
+  // Only headless renders call this; they hold the players still, so a view renders the same every time.
   async apply(p) {
+    markers.freezePlayers()
     readParams(withDefaults(p))
     applyView()
     await whenIdle()

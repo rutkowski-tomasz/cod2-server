@@ -1,16 +1,33 @@
 // The bundle's player, one skinned copy per spawn, playing the idle animation in a loop.
 // THREE comes from the page script. Each copy is built in CoD's Z-up frame, like the bundle's bones and geometry,
 // and turned into three.js's Y-up one by its outer group.
+import { toThree } from './draw.js'
+import { d2r } from './math.js'
 
-// `materialOf` gives the material for a material info.
-export function createPlayers(map, materialOf) {
+// Seconds between the points of the loop that consecutive copies start at, so they do not move in step.
+const PHASE_STEP = 0.37
+// How far below its spawn a player looks for the floor.
+const MAX_DROP = 4096
+// A player hides while the camera is inside this upright cylinder around it, from its feet to this far above
+// its spawn, as when standing on the spawn: `--at` puts the eye 60 units above it.
+const HIDE_RADIUS = 24
+const HIDE_TOP = 80
+
+// `world` gives the floor the players stand on and the material models draw with.
+export function createPlayers(map, world) {
   const { bones, surfaces, idle } = map.player
-  const geometries = surfaces.map((s) => [geometryOf(map, s), materialOf(map.materials[s.material])])
+  const geometries = surfaces.map((s) => [geometryOf(map, s), world.modelMaterial(map.materials[s.material])])
   const clip = buildClip(bones, idle)
   const mixers = []
+  let lastUpdate = performance.now()
+  let frozen = false
+  // The floor is found by casting rays at the world before its first frame has placed its brush models.
+  world.occluders.updateMatrixWorld(true)
+
   return {
-    // A copy facing `yaw` degrees, to place at the spawn's origin.
-    create(yaw) {
+    // A copy for the spawn `e`, to place at its origin. The game drops these spawns to the floor below them
+    // (placeSpawnpoint in the gametype script), so the copy stands there.
+    create(e) {
       const body = new THREE.Group()
       const skeleton = new THREE.Skeleton(bones.map((b) => {
         const bone = new THREE.Bone()
@@ -29,19 +46,40 @@ export function createPlayers(map, materialOf) {
         // The bind pose's bounds would cull a copy whose animation leans out of them.
         mesh.frustumCulled = false
       }
-      body.rotation.z = yaw * Math.PI / 180
+      body.rotation.z = (e.angles ? e.angles[1] : 0) * d2r
       const mixer = new THREE.AnimationMixer(body)
-      // Copies start at different points of the loop, so they do not move in step.
-      mixer.clipAction(clip).play().time = (mixers.length * 0.37) % clip.duration
-      mixers.push(mixer)
+      const start = (mixers.length * PHASE_STEP) % clip.duration
+      mixer.clipAction(clip).play().time = start
+      mixers.push({ mixer, start })
+      const drop = floorDrop(e.origin)
       const outer = new THREE.Group()
       outer.rotation.x = -Math.PI / 2
+      outer.position.y = -drop
       outer.add(body)
+      // `offset` is the camera's position relative to the spawn, in three.js's frame.
+      outer.userData.hides = (offset) => Math.hypot(offset.x, offset.z) < HIDE_RADIUS && offset.y > -drop && offset.y < HIDE_TOP
       return outer
     },
-    update(seconds) {
-      for (const m of mixers) m.update(seconds)
+    // Moves the copies on by the time since the last call; false once frozen.
+    update() {
+      const now = performance.now()
+      const seconds = (now - lastUpdate) / 1000
+      lastUpdate = now
+      if (frozen) return false
+      for (const { mixer } of mixers) mixer.update(seconds)
+      return true
     },
+    // Holds every copy at its starting pose, so a headless render of the same view gives the same image.
+    freeze() {
+      frozen = true
+      for (const { mixer, start } of mixers) mixer.setTime(start)
+    },
+  }
+
+  function floorDrop([x, y, z]) {
+    const ray = new THREE.Raycaster(toThree(x, y, z + 1), new THREE.Vector3(0, -1, 0), 0, MAX_DROP)
+    const hit = ray.intersectObject(world.occluders)[0]
+    return hit ? hit.distance - 1 : 0
   }
 }
 
@@ -61,9 +99,9 @@ function geometryOf(map, s) {
 
 // Animated rotations replace the bone's own; animated translations are offsets from its own position.
 function buildClip(bones, anim) {
+  const times = (keys) => keys.frames.map((f) => f / anim.fps)
   const tracks = []
   for (const b of anim.bones) {
-    const times = (keys) => keys.frames.map((f) => f / anim.fps)
     if (b.rotations) tracks.push(new THREE.QuaternionKeyframeTrack(`${b.name}.quaternion`, times(b.rotations), b.rotations.values))
     if (b.translations) {
       const own = bones.find((x) => x.name === b.name).offset

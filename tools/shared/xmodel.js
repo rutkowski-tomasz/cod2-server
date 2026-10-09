@@ -112,7 +112,7 @@ export function readXModel(name, search) {
   const lod = readLod(name, search)
   const surfaces = lod && parseSurfaces(lod.surfaces)
   if (!surfaces?.every((s) => s.bone === 0)) return null
-  return surfaces.map(({ skinIndices, skinWeights, ...s }, i) => ({ ...s, material: lod.materials[i] }))
+  return surfaces.map((s, i) => ({ ...s, material: lod.materials[i] }))
 }
 
 // Xmodels attached by bone name, as the game's `attach(model, "")` does: each model after the first reuses the bones
@@ -144,7 +144,7 @@ export function readRig(names, search) {
     }
     return out
   }))
-  return { bones: bones.map(({ name, parent, offset, rotation }) => ({ name, parent, offset, rotation })), surfaces }
+  return { bones, surfaces }
 }
 
 function readLod(name, search) {
