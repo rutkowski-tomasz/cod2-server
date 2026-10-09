@@ -115,8 +115,8 @@ function info() {
   const data = {
     path: bundle.path,
     menus: bundle.menus.map(({ items, ...menu }) => ({ ...menu, items: items.map((it, index) => ({ index, ...it })) })),
-    dvars: bundle.dvars,
-    unknownKeywords: bundle.unknown,
+    dvars: bundle.referencedDvars,
+    unknownKeywords: bundle.unknownKeywords,
     missing: bundle.missing,
   }
   if (opts.json) { console.log(JSON.stringify(data, null, 2)); return }
@@ -137,8 +137,8 @@ function info() {
       console.log(`  #${String(i).padEnd(3)} ${(it.name ?? '').padEnd(22)} ${it.box.map((n) => Math.round(n)).join(' ').padEnd(16)} ${what}`)
     })
   }
-  if (bundle.dvars.length) console.log(`\ndvars: ${bundle.dvars.join(', ')}`)
-  if (bundle.unknown.length) console.log(`unknown keywords (not drawn): ${bundle.unknown.join(', ')}`)
+  if (bundle.referencedDvars.length) console.log(`\ndvars: ${bundle.referencedDvars.join(', ')}`)
+  if (bundle.unknownKeywords.length) console.log(`unknown keywords (not drawn): ${bundle.unknownKeywords.join(', ')}`)
   reportMissing(bundle)
 }
 
@@ -147,7 +147,7 @@ function list() {
 }
 
 function reportMissing(bundle) {
-  const unset = bundle.dvars.filter((d) => !(d in dvars) && !bundle.scriptDvars.includes(d))
+  const unset = bundle.referencedDvars.filter((d) => !(d in dvars) && !bundle.scriptDvars.includes(d))
   if (unset.length) console.log(`dvars without a value: ${unset.join(', ')}`)
   const m = bundle.missing
   if (m.includes.length) console.log(`missing includes: ${m.includes.join(', ')}`)

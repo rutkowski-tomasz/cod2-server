@@ -48,7 +48,7 @@ export function buildBundle(target, search, dvars = {}) {
   const scriptDvars = scanScriptDvars(parsed.menus)
   for (const [id, file] of Object.entries(FONTS)) loadFont(id, file)
 
-  return { path, menus: parsed.menus, unknown: [...parsed.unknown], images, fonts, strings, missing, dvars: [...referenced].sort(), scriptDvars: [...scriptDvars] }
+  return { path, menus: parsed.menus, unknownKeywords: [...parsed.unknownKeywords], images, fonts, strings, missing, referencedDvars: [...referenced].sort(), scriptDvars: [...scriptDvars] }
 
   function macroName(prefix, value) {
     for (const [name, m] of pp.macros) if (name.startsWith(prefix) && !m.params && m.body.length === 1 && Number(m.body[0].s) === value) return name

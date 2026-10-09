@@ -397,7 +397,7 @@ function updatePanel() {
   const dvars = $('dvars')
   if (!dvars.contains(document.activeElement)) {
     dvars.innerHTML = ''
-    for (const name of [...new Set([...bundle.dvars, ...state.dvars.keys()])].sort()) {
+    for (const name of [...new Set([...bundle.referencedDvars, ...state.dvars.keys()])].sort()) {
       const label = document.createElement('label')
       const span = document.createElement('span')
       span.textContent = name

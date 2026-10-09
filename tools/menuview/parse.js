@@ -1,4 +1,4 @@
-// Preprocessed menu tokens → { menus: [{ ...props, items: [...] }] }. Keywords are lowercased, the game ignores their case.
+// Preprocessed menu tokens → { menus: [{ ...props, items: [...] }], unknownKeywords }. Keywords are lowercased, the game ignores their case.
 const SCRIPTS = new Set(['onopen', 'onclose', 'onesc', 'onfocus', 'leavefocus', 'mouseenter', 'mouseexit', 'mouseentertext', 'mouseexittext', 'action', 'accept', 'doubleclick'])
 const LISTS = new Set(['showdvar', 'hidedvar', 'enabledvar', 'disabledvar', 'focusdvar', 'dvarstrlist', 'dvarfloatlist'])
 const STRINGS = new Set(['name', 'text', 'group', 'background', 'dvar', 'dvartest', 'soundloop', 'cinematic', 'focussound', 'localvar', 'special', 'asset_model', 'asset_shader', 'allowbinding'])
@@ -8,7 +8,7 @@ const KEY_NAMES = { 9: 'Tab', 13: 'Enter', 27: 'Escape', 127: 'Backspace' }
 
 export function parseMenuFile(tokens) {
   let i = 0
-  const result = { menus: [], unknown: new Set() }
+  const result = { menus: [], unknownKeywords: new Set() }
   const peek = () => tokens[i]
   const next = () => tokens[i++]
   const isOpen = (t) => t && !t.q && t.s === '{'
@@ -53,7 +53,7 @@ export function parseMenuFile(tokens) {
         if (!values.length) def[key] = true
         else def[key] = values.length === 1 && key !== 'rect' && key !== 'origin' ? values[0] : values
         if (isOpen(peek())) { next(); skipBlock() }
-        if (!KNOWN.has(key)) result.unknown.add(key)
+        if (!KNOWN.has(key)) result.unknownKeywords.add(key)
       }
     }
     next()
