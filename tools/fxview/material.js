@@ -16,7 +16,7 @@ export function parseMaterial(buf) {
     techset,
     atlasCols: buf[0x0e] || 1,
     atlasRows: buf[0x0f] || 1,
-    blend: techset.includes('_add') ? 'add' : techset.includes('multiply') ? 'multiply' : 'blend',
+    blend: techset.includes('distortion') ? 'distortion' : techset.includes('_add') ? 'add' : techset.includes('multiply') ? 'multiply' : 'blend',
     feather: techset.includes('zfeather'),
   }
 }
