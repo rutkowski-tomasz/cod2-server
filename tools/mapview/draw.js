@@ -57,27 +57,27 @@ export function createWorld(map, renderer, scene, onChange) {
   const view = { textures: true, lightmap: true }
   let pending = 0
 
-  // Triggers are translucent, so they stay out of `world`: the occluders that hide labels behind them.
-  const world = new THREE.Group()
+  // Triggers are translucent, so they stay out of `occluders`, which hide labels behind them.
+  const occluders = new THREE.Group()
   const triggers = new THREE.Group()
   for (const s of map.surfaces) {
     const info = map.materials[s.material]
     if (info.sky) continue
     if (/^trigger/.test(map.entities[s.entity].classname)) triggers.add(buildMesh(s, new THREE.MeshBasicMaterial({ color: TRIGGER_COLOR, transparent: true, opacity: 0.25, depthWrite: false })))
-    else world.add(buildMesh(s, materialFor(info, s.lightmap, s.doubleSided), info.tool))
+    else occluders.add(buildMesh(s, materialFor(info, s.lightmap, s.doubleSided), info.tool))
   }
-  scene.add(world, triggers)
+  scene.add(occluders, triggers)
   const sun = lit ? null : addLights()
   const grid = buildGrid()
   const sky = buildSky()
 
   return {
-    occluders: world,
+    occluders,
     loading: () => pending > 0,
     setView(state) {
       view.textures = state.textures
       view.lightmap = state.lightmap
-      for (const m of world.children) m.visible = !m.userData.tool || state.tools
+      for (const m of occluders.children) m.visible = !m.userData.tool || state.tools
       for (const mat of materials.values()) refresh(mat)
       const shadows = state.shadows && !state.top
       renderer.shadowMap.enabled = shadows

@@ -14,7 +14,7 @@ const NO_MARKER = /^node_|^info_vehicle_node|^actor_/
 const SKIPPED = /^misc_model|^script_model|^misc_prefab|^info_null|^script_origin|^light$/
 const ANONYMOUS = /^info_null|^script_origin/
 
-export function createMarkers(map, renderer, scene, world) {
+export function createMarkers(map, renderer, scene, occluders) {
   const labelsDiv = document.getElementById('labels')
   const markers = new THREE.Group()
   const items = map.entities.filter((e) => e.origin && e.classname !== 'worldspawn' && !NO_MARKER.test(e.classname)).map(buildMarker)
@@ -106,7 +106,7 @@ export function createMarkers(map, renderer, scene, world) {
     }
   }
 
-  // Draws the world depth plus one coloured point per label into an offscreen target, then reads back which
+  // Draws the occluders' depth plus one coloured point per label into an offscreen target, then reads back which
   // points survived the depth test.
   function computeOcclusion(cam) {
     const w = innerWidth, h = innerHeight
@@ -126,13 +126,13 @@ export function createMarkers(map, renderer, scene, world) {
     const points = new THREE.Points(geom, new THREE.PointsMaterial({ size: 5, sizeAttenuation: false, vertexColors: true }))
     points.frustumCulled = false
     o.scene.overrideMaterial = o.depthMaterial
-    o.scene.add(world)
+    o.scene.add(occluders)
     renderer.setRenderTarget(o.target)
     renderer.setClearColor(0x000000, 1)
     renderer.clear()
     renderer.render(o.scene, cam)
     o.scene.overrideMaterial = null
-    scene.add(world)
+    scene.add(occluders)
     o.scene.add(points)
     renderer.autoClear = false
     renderer.render(o.scene, cam)

@@ -3,8 +3,7 @@ import { createMarkers } from './markers.js'
 import { anglesToForward, anglesToMatrix, d2r } from './math.js'
 
 const map = decodeGeometry(JSON.parse(document.getElementById('bundle').textContent))
-const hash = Object.fromEntries(new URLSearchParams(location.hash.slice(1)))
-const params = { ...withoutCamera(map.defaults, hash), ...hash }
+const params = withDefaults(Object.fromEntries(new URLSearchParams(location.hash.slice(1))))
 const $ = (id) => document.getElementById(id)
 const EYE_HEIGHT = 60
 const TOP_MARGIN = 1.05
@@ -39,18 +38,18 @@ whenIdle().then(() => { window.mapReady = true })
 window.mapview = {
   // Resets the view to the page defaults plus `p`, waits for the frame, returns the camera.
   async apply(p) {
-    readParams({ ...withoutCamera(map.defaults, p), ...p })
+    readParams(withDefaults(p))
     applyView()
     await whenIdle()
     return { pos: state.pos.map(round), angles: state.angles.map(round), fov: state.fov, top: state.top }
   },
 }
 
-// A position or angles in the hash replace the baked ones that would otherwise win over them.
-function withoutCamera(defaults, hash) {
-  const { at, pos, look, ...rest } = defaults
-  if (hash.at !== undefined || hash.pos !== undefined) return rest
-  return { ...rest, at, pos, look: hash.angles !== undefined ? undefined : look }
+// readParams ranks at over pos and look over angles, so a camera in `p` drops the baked one it replaces.
+function withDefaults(p) {
+  const { at, pos, angles, look, ...rest } = map.defaults
+  const camera = p.at !== undefined ? {} : p.pos !== undefined ? { angles } : { at, pos, angles, look: p.angles !== undefined ? undefined : look }
+  return { ...rest, ...camera, ...p }
 }
 
 // The geometry arrives as one base64 blob; surfaces hold { offset, count } refs into it.
