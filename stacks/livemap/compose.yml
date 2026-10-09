@@ -2,8 +2,25 @@ services:
   livemap:
     image: oven/bun:1-alpine
     command: bun /relay.js
-      # `mapview.js live` behind live.mynl.pl, drawing the map the dev server plays from the iwds the servers use.
+    configs:
+      - source: relay
+        target: /relay.js
+    ports:
+      - target: 8081
+        published: 28970
+        protocol: tcp
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 5s
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+
+  # `mapview.js live` behind live.mynl.pl, drawing the map the dev server plays from the iwds the servers use.
   # Building a map's page takes a core for tens of seconds, so the CPU cap keeps it off the game servers.
+  # .github/workflows/mapview-image.yml moves it to each new image by this service's name.
   livemap-web:
     image: ghcr.io/rutkowski-tomasz/cod2-mapview:latest
     command: ["live", "ws://livemap:8081", "--page-relay", "wss://live.mynl.pl/relay", "--port", "8643",
@@ -20,22 +37,6 @@ services:
         limits:
           cpus: '0.5'
           memory: 1536M
-
-configs:
-      - source: relay
-        target: /relay.js
-    ports:
-      - target: 8081
-        published: 28970
-        protocol: tcp
-    deploy:
-      restart_policy:
-        condition: any
-        delay: 5s
-      resources:
-        limits:
-          cpus: '0.2'
-          memory: 128M
 
 configs:
   relay:
