@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 // CoD2 map viewer: builds a standalone HTML page, renders screenshots headlessly, prints bounds, entities and materials.
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs'
 import { dirname, join, basename, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { homedir } from 'node:os'
 import { execFileSync } from 'node:child_process'
 import { createSearch } from '../shared/assets.js'
 import { inlineModules } from '../shared/inline.js'
 import { loadScene, buildBundle } from './bundle.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
+const LIBRARY_IWDS = join(homedir(), 'Dev/nl-cod2-library/src/iwds')
 const USAGE = `usage:
   mapview.js view   <map> [-o out.html] [--open] [view options]   build an interactive page
   mapview.js render <map> [-o out.png] [view options]             headless screenshot
@@ -16,7 +18,7 @@ const USAGE = `usage:
   mapview.js info   <map> [--json]                                bounds, entities, materials, missing assets
   mapview.js list   [name prefix]                                 compiled maps found in the sources
 
-<map>: a .map, .d3dbsp or .iwd file, or a stock name like mp_harbor
+<map>: a .map, .d3dbsp or .iwd file, a stock name like mp_harbor, or an nl-cod2-library name like mp_square
 
 options:
   --source <dir|iwd>   extra asset source, repeatable; mod folders beat stock
@@ -48,7 +50,8 @@ while (args.length) {
 }
 
 // A map's iwd also holds its textures, so it is a source too.
-const search = createSearch([...opts.source, ...(positional[0]?.endsWith('.iwd') ? [positional[0]] : [])])
+const iwd = cmd === 'list' ? null : targetIwd(positional[0])
+const search = createSearch([...opts.source, ...(iwd ? [iwd] : [])])
 
 switch (cmd) {
   case 'view': view(); break
@@ -61,6 +64,14 @@ switch (cmd) {
 function target() {
   if (!positional[0]) { console.error(USAGE); process.exit(1) }
   return positional[0]
+}
+
+// A bare name that is not a file can be an nl-cod2-library map.
+function targetIwd(name) {
+  if (!name) return null
+  if (name.endsWith('.iwd')) return name
+  const iwd = join(LIBRARY_IWDS, `${name}.iwd`)
+  return !existsSync(name) && existsSync(iwd) ? iwd : null
 }
 
 function outName(ext) {
@@ -154,7 +165,9 @@ function info() {
 }
 
 function list() {
-  for (const n of search.list('maps/')) if (n.endsWith('.d3dbsp') && basename(n).startsWith(positional[0] ?? '')) console.log(n)
+  const prefix = positional[0] ?? ''
+  for (const n of search.list('maps/')) if (n.endsWith('.d3dbsp') && basename(n).startsWith(prefix)) console.log(n)
+  if (existsSync(LIBRARY_IWDS)) for (const f of readdirSync(LIBRARY_IWDS).sort()) if (f.endsWith('.iwd') && f.startsWith(prefix)) console.log(join(LIBRARY_IWDS, f))
 }
 
 function reportMissing(scene) {

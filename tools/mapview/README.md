@@ -7,13 +7,13 @@ cd tools/mapview && bun install          # once, playwright-core and three
 node tools/mapview/mapview.js view   mp_harbor --open
 node tools/mapview/mapview.js render mp_harbor --at mp_ctf_spawn_axis
 node tools/mapview/mapview.js render mp_harbor --pos -9500,-7500,120 --angles 10,90,0
-node tools/mapview/mapview.js render ~/Dev/nl-cod2-library/src/iwds/mp_square.iwd --top --cut 240
+node tools/mapview/mapview.js render mp_square --top --cut 240
 node tools/mapview/mapview.js render mp_harbor --batch shots.json -o out/harbor
 node tools/mapview/mapview.js info   mp_harbor
 node tools/mapview/mapview.js list   mp_
 ```
 
-Targets are a `.map` source (what `nl-cod2-library/map_source` generates), a compiled `.d3dbsp`, a map's `.iwd`, or a game path or stock name like `mp_harbor`. Maps, materials and `.iwi` images are looked up, ignoring case, in the same sources as fxview (later wins): `~/Dev/cod2-binaries/1_0`, `~/Dev/cod2-binaries/1_3`, every `~/Dev/nl-cod2-zom-iwds/iwds/<iwd>/<feature>/` folder, then `--source <dir|iwd>`. A target `.iwd` is added as a source, and its map is the one named like the iwd. `misc_prefab` paths in a `.map` resolve next to the map, one and two folders up, and in `--prefabs <dir>`. Needs `iw_13` (materials) and `iw_08`–`iw_12` (images) pulled. Stock maps: `1_3/iw_15` has `mp_harbor` and `mp_rhine`, `iw_00` seven single-player maps, `iw_01`–`iw_05` the rest; `list` shows the ones found.
+Targets are a `.map` source (what `nl-cod2-library/map_source` generates), a compiled `.d3dbsp`, a map's `.iwd`, a game path or stock name like `mp_harbor`, or the name of a map in `~/Dev/nl-cod2-library/src/iwds/`, like `mp_square`, which opens that map's iwd. Maps, materials and `.iwi` images are looked up, ignoring case, in the same sources as fxview (later wins): `~/Dev/cod2-binaries/1_0`, `~/Dev/cod2-binaries/1_3`, every `~/Dev/nl-cod2-zom-iwds/iwds/<iwd>/<feature>/` folder, then `--source <dir|iwd>`. A target `.iwd` is added as a source, and its map is the one named like the iwd. `misc_prefab` paths in a `.map` resolve next to the map, one and two folders up, and in `--prefabs <dir>`. Needs `iw_13` (materials) and `iw_08`–`iw_12` (images) pulled. Stock maps: `1_3/iw_15` has `mp_harbor` and `mp_rhine`, `iw_00` seven single-player maps, `iw_01`–`iw_05` the rest; `list` shows the ones found, then the library's iwds.
 
 Output goes to `tools/mapview/out/` unless `-o` is given. `render` writes the page next to the PNG and prints the camera, so the same view can be explored interactively. All three commands print materials that draw without their image and prefabs not found.
 
