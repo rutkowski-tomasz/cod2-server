@@ -178,7 +178,8 @@ export function createWorld(map, renderer, scene, onChange) {
     if (!info) return
     const colorMap = view.textures && texture ? texture : null
     // Tool images are a faint translucent colour, red for clip, as Radiant shows them; an alpha test would discard it.
-    const alphaTest = colorMap && !tool && map.images[info.image].alpha && blend === BLEND.opaque ? ALPHA_TEST : 0
+    // A `replace` techset ignores the image's alpha: v_window01's glass panes are alpha 0 but opaque in game.
+    const alphaTest = colorMap && !tool && map.images[info.image].alpha && blend === BLEND.opaque && !/(^|_)replace(_|$)/.test(info.techset) ? ALPHA_TEST : 0
     if (mat.isShaderMaterial) {
       const u = mat.uniforms
       u.map.value = colorMap
