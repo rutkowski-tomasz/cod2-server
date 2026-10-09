@@ -538,3 +538,44 @@ void gsc_player_setweaponidinslotid(scr_entref_t ref)
 	stackPushBool(qtrue);
 }
 
+
+// Animations
+
+// The name of the player animation an animation index from the player state plays, which carries a toggle bit.
+static void stackPushAnimationName(int anim)
+{
+	int index = anim & ~ANIM_TOGGLEBIT;
+
+	if ( index < 0 || index >= globalScriptData->numAnimations )
+		stackPushString("");
+	else
+		stackPushString(globalScriptData->animations[index].name);
+}
+
+void gsc_player_getlegsanimation(scr_entref_t ref)
+{
+	int id = ref.entnum;
+
+	if ( id >= MAX_CLIENTS )
+	{
+		stackError("gsc_player_getlegsanimation() entity %i is not a player", id);
+		stackPushUndefined();
+		return;
+	}
+
+	stackPushAnimationName(SV_GameClientNum(id)->legsAnim);
+}
+
+void gsc_player_gettorsoanimation(scr_entref_t ref)
+{
+	int id = ref.entnum;
+
+	if ( id >= MAX_CLIENTS )
+	{
+		stackError("gsc_player_gettorsoanimation() entity %i is not a player", id);
+		stackPushUndefined();
+		return;
+	}
+
+	stackPushAnimationName(SV_GameClientNum(id)->torsoAnim);
+}

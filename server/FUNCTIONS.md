@@ -4,6 +4,11 @@
 - `result = collapseColors(string)`
 - `result = stripColors(string)`
 
+# Animations
+
+- `name = player getLegsAnimation()` - Returns the name of the player animation the legs play, such as `pb_stand_alert`; returns `""` for an index outside the animation list, and `undefined` if the entity is not a player.
+- `name = player getTorsoAnimation()` - Returns the name of the player animation the torso plays, as `getLegsAnimation`.
+
 # Weapons
 
 - `slotId = player getCurrentSlotId()` - Returns current slot ID (0=none, 1=primary, 2=primaryb); returns `undefined` if the entity is not a player.
