@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // CoD2 .efx viewer: builds a standalone HTML player, renders frames headlessly, prints effect info.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { dirname, join, basename, resolve } from 'node:path'
+import { dirname, join, basename } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { createSearch } from './assets.js'

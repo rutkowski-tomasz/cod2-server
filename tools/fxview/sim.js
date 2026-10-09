@@ -11,7 +11,7 @@ export function createSim(bundle, opts = {}) {
   const forward = FORWARD[opts.forward ?? 'z']
   const axis = axisFrom(forward, Math.abs(forward[2]) > 0.9 ? [1, 0, 0] : [0, 0, 1])
   const ground = opts.ground === undefined ? 0 : opts.ground
-  const origin = opts.origin ?? [0, 0, 0]
+  const origin = [0, 0, 0]
   const sim = {
     time: 0,
     axis,
@@ -218,7 +218,7 @@ export function createSim(bundle, opts = {}) {
 
   function counts() {
     const out = {}
-    for (const p of sim.particles) if (p.age >= 0 && p.spawnTime <= sim.time) out[`${p.type}:${p.def.name}`] = (out[`${p.type}:${p.def.name}`] ?? 0) + 1
+    for (const p of sim.particles) if (p.spawnTime <= sim.time) out[`${p.type}:${p.def.name}`] = (out[`${p.type}:${p.def.name}`] ?? 0) + 1
     return out
   }
 
@@ -235,7 +235,7 @@ export function createSim(bundle, opts = {}) {
       for (const p of sim.particles) {
         if (p.spawnTime > sim.time || (ground !== null && p.pos[2] < ground - 2)) continue
         const s = sampleSize(p)
-        const pad = Math.max(s[0], s[1], p.type === 'Light' ? 0 : 0) / 2
+        const pad = Math.max(s[0], s[1]) / 2
         points.push([p.pos[0], p.pos[1], p.pos[2], pad])
         for (let i = 0; i < 3; i++) { lo[i] = Math.min(lo[i], p.pos[i] - pad); hi[i] = Math.max(hi[i], p.pos[i] + pad) }
       }
@@ -353,7 +353,7 @@ function effectDuration(bundle, path, depth, skipDecals) {
 }
 
 // Axis: rows forward, left, up (CoD convention: X forward, Y left, Z up).
-export function axisFrom(forward, upHint) {
+function axisFrom(forward, upHint) {
   const f = norm(forward)
   let l = cross(upHint, f)
   if (len(l) < 1e-6) l = cross([0, 1, 0], f)

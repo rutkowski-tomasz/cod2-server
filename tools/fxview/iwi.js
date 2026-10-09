@@ -21,7 +21,7 @@ export function decodeIwi(buf) {
     case 'rgb8': for (let i = 0; i < width * height; i++) { rgba[i * 4] = data[i * 3 + 2]; rgba[i * 4 + 1] = data[i * 3 + 1]; rgba[i * 4 + 2] = data[i * 3]; rgba[i * 4 + 3] = 255 } break
     case 'la8': for (let i = 0; i < width * height; i++) { rgba[i * 4] = rgba[i * 4 + 1] = rgba[i * 4 + 2] = data[i * 2]; rgba[i * 4 + 3] = data[i * 2 + 1] } break
   }
-  return { width, height, format, rgba }
+  return { width, height, rgba }
 }
 
 function mipSize(format, w, h) {

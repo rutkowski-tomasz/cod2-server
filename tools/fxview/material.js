@@ -12,13 +12,10 @@ export function parseMaterial(buf) {
   const techset = cstr(buf, buf.readUInt32LE(0x38))
   if (!/^[\w./~&$-]+$/.test(name) || !/^[\w./~&$-]+$/.test(image)) return null
   return {
-    name,
     image,
     techset,
     atlasCols: buf[0x0e] || 1,
     atlasRows: buf[0x0f] || 1,
-    width: buf.readUInt16LE(0x1c),
-    height: buf.readUInt16LE(0x1e),
     blend: techset.includes('_add') ? 'add' : techset.includes('multiply') ? 'multiply' : 'blend',
   }
 }

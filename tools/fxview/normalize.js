@@ -8,7 +8,6 @@ const DEFAULT_CURVE = { rgb: [[0, 1, 1, 1], [1, 1, 1, 1]], alpha: [[0, 1], [1, 1
 
 export function normalizeElement(raw) {
   const flags = new Set(raw.flags ?? [])
-  const spawnFlags = new Set(raw.spawnFlags ?? [])
   const curves = {}
   const scales = {}
   for (const key of CURVE_KEYS) {
@@ -32,7 +31,7 @@ export function normalizeElement(raw) {
         }
       }
       scales[key] = [1, 1]
-    } else if (DEFAULT_CURVE[key] && !curves[key]) {
+    } else if (DEFAULT_CURVE[key]) {
       curves[key] = DEFAULT_CURVE[key]
       scales[key] = [1, 1]
     }
@@ -49,7 +48,7 @@ export function normalizeElement(raw) {
     type: raw.type,
     name: Array.isArray(raw.name) ? raw.name.join(' ') : raw.name ?? raw.type,
     flags: [...flags],
-    spawnFlags: [...spawnFlags],
+    spawnFlags: raw.spawnFlags ?? [],
     count: range(raw.count ?? [1]),
     life: range(raw.life ?? [1000]),
     delay: range(raw.delay ?? [0]),
@@ -95,7 +94,7 @@ function box(v) {
   return [lo.map((x, i) => Math.min(x, hi[i])), lo.map((x, i) => Math.max(x, hi[i]))]
 }
 
-export function fxPath(v) {
+function fxPath(v) {
   if (!v) return null
   const s = Array.isArray(v) ? v[0] : v
   return String(s).replace(/^\/+/, '').replace(/\.efx$/, '')
