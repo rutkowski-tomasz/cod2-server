@@ -54,6 +54,12 @@ class AssetSearch {
     return null
   }
 
+  // Every copy of `name`, newest source first, with the folder or iwd it came from.
+  *readAll(name) {
+    const key = name.toLowerCase()
+    for (let i = this.sources.length - 1; i >= 0; i--) if (this.sources[i].has(key)) yield { path: this.sources[i].path, buf: this.sources[i].read(key) }
+  }
+
   list(prefix) {
     const out = new Map()
     for (const s of this.sources) for (const n of s.names()) if (n.toLowerCase().startsWith(prefix.toLowerCase())) out.set(n.toLowerCase(), n)
@@ -74,7 +80,7 @@ function isZip(path) {
 // Sources key their files by lowercase path.
 class DirSource {
   constructor(dir) {
-    this.dir = dir
+    this.path = dir
     this.files = new Map()
     const walk = (rel) => {
       for (const e of readdirSync(join(dir, rel), { withFileTypes: true })) {
@@ -89,7 +95,7 @@ class DirSource {
     return this.files.has(key)
   }
   read(key) {
-    return readFileSync(join(this.dir, this.files.get(key)))
+    return readFileSync(join(this.path, this.files.get(key)))
   }
   names() {
     return [...this.files.values()]

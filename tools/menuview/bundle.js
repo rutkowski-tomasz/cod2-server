@@ -114,9 +114,9 @@ export function buildBundle(target, search, dvars = {}) {
     tried.add(`@${key}`)
     const file = `localizedstrings/${key.slice(0, key.indexOf('_')).toLowerCase()}.str`
     const ref = key.slice(key.indexOf('_') + 1)
-    for (const source of [...search.sources].reverse()) {
-      if (/localized_(?!english)/i.test(source.path ?? source.dir) || !source.has(file)) continue
-      const m = source.read(file).toString('latin1').match(new RegExp(`^REFERENCE\\s+${ref}\\s*\\r?\\nLANG_ENGLISH\\s+"(.*)"`, 'm'))
+    for (const { path, buf } of search.readAll(file)) {
+      if (/localized_(?!english)/i.test(path)) continue
+      const m = buf.toString('latin1').match(new RegExp(`^REFERENCE\\s+${ref}\\s*\\r?\\nLANG_ENGLISH\\s+"(.*)"`, 'm'))
       if (m) { strings[key] = m[1].replace(/\\n/g, '\n'); return }
     }
     missing.strings.push(key)
