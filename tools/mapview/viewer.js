@@ -11,9 +11,10 @@ const TOP_MARGIN = 1.05
 const off = (v) => v !== undefined && ['off', '0', 'false', false].includes(v)
 const on = (v) => v !== undefined && !off(v)
 
-const state = { speed: 400 }
+const state = { speed: 440 }
 const keys = new Set()
 let lastTime = performance.now()
+const fps = { frames: 0, since: performance.now() }
 let needRender = true
 const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, powerPreference: 'high-performance' })
 renderer.setPixelRatio(1)
@@ -105,13 +106,16 @@ function findEntity(sel) {
   return map.entities.filter((e) => e.origin && test(e))[n] || null
 }
 
-function standAt(e) {
-  state.pos = [e.origin[0], e.origin[1], e.origin[2] + EYE_HEIGHT]
+function standAt(e, eyeHeight = EYE_HEIGHT) {
+  state.pos = [e.origin[0], e.origin[1], e.origin[2] + eyeHeight]
   state.angles = e.angles ? [...e.angles] : [0, 0, 0]
 }
 
-// The first spawn, else above the map's south edge looking north.
+// The intermission camera, else the first spawn, else above the map's south edge looking north.
+// The game shows intermission from the entity's origin itself, with no eye height.
 function placeDefault() {
+  const intermission = findEntity('mp_global_intermission')
+  if (intermission) return standAt(intermission, 0)
   const spawn = map.entities.find((e) => e.origin && /spawn|info_player_start/.test(e.classname))
   if (spawn) return standAt(spawn)
   const b = map.bounds
@@ -122,7 +126,7 @@ function placeDefault() {
 function applyView() {
   world.setView(state)
   markers.setView(state)
-  $('hud').style.display = $('legend').style.display = state.hud ? 'block' : 'none'
+  $('hud').style.display = $('legend').style.display = $('fps').style.display = state.hud ? 'block' : 'none'
   needRender = true
 }
 
@@ -165,8 +169,19 @@ function renderLoop() {
     updateTicks()
     updateHud()
     needRender = false
+    fps.frames++
   } else markers.settle(cam, state.top)
+  updateFps()
   requestAnimationFrame(renderLoop)
+}
+
+// Frames are drawn only when the view changes, so this counts drawn frames and says idle when none were.
+function updateFps() {
+  const elapsed = performance.now() - fps.since
+  if (elapsed < 500) return
+  $('fps').textContent = fps.frames ? `${Math.round((fps.frames * 1000) / elapsed)} fps` : 'idle'
+  fps.frames = 0
+  fps.since = performance.now()
 }
 
 // Coordinates along the top and left edges of the top view.
@@ -212,8 +227,8 @@ function move() {
   if (keys.has('KeyS')) step(fwd, -speed)
   if (keys.has('KeyD')) step(right, speed)
   if (keys.has('KeyA')) step(right, -speed)
-  if (keys.has('Space')) step([0, 0, 1], speed)
-  if (keys.has('KeyC')) step([0, 0, 1], -speed)
+  if (keys.has('Space') || keys.has('KeyE')) step([0, 0, 1], speed)
+  if (keys.has('KeyC') || keys.has('KeyQ')) step([0, 0, 1], -speed)
   return moved
 }
 
@@ -233,10 +248,12 @@ function setupControls() {
     } else state.speed = Math.max(25, Math.min(6400, state.speed * (e.deltaY > 0 ? 0.8 : 1.25)))
     needRender = true
   })
-  const toggles = { KeyL: 'labels', KeyE: 'entities', KeyT: 'textures', KeyG: 'grid', KeyK: 'tools', KeyM: 'lightmap', KeyH: 'hud', Digit1: 'top' }
+  const toggles = { KeyL: 'labels', KeyO: 'entities', KeyT: 'textures', KeyG: 'grid', KeyK: 'tools', KeyM: 'lightmap', KeyH: 'hud', Digit1: 'top' }
   addEventListener('keydown', (e) => {
-    if (e.repeat) return
+    // macOS sends no keyup for keys released while Cmd is held, so they would stay pressed.
+    if (e.metaKey) { keys.clear(); return }
     keys.add(e.code)
+    if (e.repeat) return
     if (toggles[e.code]) { state[toggles[e.code]] = e.code === 'KeyL' && e.shiftKey ? 'all' : !state[toggles[e.code]]; applyView() }
     if (e.code === 'Escape') document.exitPointerLock()
   })
