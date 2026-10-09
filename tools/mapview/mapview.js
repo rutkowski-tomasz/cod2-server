@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { homedir } from 'node:os'
 import { execFileSync } from 'node:child_process'
 import { createServer } from 'node:http'
+import { gzipSync } from 'node:zlib'
 import { createSearch } from '../shared/assets.js'
 import { inlineModules } from '../shared/inline.js'
 import { loadScene, buildBundle, buildRig, buildWeapon } from './bundle.js'
@@ -23,7 +24,9 @@ const USAGE = `usage:
   mapview.js render <map> --batch shots.json [-o dir]             one screenshot per entry, one browser
   mapview.js info   <map> [--json]                                bounds, entities, materials, missing assets
   mapview.js list   [name prefix]                                 compiled maps found in the sources
-  mapview.js live   [relay] [--port 8643] [--open] [view options]  serve the map a server plays, with its players moving; entities start off
+  mapview.js live   [relay] [--port 8643] [--page-relay url] [--open] [view options]
+                                                                 serve the map a server plays, with its players moving;
+                                                                 entities start off; pages connect to --page-relay
 
 <map>: a .map, .d3dbsp or .iwd file, a stock name like mp_harbor, or an nl-cod2-library name like mp_square
 
@@ -181,12 +184,16 @@ function live() {
   const relay = positional[0] ?? RELAY
   const port = +(opts.port ?? 8643)
   let latest = null
-  let page = null
+  let built = null
   const assets = new Map()
   follow()
   createServer((req, res) => {
     const url = new URL(req.url, 'http://localhost')
-    if (url.pathname === '/') return res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(html())
+    if (url.pathname === '/') {
+      const { html, gzipped } = page()
+      const gzip = gzipped && /\bgzip\b/.test(req.headers['accept-encoding'] ?? '')
+      return res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', ...(gzip && { 'content-encoding': 'gzip' }) }).end(gzip ? gzipped : html)
+    }
     const kind = url.pathname.slice(1)
     if (!ASSETS[kind]) return res.writeHead(404).end()
     const asset = assetOf(kind, url.searchParams.get('key'), assets, search)
@@ -207,21 +214,23 @@ function live() {
     ws.onclose = () => setTimeout(follow, 2000)
   }
 
-  // A map missing from the local sources, such as a library map not pulled yet, waits like no map at all.
-  function html() {
-    if (!latest) return waitingPage(`waiting for a map from ${relay}`)
+  // The page of the server's map, also gzipped once, as pages run to 100 MB. A map missing from the local sources,
+  // such as a library map not pulled yet, waits like no map at all.
+  function page() {
+    if (!latest) return { html: waitingPage(`waiting for a map from ${relay}`) }
     const { map } = latest
-    if (page?.map !== map) {
+    if (built?.map !== map) {
       try {
         const bundle = buildBundle(map, searchFor(map), sceneOptions)
         reportMissing(bundle)
         Object.assign(bundle, assetsOf(latest.players, assets, search))
-        page = { map, html: buildHtml(bundle, { ents: 'off', director: 'on', ...viewOf(opts), live: relay }) }
+        const html = buildHtml(bundle, { ents: 'off', director: 'on', ...viewOf(opts), live: opts['page-relay'] ?? relay })
+        built = { map, html, gzipped: gzipSync(html) }
       } catch (e) {
-        return waitingPage(`${map}: ${e.message}`)
+        return { html: waitingPage(`${map}: ${e.message}`) }
       }
     }
-    return page.html
+    return built
   }
 }
 
