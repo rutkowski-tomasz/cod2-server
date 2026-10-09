@@ -11,6 +11,10 @@ import { parseFont } from './font.js'
 // textfont values (UI_FONT_*); 0 picks one of normal, small and big by text scale in the viewer.
 const FONTS = { 1: 'normalFont', 2: 'bigFont', 3: 'smallFont', 4: 'boldFont', 5: 'consoleFont' }
 const WINDOW_STYLE_DVAR_SHADER = 6
+const SCREEN_W = 640
+const SCREEN_H = 480
+// HORIZONTAL_ALIGN_* values; VERTICAL_ALIGN_* use the same numbers, with BOTTOM for RIGHT.
+const ALIGN = { CENTER: 2, RIGHT: 3, CENTER_SAFEAREA: 7 }
 
 // `target` is a file path or a game path like ui_mp/scriptmenus/ingame(.menu). `dvars` name → value, for DVAR_SHADER images.
 export function buildBundle(target, search, dvars = {}) {
@@ -32,7 +36,7 @@ export function buildBundle(target, search, dvars = {}) {
   const referenced = new Set()
   for (const menu of parsed.menus) {
     if (menu.background) loadImage(menu.background)
-    menu.box = place(menu.rect ?? [0, 0, 640, 480], 0, 0)
+    menu.box = place(menu.rect ?? [0, 0, SCREEN_W, SCREEN_H], 0, 0)
     for (const item of menu.items) {
       item.box = place(item.rect ?? [0, 0, 0, 0], menu.rect?.[0] ?? 0, menu.rect?.[1] ?? 0, menu.rect, item.origin)
       // dvarFloat "name" default min max sets the item's dvar too, as in game.
@@ -142,8 +146,8 @@ function place(rect, baseX, baseY, menuRect, origin = [0, 0]) {
   const [x, y, w, h, ha, va] = rect
   const horz = rect.length >= 6 && (ha || va) ? ha : menuRect?.[4] ?? 0
   const vert = rect.length >= 6 && (ha || va) ? va : menuRect?.[5] ?? 0
-  const shift = (align, size) => (align === 2 || align === 7 ? size / 2 : align === 3 ? size : 0)
-  return [baseX + x + origin[0] + shift(horz, 640), baseY + y + origin[1] + shift(vert, 480), w, h]
+  const shift = (align, size) => (align === ALIGN.CENTER || align === ALIGN.CENTER_SAFEAREA ? size / 2 : align === ALIGN.RIGHT ? size : 0)
+  return [baseX + x + origin[0] + shift(horz, SCREEN_W), baseY + y + origin[1] + shift(vert, SCREEN_H), w, h]
 }
 
 const isScript = (v) => Array.isArray(v) && Array.isArray(v[0])

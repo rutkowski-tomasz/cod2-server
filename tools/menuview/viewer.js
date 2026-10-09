@@ -1,5 +1,5 @@
 // Interactive page around draw.js: opens the bundled menus, runs their scripts on hover, click and keys, and captures headless shots.
-import { createRenderer, isFocusable } from './draw.js'
+import { createRenderer, isFocusable, colorsOf, SCREEN_W, SCREEN_H } from './draw.js'
 
 const bundle = JSON.parse(document.getElementById('bundle').textContent)
 const defaults = bundle.defaults
@@ -17,7 +17,7 @@ let bg = defaults.bg
 function reset() {
   state = { dvars: new Map(Object.entries(defaults.dvars)), open: [], items: new Map(), hover: null, log: [], warnings: new Set() }
   for (const menu of menus) for (const item of menu.items) {
-    state.items.set(item, { visible: !!item.visible, forecolor: item.forecolor ?? [1, 1, 1, 1], backcolor: item.backcolor ?? [0, 0, 0, 0], bordercolor: item.bordercolor ?? [0, 0, 0, 0] })
+    state.items.set(item, { visible: !!item.visible, ...colorsOf(item) })
   }
   const named = defaults.menus.map(findMenu)
   for (const [i, m] of named.entries()) if (!m) state.warnings.add(`no menu named ${defaults.menus[i]}`)
@@ -103,10 +103,10 @@ function setHover(hit) {
 function refresh() {
   const hide = document.body.classList.contains('hideui')
   const availW = innerWidth - (hide ? 0 : 280)
-  const scale = Math.min(availW / 640, innerHeight / 480)
-  canvas.style.width = `${640 * scale}px`
-  canvas.style.height = `${480 * scale}px`
-  draw(state, { width: Math.round(640 * scale * devicePixelRatio), height: Math.round(480 * scale * devicePixelRatio), outline, bg })
+  const scale = Math.min(availW / SCREEN_W, innerHeight / SCREEN_H)
+  canvas.style.width = `${SCREEN_W * scale}px`
+  canvas.style.height = `${SCREEN_H * scale}px`
+  draw(state, { width: Math.round(SCREEN_W * scale * devicePixelRatio), height: Math.round(SCREEN_H * scale * devicePixelRatio), outline, bg })
   updatePanel()
 }
 
@@ -152,7 +152,7 @@ function describe(item) {
 
 function toVirtual(e) {
   const r = canvas.getBoundingClientRect()
-  return [((e.clientX - r.left) / r.width) * 640, ((e.clientY - r.top) / r.height) * 480]
+  return [((e.clientX - r.left) / r.width) * SCREEN_W, ((e.clientY - r.top) / r.height) * SCREEN_H]
 }
 
 canvas.addEventListener('mousemove', (e) => { setHover(itemAt(...toVirtual(e))); refresh() })

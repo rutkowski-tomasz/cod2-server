@@ -5,7 +5,16 @@ const STYLE = { FILLED: 1, GRADIENT: 2, SHADER: 3, CINEMATIC: 5, DVAR_SHADER: 6,
 const TEXTSTYLE = { SHADOWED: 3, OUTLINED: 4, OUTLINESHADOWED: 5, SHADOWEDMORE: 6 }
 // ^0-^9. ^8 and ^9 are not in the stock assets; these are guesses.
 const CODE_COLORS = [[0, 0, 0], [1, 0.2, 0.2], [0, 1, 0], [1, 1, 0], [0.2, 0.2, 1], [0, 1, 1], [1, 0, 1], [1, 1, 1], [1, 0.55, 0], [0.55, 0.55, 0.55]]
+const BORDER = { FULL: 1, HORZ: 2, VERT: 3, KCGRADIENT: 4 }
+const TEXTALIGN = { CENTER: 1, RIGHT: 2, CENTER2: 3 }
 const BACKGROUNDS = { dark: '#181818', light: '#c8c8c8', black: '#000' }
+const DEFAULT_TEXTSCALE = 0.55
+// Height in virtual pixels of text at textscale 1.
+const FONT_HEIGHT = 48
+export const SCREEN_W = 640
+export const SCREEN_H = 480
+
+export const colorsOf = (def) => ({ forecolor: def.forecolor ?? [1, 1, 1, 1], backcolor: def.backcolor ?? [0, 0, 0, 0], bordercolor: def.bordercolor ?? [0, 0, 0, 0] })
 
 export function isVisible(state, item) {
   if (!state.items.get(item).visible) return false
@@ -18,6 +27,9 @@ export function isVisible(state, item) {
 
 export const isFocusable = (state, item) => !item.decoration && isVisible(state, item)
 
+const isColorCode = (text, i) => text[i] === '^' && /[0-9]/.test(text[i + 1] ?? '')
+// Glyphs are scaled so the font's pixel height becomes FONT_HEIGHT × textscale virtual pixels.
+const glyphScale = (font, scale) => (scale * FONT_HEIGHT) / font.pixelHeight
 const rgba = (c, alpha = 1) => `rgba(${c[0] * 255},${c[1] * 255},${c[2] * 255},${Math.min(1, Math.max(0, (c[3] ?? 1) * alpha))})`
 
 // `images` holds the loaded <img> of each bundle image. `draw` takes the viewer's state: open menus, item colors, dvars, hover.
@@ -31,9 +43,9 @@ export function createRenderer(canvas, bundle, images) {
     canvas.height = height
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     drawBackground(width, height, bg)
-    ctx.setTransform(width / 640, 0, 0, height / 480, 0, 0)
+    ctx.setTransform(width / SCREEN_W, 0, 0, height / SCREEN_H, 0, 0)
     for (const menu of state.open) {
-      drawWindow(menu, menu.box, { forecolor: menu.forecolor ?? [1, 1, 1, 1], backcolor: menu.backcolor ?? [0, 0, 0, 0], bordercolor: menu.bordercolor ?? [0, 0, 0, 0] })
+      drawWindow(menu, menu.box, colorsOf(menu))
       for (const item of menu.items) if (isVisible(state, item)) drawItem(menu, item)
     }
     if (outline) drawOutlines()
@@ -88,8 +100,8 @@ export function createRenderer(canvas, bundle, images) {
     if (!border) return
     const s = def.bordersize ?? 1
     ctx.fillStyle = rgba(color)
-    if (border === 1 || border === 2 || border === 4) { ctx.fillRect(x, y, w, s); ctx.fillRect(x, y + h - s, w, s) }
-    if (border === 1 || border === 3) { ctx.fillRect(x, y + s, s, h - 2 * s); ctx.fillRect(x + w - s, y + s, s, h - 2 * s) }
+    if (border === BORDER.FULL || border === BORDER.HORZ || border === BORDER.KCGRADIENT) { ctx.fillRect(x, y, w, s); ctx.fillRect(x, y + h - s, w, s) }
+    if (border === BORDER.FULL || border === BORDER.VERT) { ctx.fillRect(x, y + s, s, h - 2 * s); ctx.fillRect(x + w - s, y + s, s, h - 2 * s) }
   }
 
   function drawImage(name, [x, y, w, h], color) {
@@ -152,16 +164,16 @@ export function createRenderer(canvas, bundle, images) {
     if (!label && value === null) return
     const font = pickFont(item)
     if (!font) return
-    const scale = item.textscale ?? 0.55
-    const lineHeight = 48 * scale
+    const scale = item.textscale ?? DEFAULT_TEXTSCALE
+    const lineHeight = FONT_HEIGHT * scale
     let lines = label.split('\n')
     if (item.autowrapped && item.box[2]) lines = lines.flatMap((l) => wrap(l, font, scale, item.box[2]))
     let endX = item.box[0] + (item.textalignx ?? 0)
     lines.forEach((line, i) => {
       const width = textWidth(line, font, scale)
       let x = item.box[0] + (item.textalignx ?? 0)
-      if (item.textalign === 1 || item.textalign === 3) x -= width / 2
-      else if (item.textalign === 2) x -= width
+      if (item.textalign === TEXTALIGN.CENTER || item.textalign === TEXTALIGN.CENTER2) x -= width / 2
+      else if (item.textalign === TEXTALIGN.RIGHT) x -= width
       drawText(line, x, item.box[1] + (item.textaligny ?? 0) + i * lineHeight, color, font, scale, item.textstyle)
       endX = x + width
     })
@@ -203,17 +215,16 @@ export function createRenderer(canvas, bundle, images) {
 
   // textfont 0 picks by scale, like ui_smallFont 0.25 and ui_bigFont 0.4.
   function pickFont(item) {
-    const scale = item.textscale ?? 0.55
+    const scale = item.textscale ?? DEFAULT_TEXTSCALE
     const id = item.textfont || (scale <= 0.25 ? 3 : scale >= 0.4 ? 2 : 1)
     return bundle.fonts[id]
   }
 
-  // Glyphs are scaled so the font's pixel height becomes 48 × textscale virtual pixels.
   function textWidth(text, font, scale) {
-    const s = (scale * 48) / font.pixelHeight
+    const s = glyphScale(font, scale)
     let w = 0
     for (let i = 0; i < text.length; i++) {
-      if (text[i] === '^' && /[0-9]/.test(text[i + 1] ?? '')) { i++; continue }
+      if (isColorCode(text, i)) { i++; continue }
       w += (font.glyphs[text.charCodeAt(i)] ?? font.glyphs[63])?.[2] ?? 0
     }
     return w * s
@@ -240,11 +251,11 @@ export function createRenderer(canvas, bundle, images) {
   }
 
   function drawRun(text, x, y, color, font, scale, codes) {
-    const s = (scale * 48) / font.pixelHeight
+    const s = glyphScale(font, scale)
     const atlas = images[font.image]
     let current = color
     for (let i = 0; i < text.length; i++) {
-      if (text[i] === '^' && /[0-9]/.test(text[i + 1] ?? '')) {
+      if (isColorCode(text, i)) {
         if (codes) current = [...CODE_COLORS[Number(text[++i])], color[3] ?? 1]
         else i++
         continue
