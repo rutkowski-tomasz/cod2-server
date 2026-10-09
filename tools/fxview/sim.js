@@ -21,17 +21,19 @@ export function createSim(bundle, opts = {}) {
     // Without long-lived decals, used for the slider and default render frames.
     activeDuration: Math.max(100, effectDuration(bundle, bundle.root, 0, true)),
     reset,
-    step,
     seek,
     counts,
     bounds,
   }
   let rng
+  // Whole steps taken since reset. The state always sits on this fixed grid, so a seed gives the same result whatever seeks led there.
+  let steps
   reset()
   return sim
 
   function reset() {
     rng = mulberry32(rngSeed)
+    steps = 0
     sim.time = 0
     sim.particles = []
     sim.pending = []
@@ -41,13 +43,13 @@ export function createSim(bundle, opts = {}) {
   }
 
   function seek(t) {
-    if (t < sim.time) reset()
-    while (sim.time + STEP <= t) step(STEP)
-    if (t > sim.time) step(t - sim.time)
+    if (t < steps * STEP) reset()
+    while ((steps + 1) * STEP <= t) step()
+    sim.time = t
   }
 
-  function step(dt) {
-    const t1 = sim.time + dt
+  function step() {
+    const t1 = (steps + 1) * STEP
     // Spawn everything due in this step, in time order, so emitters started here still get stepped.
     sim.pending.sort((a, b) => a.time - b.time)
     while (sim.pending.length && sim.pending[0].time <= t1) {
@@ -55,7 +57,7 @@ export function createSim(bundle, opts = {}) {
       if (s.effect) spawnEffect(s.effect, s.pos, s.axis, s.time, s.depth)
       else spawnParticle(s)
     }
-    const dts = dt / 1000
+    const dts = STEP / 1000
     const alive = []
     for (const p of sim.particles) {
       if (p.spawnTime > t1) { alive.push(p); continue }
@@ -67,7 +69,7 @@ export function createSim(bundle, opts = {}) {
       alive.push(p)
     }
     sim.particles = alive
-    sim.time = t1
+    steps++
   }
 
   function integrate(p, f, dts, now) {
