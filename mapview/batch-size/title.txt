@@ -1,1 +1,0 @@
-mapview: let batch shots set their own size
