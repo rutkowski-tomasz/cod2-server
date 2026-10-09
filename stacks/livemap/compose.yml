@@ -2,7 +2,26 @@ services:
   livemap:
     image: oven/bun:1-alpine
     command: bun /relay.js
-    configs:
+      # `mapview.js live` behind live.mynl.pl, drawing the map the dev server plays from the iwds the servers use.
+  # Building a map's page takes a core for tens of seconds, so the CPU cap keeps it off the game servers.
+  livemap-web:
+    image: ghcr.io/rutkowski-tomasz/cod2-mapview:latest
+    command: ["live", "ws://livemap:8081", "--page-relay", "wss://live.mynl.pl/relay", "--port", "8643",
+      "--source", "/assets/stock", "--source", "/assets/nl", "--source", "/assets/library"]
+    volumes:
+      - /home/ubuntu/cod2/main/1_3:/assets/stock:ro
+      - /home/ubuntu/cod2/servers/nl-cod2-zom-dev/nl:/assets/nl:ro
+      - /home/ubuntu/cod2/servers/nl-cod2-zom-dev/library/iwds:/assets/library:ro
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 5s
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1536M
+
+configs:
       - source: relay
         target: /relay.js
     ports:

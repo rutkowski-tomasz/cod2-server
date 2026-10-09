@@ -1,0 +1,5 @@
+*
+!tools/shared
+!tools/mapview
+tools/mapview/node_modules
+tools/mapview/out

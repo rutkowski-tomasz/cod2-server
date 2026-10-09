@@ -30,11 +30,19 @@ services:
       - /home/ubuntu/reverse-proxy/certs:/etc/letsencrypt
       - /home/ubuntu/reverse-proxy/www:/var/www/html
       - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - LETS_ENCRYPT_DOMAINS=${LETS_ENCRYPT_DOMAINS}
+      - LETS_ENCRYPT_EMAIL=${LETS_ENCRYPT_EMAIL}
     entrypoint: "/bin/sh"
+    # Adding a name to LETS_ENCRYPT_DOMAINS expands the certificate on the next deploy. The expand runs apart from the
+    # renewal, so a name that fails validation never stops the certificate from renewing.
     command: >
       -c "apk add --no-cache docker-cli &&
       trap exit TERM; 
+      sleep 30;
       while :; do
+        echo \"$$(date): Expanding the certificate to $${LETS_ENCRYPT_DOMAINS}...\";
+        certbot certonly --webroot --webroot-path=/var/www/html --cert-name mynl.pl --expand --keep-until-expiring --non-interactive --agree-tos --email $${LETS_ENCRYPT_EMAIL} -d $${LETS_ENCRYPT_DOMAINS} --deploy-hook 'docker service update --force reverse-proxy_reverse-proxy';
         echo \"$$(date): Starting certificate renewal check...\";
         certbot renew --webroot --webroot-path=/var/www/html --deploy-hook 'docker service update --force reverse-proxy_reverse-proxy';
         echo \"$$(date): Renewal check complete. Next check in 24 hours.\";
