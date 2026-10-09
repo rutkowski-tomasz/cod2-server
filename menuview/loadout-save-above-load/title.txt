@@ -1,1 +1,0 @@
-menuview: show save class buttons above load in loadout menu
