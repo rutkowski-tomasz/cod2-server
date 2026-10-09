@@ -1,1 +1,0 @@
-mapview: read the lightmap sun page as 1024x1024 grey
