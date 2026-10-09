@@ -184,6 +184,7 @@ export function createSim(bundle, opts = {}) {
       emitEvery: d.emitfx ? Math.max(0, rand(d.density) + (rng() * 2 - 1) * rand(d.variance)) : 0,
       travel: 0,
       shader: d.shaders.length ? d.shaders[Math.floor(rng() * d.shaders.length)] : null,
+      atlasFrames: 1,
       model: d.models.length ? d.models[Math.floor(rng() * d.models.length)] : null,
       r: {
         size: rng(), size2: rng(), length: rng(), rotDelta: rng(), alpha: rng(), rgb: rng(), vel: [rng(), rng(), rng()], vel2: [rng(), rng(), rng()],
@@ -191,6 +192,8 @@ export function createSim(bundle, opts = {}) {
       },
       dead: false,
     }
+    const material = bundle.materials[p.shader]
+    if (material) p.atlasFrames = material.atlasCols * material.atlasRows
     if (d.velocity && !p.absVel) p.physVel = toWorld(p.physVel, axis)
     if (p.accel && !p.absVel) p.accel = toWorld(p.accel, axis)
     sim.particles.push(p)
@@ -278,7 +281,7 @@ function sampleSize(p) {
 
 function atlasFrame(p, f) {
   const s = p.def.sequence
-  const frames = p.atlasFrames ?? 1
+  const frames = p.atlasFrames
   if (frames <= 1) return 0
   let start = s.startMode === 1 ? Math.floor(p.r.frame * frames) : s.startMode === 2 ? p.index : s.fixedFrame
   let played

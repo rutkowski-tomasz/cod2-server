@@ -274,8 +274,6 @@ function particleQuad(p, eye, viewRight, viewUp) {
   const d = p.def
   let tex = p.shader ?? 'missing'
   if (p.shader && !textures[p.shader]) tex = 'missing'
-  const meta = materialMeta[tex]
-  p.atlasFrames = meta.atlasCols * meta.atlasRows
   const color = [vis.rgb[0], vis.rgb[1], vis.rgb[2], vis.alpha]
   const w = vis.width, h = vis.height
   if (w <= 0 && d.type !== 'Light') return null
