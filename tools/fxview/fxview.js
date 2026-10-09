@@ -19,7 +19,7 @@ options:
   --source <dir|iwd>   extra asset source, repeatable; mod folders beat stock
   --times 50,200,500   frame times in ms (render); default: --frames spread over the active duration, denser early
   --frames 8           number of evenly spaced frames (render)
-  --cols 4             sheet columns (render)
+  --cols 4             sheet columns, fewer if there are fewer frames (render)
   --size 480x360       frame size (render)
   --cam yaw,pitch,dist camera; default fits the effect
   --forward x|z|-z|-x  effect forward axis (default z: pointing up, like playFx without a forward vector or an explosion on the ground; x: level, like a muzzle)
@@ -108,7 +108,9 @@ async function render() {
   const html = join(dirname(out), `${basename(out, '.png')}.html`)
   writeFileSync(html, buildHtml(bundle))
   const [width, height] = (opts.size ?? '480x360').split('x').map(Number)
-  const cols = Number(opts.cols ?? 4)
+  const times = opts.times ? opts.times.split(',').map(Number) : null
+  const frames = Number(opts.frames ?? 8)
+  const cols = Number(opts.cols ?? Math.min(4, times ? times.length : frames))
   const { chromium } = await import('playwright-core')
   const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
   try {
@@ -122,7 +124,7 @@ async function render() {
       // Denser early: most effects burst in the first tenth of their life.
       const list = times ?? Array.from({ length: frames }, (_, i) => Math.round(span * ((i + 1) / frames) ** 2))
       return { ...window.efx.capture({ times: list, cols, width, height }), info }
-    }, { times: opts.times ? opts.times.split(',').map(Number) : null, frames: Number(opts.frames ?? 8), cols, width, height })
+    }, { times, frames, cols, width, height })
     writeFileSync(out, Buffer.from(result.png.split(',')[1], 'base64'))
     console.log(out)
     const stats = { target: bundle.root, ...result.info, frames: result.frames }
