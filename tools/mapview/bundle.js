@@ -47,6 +47,7 @@ export function loadScene(target, search, { prefabRoots = [] } = {}) {
       material, entity: s.entity, lightmap: s.lightmap ?? -1, doubleSided: s.doubleSided,
       positions: push(positions),
       normals: push(Float32Array.from(s.normals)),
+      colors: s.colors ? push(Uint8Array.from(s.colors)) : null,
       uvs: push(Float32Array.from(s.uvs)),
       lmuvs: s.lmuvs ? push(Float32Array.from(s.lmuvs)) : null,
       indices: push(Uint32Array.from(s.indices)),

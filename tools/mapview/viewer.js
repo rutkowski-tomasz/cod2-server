@@ -59,7 +59,12 @@ function decodeGeometry(bundle) {
   const text = atob(bundle.geometry)
   const bytes = new Uint8Array(text.length)
   for (let i = 0; i < text.length; i++) bytes[i] = text.charCodeAt(i)
-  return { ...bundle, f32: (ref) => new Float32Array(bytes.buffer, ref.offset, ref.count), u32: (ref) => new Uint32Array(bytes.buffer, ref.offset, ref.count) }
+  return {
+    ...bundle,
+    u8: (ref) => new Uint8Array(bytes.buffer, ref.offset, ref.count),
+    f32: (ref) => new Float32Array(bytes.buffer, ref.offset, ref.count),
+    u32: (ref) => new Uint32Array(bytes.buffer, ref.offset, ref.count),
+  }
 }
 
 function readParams(p) {
