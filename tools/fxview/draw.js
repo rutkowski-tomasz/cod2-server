@@ -239,7 +239,8 @@ export function createRenderer(canvas, { materials, models }) {
     gl.uniformMatrix4fv(uVp, false, vp)
     gl.uniform3fv(uEye, eye)
     gl.uniform1f(uGround, state.ground ?? 0)
-    const shown = (p) => p.spawnTime <= sim.time && !hidden.has(p.def.key) && (state.ground === null || p.pos[2] >= state.ground - 2 || p.type === 'Decal') && (!state.ranges || inViewRange(p, eye))
+    const visible = (p) => p.spawnTime <= sim.time && !hidden.has(p.def.key) && (state.ground === null || p.pos[2] >= state.ground - 2 || p.type === 'Decal')
+    const inRange = (p) => !state.ranges || inViewRange(p, eye)
 
     // Reference lines and models, with depth write so particles sort against them.
     sceneLines(sim, state, eye)
@@ -254,14 +255,16 @@ export function createRenderer(canvas, { materials, models }) {
       return { corners: [V.add(l.a, sideA), V.add(l.b, sideB), V.sub(l.b, sideB), V.sub(l.a, sideA)], color: l.color, tex: 'white', frame: 0 }
     })
     drawQuads(lq)
-    drawModels(sim.particles.filter((p) => meshes[p.model] && shown(p)), eye, viewFwd)
+    drawModels(sim.particles.filter((p) => meshes[p.model] && visible(p) && inRange(p)), eye, viewFwd)
     gl.enable(gl.BLEND)
     gl.depthMask(false)
 
     // Particles, far to near, batched by material; distortion last, as it bends what is already drawn.
     const items = []
+    let outOfViewRange = 0
     for (const p of sim.particles) {
-      if (!shown(p)) continue
+      if (!visible(p)) continue
+      if (!inRange(p)) { outOfViewRange++; continue }
       const q = particleQuad(p, eye, viewRight, viewUp)
       if (!q) continue
       const at = p.end ? V.mul(V.add(p.pos, p.end), 0.5) : p.pos
@@ -273,6 +276,7 @@ export function createRenderer(canvas, { materials, models }) {
     const isDistortion = (q) => materialMeta[q.tex].blend === 'distortion'
     drawQuads(items.filter((q) => !isDistortion(q)))
     drawQuads(items.filter(isDistortion))
+    return { outOfViewRange }
   }
 
   // Camera shake turns the view by up to its amplitude in degrees, driven by sim time so the same frame always shakes the same way.

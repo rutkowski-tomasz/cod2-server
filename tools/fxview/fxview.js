@@ -26,7 +26,7 @@ options:
   --seed 1             random seed
   --ground off         no ground plane
   --bg dark|mid|light|black
-  --ranges off         show elements outside their spawnRange or cullrange at this camera distance
+  --ranges off         ignore spawnRange and cullrange
   --stats              also write <out>.json with per-frame particle counts and warnings (render)`
 
 const args = process.argv.slice(2)
