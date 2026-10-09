@@ -4,3 +4,5 @@ server/zk_libcod/
 *.tfstate.*
 *.tfvars
 .DS_Store
+node_modules/
+tools/fxview/out/

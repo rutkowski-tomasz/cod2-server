@@ -18,6 +18,10 @@ The image builds [zk_libcod](https://github.com/ibuddieat/zk_libcod) at the comm
 
 `server/FUNCTIONS.md` should list only the *current* function signatures. Update it when a function signature is added, changed, or removed.
 
+# tools
+
+`tools/fxview/` previews `.efx` effects without the game: `node tools/fxview/fxview.js render <efx>` writes a contact sheet to look at, `view` an interactive page, `info` the element list. See `tools/fxview/README.md`.
+
 # stacks
 
 Pushing changes under `stacks/<name>/` to `master` deploys that stack to production. Each stack has a small `deploy-<name>.yml` workflow that calls the shared `deploy-stack.yml`. Config names end with `${CONFIG_HASH}`, a hash of every file in the stack folder except `compose.yml`, so editing a config file is enough to roll it out. After deploying, the workflow removes the stack's old configs. Image digests stay pinned unless the image changes (`--resolve-image changed`).

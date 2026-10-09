@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>fxview</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #202020; color: #ddd; font: 12px/1.4 system-ui, sans-serif; overflow: hidden; }
+  #ui { position: absolute; left: 0; top: 0; bottom: 0; width: 260px; padding: 8px; box-sizing: border-box; background: rgba(0,0,0,.75); overflow-y: auto; }
+  #ui h1 { font-size: 12px; margin: 0 0 6px; word-break: break-all; }
+  #ui label { display: block; margin: 2px 0; }
+  #ui input[type=range] { width: 100%; }
+  #ui select, #ui input[type=number] { background: #333; color: #ddd; border: 1px solid #555; width: 100%; box-sizing: border-box; }
+  #ui button { background: #444; color: #ddd; border: 1px solid #666; padding: 2px 8px; margin-right: 4px; }
+  #ui .row { display: flex; gap: 4px; align-items: center; margin: 4px 0; }
+  #ui .row > * { flex: 1; }
+  #elements label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #elements .n { color: #8c8; float: right; }
+  #warn { color: #f88; white-space: pre-wrap; }
+  #stats { color: #999; }
+  #fps { position: absolute; right: 8px; top: 6px; color: #8c8; font: 12px monospace; background: rgba(0,0,0,.5); padding: 2px 6px; }
+  canvas { position: absolute; left: 260px; top: 0; }
+  .hideui #ui { display: none; }
+  .hideui canvas { left: 0; }
+</style>
+</head>
+<body>
+<div id="ui">
+  <h1 id="title"></h1>
+  <div class="row"><button id="play">Pause</button><button id="restart">Restart</button><button id="fit">Fit</button></div>
+  <input id="time" type="range" min="0" max="1000" step="1" value="0">
+  <div id="stats"></div>
+  <div class="row"><label>Speed <select id="speed"><option>0.1</option><option>0.25</option><option>0.5</option><option selected>1</option><option>2</option></select></label>
+  <label>Loop <input id="loop" type="checkbox" checked></label></div>
+  <div class="row"><label>Forward <select id="forward"><option value="x">+X (level)</option><option value="z">+Z (up)</option><option value="-z">-Z (down)</option><option value="-x">-X</option></select></label>
+  <label>Seed <input id="seed" type="number" value="1" min="0"></label></div>
+  <div class="row"><label>Ground <select id="ground"><option value="0">z = 0</option><option value="off">off</option></select></label>
+  <label>Background <select id="bg"><option>dark</option><option>mid</option><option>light</option><option>black</option></select></label></div>
+  <div class="row"><label><input id="grid" type="checkbox" checked> Grid</label><label><input id="player" type="checkbox" checked> Player ref</label></div>
+  <div id="elements"></div>
+  <div id="warn"></div>
+  <p id="help" style="color:#777">Drag: orbit · Shift+drag: pan · Wheel: zoom · Space: play/pause · ←/→: step 50 ms · H: hide panel</p>
+</div>
+<canvas id="gl"></canvas>
+<div id="fps"></div>
+<script id="bundle" type="application/json">__BUNDLE__</script>
+<script type="module">
+__SCRIPT__
+</script>
+</body>
+</html>

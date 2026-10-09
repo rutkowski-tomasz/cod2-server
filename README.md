@@ -5,6 +5,7 @@ Everything needed to run a Call of Duty 2 server:
 - [`server/`](server) — server image `ghcr.io/rutkowski-tomasz/cod2-server-1.3` and our additions to [zk_libcod](https://github.com/ibuddieat/zk_libcod), see [functions](server/FUNCTIONS.md)
 - [`infra/`](infra) — Terraform for the VPS
 - [`stacks/`](stacks) — Docker Swarm stacks running on the VPS, deployed by the `deploy-<stack>` workflows
+- [`tools/fxview/`](tools/fxview) — plays `.efx` effects outside the game, for people and for agents checking their own effects
 
 See [AGENTS.md](AGENTS.md) for the local build command and how libcod is built.
 
