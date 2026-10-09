@@ -121,8 +121,8 @@ export function createWorld(map, renderer, scene, onChange) {
   function makeMaterial(info, lightmap, tool, sunShade) {
     if (/water/.test(info.techset ?? '') || /^water/.test(info.name)) return new THREE.MeshBasicMaterial({ color: WATER_COLOR, transparent: true, opacity: 0.55, depthWrite: false })
     const baseColor = hashColor(info.name)
-    // Only the lightmap shader blends by techset; a .map and tool brushes draw every material opaque.
-    const blend = lit && !tool ? blendOf(info.techset) : BLEND.opaque
+    // Tool brushes have their own fixed opacity.
+    const blend = tool ? BLEND.opaque : blendOf(info.techset)
     let mat
     if (!lit) mat = new THREE.MeshLambertMaterial({ color: baseColor })
     // A compiled map has no three.js lights, and its collision brushes no lightmap, so tool brushes there draw unlit.
