@@ -1,9 +1,12 @@
-// The lightmap shader compiled maps draw with, how a material's techset sets its blending, and the game's fog.
+// The lightmap shader compiled maps draw with (including normal and specular maps), how a material's techset sets its blending, and the game's fog.
 
 // How a surface's techset combines it with what is behind it; the shader's `blend` uniform.
 export const BLEND = { opaque: 0, alpha: 1, multiply: 2, add: 3 }
 // Models have no lightmap: in a compiled map they get this much light everywhere, plus the sun by N·L.
 const MODEL_AMBIENT = 0.5
+// The game looks specular strength up in an engine-made table indexed by the specular map's alpha and N·H.
+// The table is not in the iwds, so this guesses a Blinn-Phong exponent of 2^(alpha · this).
+const SPECULAR_POWER_RANGE = 8
 
 // The game fogs by distance from the eye: exp fog as exp(-density · d), cull fog linear from near to far
 // (materials/shaders/lib/fogcalc.hlsl in iw_07). three.js fogs by depth, squares the exponent and smoothsteps.
@@ -31,16 +34,20 @@ export const LIGHTMAP_SHADER = {
   fog: true,
   vertexShader: `#include <clipping_planes_pars_vertex>
 #include <fog_pars_vertex>
-attribute vec2 uv1; attribute vec4 rgba;
-varying vec2 vUv; varying vec2 vLm; varying vec3 vNormal; varying vec4 vColor;
+attribute vec2 uv1; attribute vec4 rgba; attribute vec3 tangentU; attribute vec3 binormalV;
+varying vec2 vUv; varying vec2 vLm; varying vec3 vNormal; varying vec3 vTangent; varying vec3 vBinormal; varying vec3 vWorld; varying vec4 vColor;
 void main() {
   vUv = uv; vLm = uv1; vColor = rgba;
   mat4 m = modelMatrix;
   #ifdef USE_INSTANCING
   m = m * instanceMatrix;
   #endif
-  vNormal = normalize(mat3(m) * normal);
-  vec4 mvPosition = viewMatrix * m * vec4(position, 1.0);
+  vNormal = mat3(m) * normal;
+  vTangent = mat3(m) * tangentU;
+  vBinormal = mat3(m) * binormalV;
+  vec4 world = m * vec4(position, 1.0);
+  vWorld = world.xyz;
+  vec4 mvPosition = viewMatrix * world;
   gl_Position = projectionMatrix * mvPosition;
   #include <clipping_planes_vertex>
   #include <fog_vertex>
@@ -48,13 +55,24 @@ void main() {
   // Mirrors the game's lmap shader: lightmap = indirect light (four coefficients per channel, weighted
   // for a flat normal), plus sun colour scaled by the sun-visibility page and N·L. Vertex colour tints
   // the texel; its alpha fades blended layers. Multiply layers are unlit, like the game's effect_multiply.
+  // The normal map bends the normal the sun and specular use: its alpha and green move it along the
+  // tangent and binormal. The game also weights the four coefficients by the bent normal, through another
+  // engine-made table, so the indirect light stays flat here. Specular adds the specular map's colour
+  // where the half vector meets the normal; shadowed surfaces keep 30% of it, as in the game.
   // Fog fades multiply layers to white and add layers to black, so the fogged surface under them shows unchanged.
   fragmentShader: `#include <clipping_planes_pars_fragment>
 #include <fog_pars_fragment>
 uniform sampler2D map; uniform int hasMap; uniform vec3 color; uniform float alphaTest;
 uniform sampler2D lmR; uniform sampler2D lmG; uniform sampler2D lmB; uniform sampler2D lmSun;
 uniform int useLm; uniform int sunShade; uniform vec3 sunDir; uniform vec3 sunColor; uniform int blend;
-varying vec2 vUv; varying vec2 vLm; varying vec3 vNormal; varying vec4 vColor;
+uniform sampler2D normalMap; uniform int hasNormalMap; uniform sampler2D specularMap; uniform int hasSpecularMap;
+varying vec2 vUv; varying vec2 vLm; varying vec3 vNormal; varying vec3 vTangent; varying vec3 vBinormal; varying vec3 vWorld; varying vec4 vColor;
+vec3 specular(vec3 n, float visibility) {
+  if (hasSpecularMap == 0) return vec3(0.0);
+  vec4 s = texture2D(specularMap, vUv);
+  vec3 h = normalize(normalize(cameraPosition - vWorld) + sunDir);
+  return sunColor * s.rgb * pow(max(0.0, dot(n, h)), exp2(s.a * ${SPECULAR_POWER_RANGE}.0)) * mix(0.3, 1.0, visibility);
+}
 void main() {
   #include <clipping_planes_fragment>
   vec4 t = hasMap == 1 ? texture2D(map, vUv) : vec4(color, 1.0);
@@ -62,16 +80,24 @@ void main() {
   vec4 d = t * vColor;
   if (blend == ${BLEND.multiply}) gl_FragColor = vec4(mix(vec3(1.0), d.rgb, d.a), 1.0);
   else {
+    vec3 n = normalize(vNormal);
+    if (hasNormalMap == 1) {
+      vec2 b = texture2D(normalMap, vUv).ag * 2.0 - 1.0;
+      n = normalize(vNormal + b.x * vTangent + b.y * vBinormal);
+    }
     vec3 light = vec3(1.0);
+    vec3 spec = vec3(0.0);
     if (useLm == 1) {
       vec4 w = vec4(0.25);
       vec3 lm = vec3(dot(texture2D(lmR, vLm), w), dot(texture2D(lmG, vLm), w), dot(texture2D(lmB, vLm), w));
       float sunVis = texture2D(lmSun, vLm).r;
-      light = lm + sunVis * max(0.0, dot(normalize(vNormal), sunDir)) * sunColor;
+      light = lm + sunVis * max(0.0, dot(n, sunDir)) * sunColor;
+      spec = specular(n, sunVis);
     } else if (sunShade == 1) {
-      light = vec3(${MODEL_AMBIENT.toFixed(2)}) + max(0.0, dot(normalize(vNormal), sunDir)) * sunColor;
+      light = vec3(${MODEL_AMBIENT.toFixed(2)}) + max(0.0, dot(n, sunDir)) * sunColor;
+      spec = specular(n, 1.0);
     }
-    gl_FragColor = vec4(d.rgb * light, blend == ${BLEND.opaque} ? 1.0 : d.a);
+    gl_FragColor = vec4(d.rgb * light + spec, blend == ${BLEND.opaque} ? 1.0 : d.a);
   }
   #ifdef USE_FOG
   ${FOG_AMOUNT}

@@ -32,9 +32,10 @@ view options:
   --look x,y,z         aim at a point           --fov 80                  horizontal field of view
   --top                orthographic top-down    --center x,y --span u     top view window
   --cut z              hide everything above z
-  --labels off|all     --ents off   --tex off   --lightmap off   --shadows off   --fog off   --grid   --tools`
+  --labels off|all     --ents off   --tex off   --lightmap off   --normals off   --shadows off
+  --fog off   --grid   --tools`
 
-const VIEW_KEYS = ['pos', 'angles', 'at', 'look', 'fov', 'top', 'center', 'span', 'cut', 'labels', 'ents', 'tex', 'lightmap', 'shadows', 'fog', 'grid', 'tools']
+const VIEW_KEYS = ['pos', 'angles', 'at', 'look', 'fov', 'top', 'center', 'span', 'cut', 'labels', 'ents', 'tex', 'lightmap', 'normals', 'shadows', 'fog', 'grid', 'tools']
 const FLAGS = ['open', 'json', 'top', 'grid', 'tools']
 
 const args = process.argv.slice(2)

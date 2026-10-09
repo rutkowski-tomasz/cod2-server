@@ -12,6 +12,8 @@ import { parseVec } from './math.js'
 const TOOL_MATERIALS = /^(caulk|clip|nodraw|hint|skip|trigger|portal|lightgrid|ladder|mantle|sky$|origin|areaportal|sun_|lightmap_|\$|util_|physics|mirror|textures\/common)/i
 // Textures are downscaled to keep the page small; 512 still reads well at eye level.
 const TEXTURE_SIZE = 512
+// Normal and specular maps are noisy and compress badly, so they get half the size to keep the page small.
+const NORMAL_MAP_SIZE = 256
 const DEFAULT_BOUNDS = { min: [-512, -512, -64], max: [512, 512, 256] }
 
 // `target` is a .map or .d3dbsp file, or a game path or stock name like mp_harbor.
@@ -20,11 +22,13 @@ const DEFAULT_BOUNDS = { min: [-512, -512, -64], max: [512, 512, 256] }
 export function loadScene(target, search, { prefabRoots = [], scriptDir } = {}) {
   const source = loadTarget(target, search)
   const parsed = source.kind === 'map' ? readMap(source.path, prefabRoots) : readBsp(source.buffer)
+  // Only the lightmap shader draws normal and specular maps, so pages without lightmaps leave them out.
+  const lit = parsed.lightmaps?.length > 0
   const entities = parsed.entities.map(entityInfo)
   const materials = []
   const materialIndex = new Map()
   const materialId = (name) => {
-    if (!materialIndex.has(name)) materialIndex.set(name, materials.push(describeMaterial(name, search)) - 1)
+    if (!materialIndex.has(name)) materialIndex.set(name, materials.push(describeMaterial(name, search, lit)) - 1)
     return materialIndex.get(name)
   }
 
@@ -39,13 +43,20 @@ export function loadScene(target, search, { prefabRoots = [], scriptDir } = {}) 
     return ref
   }
   // The arrays that map and model surfaces share, packed into the geometry buffer.
-  const packGeometry = (s) => ({
-    positions: push(Float32Array.from(s.positions)),
-    normals: push(Float32Array.from(s.normals)),
-    colors: s.colors ? push(Uint8Array.from(s.colors)) : null,
-    uvs: push(Float32Array.from(s.uvs)),
-    indices: push(Uint32Array.from(s.indices)),
-  })
+  // Tangents and binormals only matter under a normal map, so other surfaces leave them out of the page;
+  // rebuilt collision faces have none.
+  const packGeometry = (s, material) => {
+    const bumped = materials[material].normalMap && s.tangents
+    return {
+      positions: push(Float32Array.from(s.positions)),
+      normals: push(Float32Array.from(s.normals)),
+      colors: s.colors ? push(Uint8Array.from(s.colors)) : null,
+      uvs: push(Float32Array.from(s.uvs)),
+      tangents: bumped ? push(Float32Array.from(s.tangents)) : null,
+      binormals: bumped ? push(Float32Array.from(s.binormals)) : null,
+      indices: push(Uint32Array.from(s.indices)),
+    }
+  }
 
   const bounds = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] }
   const grow = (p) => { for (let k = 0; k < 3; k++) { bounds.min[k] = Math.min(bounds.min[k], p[k]); bounds.max[k] = Math.max(bounds.max[k], p[k]) } }
@@ -55,7 +66,7 @@ export function loadScene(target, search, { prefabRoots = [], scriptDir } = {}) 
     if (s.entity === 0 && !s.collision && !materials[material].sky) for (let i = 0; i < positions.length; i += 3) grow(positions.subarray(i, i + 3))
     return {
       material, entity: s.entity, lightmap: s.lightmap ?? -1, doubleSided: s.doubleSided, collision: s.collision,
-      ...packGeometry({ ...s, positions }),
+      ...packGeometry({ ...s, positions }, material),
       lmuvs: s.lmuvs ? push(Float32Array.from(s.lmuvs)) : null,
     }
   })
@@ -65,7 +76,10 @@ export function loadScene(target, search, { prefabRoots = [], scriptDir } = {}) 
   const boxModels = []
   for (const name of new Set(entities.map((e) => e.keys.model).filter((m) => m?.startsWith('xmodel/')))) {
     const surfaces = readXModel(name, search)
-    if (surfaces) models[name] = surfaces.map((s) => ({ material: materialId(s.material), ...packGeometry(s) }))
+    if (surfaces) models[name] = surfaces.map((s) => {
+      const material = materialId(s.material)
+      return { material, ...packGeometry(s, material) }
+    })
     else boxModels.push(name)
   }
 
@@ -86,9 +100,14 @@ export function buildBundle(target, search, options) {
   const { scene, geometry, lightmaps } = loadScene(target, search, options)
   const images = {}
   for (const m of scene.materials) {
-    if (m.sky || !m.width || images[m.image]) continue
-    const img = decodeIwi(search.read(`images/${m.image}.iwi`))
-    images[m.image] = { png: pngDataUrl(downscale(img, TEXTURE_SIZE)), alpha: hasAlpha(img.rgba) }
+    if (m.sky || !m.width) continue
+    if (!images[m.image]) {
+      const img = decodeIwi(search.read(`images/${m.image}.iwi`))
+      images[m.image] = { png: pngDataUrl(downscale(img, TEXTURE_SIZE)), alpha: hasAlpha(img.rgba) }
+    }
+    for (const name of [m.normalMap, m.specularMap]) {
+      if (name && !images[name]) images[name] = { png: pngDataUrl(downscale(decodeIwi(search.read(`images/${name}.iwi`)), NORMAL_MAP_SIZE)) }
+    }
   }
   const skyMaterial = scene.materials.find((m) => m.sky && m.width)
   const sky = skyMaterial && decodeIwi(search.read(`images/${skyMaterial.image}.iwi`))
@@ -102,7 +121,7 @@ export function buildBundle(target, search, options) {
 }
 
 // A material with an image it can draw has `width`; `missing` says why one has none.
-function describeMaterial(name, search) {
+function describeMaterial(name, search, lit) {
   const tool = TOOL_MATERIALS.test(name)
   const buf = search.read(`materials/${name}`)
   const mat = buf && parseMaterial(buf)
@@ -114,7 +133,13 @@ function describeMaterial(name, search) {
   if (!iwi) return { ...info, missing: `→ ${mat.image}.iwi` }
   const { format, width, height } = iwiInfo(iwi)
   if (!format) return { ...info, missing: `→ ${mat.image}.iwi (unsupported format ${iwi[4]})` }
-  return { ...info, width, height }
+  // `$identitynormalmap` and other engine images are flat, so they are left out like missing ones.
+  // Tool brushes draw unlit, so they never use them.
+  const usable = (image) => {
+    const buf = lit && !info.tool && image && !image.startsWith('$') && search.read(`images/${image}.iwi`)
+    return buf && iwiInfo(buf).format ? image : undefined
+  }
+  return { ...info, width, height, normalMap: usable(mat.normalMap), specularMap: usable(mat.specularMap) }
 }
 
 // The fog the map's script sets: its first setExpFog or setCullFog called with numbers.
