@@ -28,9 +28,11 @@ The image builds [zk_libcod](https://github.com/ibuddieat/zk_libcod) at the comm
 
 `tools/mapcompile/` compiles a `.map` into a map `.iwd` with the Mod Tools under wine in Docker: `tools/mapcompile/mapcompile.sh <file.map> [-o out.iwd]`. See `tools/mapcompile/README.md`.
 
-`tools/shared/` holds what the tools share: the asset search over iwds and folders, material, xmodel, IWI (with its wavelet formats, GPLv3) and PNG codecs, and the module inliner for their file:// pages.
+`tools/mapdecompile/` turns a `.d3dbsp` back into a `.map`: `node tools/mapdecompile/mapdecompile.js <d3dbsp | iwd | mp_name> [-o out.map]`. See `tools/mapdecompile/README.md`.
 
-fxview, menuview, mapview and mapcompile write to `out/<tool>/` (git-ignored) unless `-o` is given; that is scratch.
+`tools/shared/` holds what the tools share: the asset search over iwds and folders, the `.d3dbsp` reader, material, xmodel, IWI (with its wavelet formats, GPLv3) and PNG codecs, and the module inliner for their file:// pages.
+
+fxview, menuview, mapview, mapcompile and mapdecompile write to `out/<tool>/` (git-ignored) unless `-o` is given; that is scratch.
 
 Before/after screenshots of a change go on the `pr-assets` branch, which PRs embed images from. Check it out once with `git worktree add ../cod2-server-pr-assets pr-assets`, then follow its `README.md`.
 
