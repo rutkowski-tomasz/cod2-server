@@ -3,10 +3,12 @@
 const STEP = 1000 / 120
 const MAX_PARTICLES = 20000
 const MAX_DEPTH = 4
+// z: pointing up, like playFx without a forward vector or an explosion on the ground. x: level, like a muzzle.
+export const FORWARD = { x: [1, 0, 0], z: [0, 0, 1], '-z': [0, 0, -1], '-x': [-1, 0, 0] }
 
 export function createSim(bundle, opts = {}) {
   const rngSeed = opts.seed ?? 1
-  const forward = norm(opts.forward ?? [0, 0, 1])
+  const forward = FORWARD[opts.forward ?? 'z']
   const up = opts.up ?? (Math.abs(forward[2]) > 0.9 ? [1, 0, 0] : [0, 0, 1])
   const ground = opts.ground === undefined ? 0 : opts.ground
   const origin = opts.origin ?? [0, 0, 0]

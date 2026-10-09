@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { createSearch } from './assets.js'
 import { buildBundle } from './bundle.js'
-import { createSim } from './sim.js'
+import { createSim, FORWARD } from './sim.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const USAGE = `usage:
@@ -41,9 +41,8 @@ while (args.length) {
   else positional.push(a)
 }
 
+if (opts.forward && !FORWARD[opts.forward]) { console.error(USAGE); process.exit(1) }
 const search = createSearch(opts.source)
-const BG = { dark: 0.125, mid: 0.45, light: 0.8, black: 0 }
-const FORWARD = { x: '1,0,0', z: '0,0,1', '-z': '0,0,-1', '-x': '-1,0,0' }
 
 switch (cmd) {
   case 'view': view(); break
@@ -68,14 +67,9 @@ function outName(ext) {
 // Command line options are baked into the page as defaults; URL hash params still override them.
 function buildHtml(bundle) {
   const sim = readFileSync(join(HERE, 'sim.js'), 'utf8').replace(/^export /gm, '')
-  const defaults = {}
-  if (opts.forward) defaults.forward = FORWARD[opts.forward] ?? opts.forward
-  if (opts.seed) defaults.seed = opts.seed
-  if (opts.ground === 'off') defaults.ground = 'off'
-  if (opts.bg) defaults.bg = BG[opts.bg] ?? opts.bg
-  if (opts.cam) defaults.cam = opts.cam
+  const defaults = Object.fromEntries(['forward', 'seed', 'ground', 'bg', 'cam'].filter((k) => opts[k] !== undefined).map((k) => [k, opts[k]]))
   return readFileSync(join(HERE, 'viewer.html'), 'utf8')
-    .replace("import { createSim, sampleVisual, axisFrom } from './sim.js'", sim)
+    .replace("import { createSim, sampleVisual, axisFrom, FORWARD } from './sim.js'", sim)
     .replace('__BUNDLE__', () => JSON.stringify({ ...bundle, defaults }).replace(/<\//g, '<\\/'))
 }
 

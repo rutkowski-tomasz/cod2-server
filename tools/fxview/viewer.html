@@ -31,10 +31,10 @@
   <div id="stats"></div>
   <div class="row"><label>Speed <select id="speed"><option>0.1</option><option>0.25</option><option>0.5</option><option selected>1</option><option>2</option></select></label>
   <label>Loop <input id="loop" type="checkbox" checked></label></div>
-  <div class="row"><label>Forward <select id="forward"><option value="1,0,0">+X (level)</option><option value="0,0,1">+Z (up)</option><option value="0,0,-1">-Z (down)</option><option value="-1,0,0">-X</option></select></label>
+  <div class="row"><label>Forward <select id="forward"><option value="x">+X (level)</option><option value="z">+Z (up)</option><option value="-z">-Z (down)</option><option value="-x">-X</option></select></label>
   <label>Seed <input id="seed" type="number" value="1" min="0"></label></div>
   <div class="row"><label>Ground <select id="ground"><option value="0">z = 0</option><option value="off">off</option></select></label>
-  <label>Background <select id="bg"><option value="0.125">dark</option><option value="0.45">mid</option><option value="0.8">light</option><option value="0">black</option></select></label></div>
+  <label>Background <select id="bg"><option>dark</option><option>mid</option><option>light</option><option>black</option></select></label></div>
   <div class="row"><label><input id="grid" type="checkbox" checked> Grid</label><label><input id="player" type="checkbox" checked> Player ref</label></div>
   <div id="elements"></div>
   <div id="warn"></div>
@@ -44,13 +44,14 @@
 <div id="fps"></div>
 <script id="bundle" type="application/json">__BUNDLE__</script>
 <script type="module">
-import { createSim, sampleVisual, axisFrom } from './sim.js'
+import { createSim, sampleVisual, axisFrom, FORWARD } from './sim.js'
 
 const bundle = JSON.parse(document.getElementById('bundle').textContent)
 const params = { ...(bundle.defaults ?? {}), ...Object.fromEntries(new URLSearchParams(location.hash.slice(1))) }
 const canvas = document.getElementById('gl')
 const gl = canvas.getContext('webgl2', { preserveDrawingBuffer: true, antialias: true, alpha: false })
 const $ = (id) => document.getElementById(id)
+const BG = { dark: 0.125, mid: 0.45, light: 0.8, black: 0 }
 
 // ---------- element keys, hidden set ----------
 let elementIndex = 0
@@ -62,10 +63,10 @@ const state = {
   playing: params.t === undefined,
   speed: 1,
   loop: true,
-  forward: (params.forward ?? '0,0,1').split(',').map(Number),
+  forward: params.forward ?? 'z',
   seed: Number(params.seed ?? 1),
   ground: params.ground === 'off' ? null : 0,
-  bg: Number(params.bg ?? 0.125),
+  bg: BG[params.bg ?? 'dark'],
   grid: params.grid !== 'off',
   player: params.player !== 'off',
 }
@@ -202,7 +203,8 @@ function sceneLines() {
       }
     }
   }
-  const axis = axisFrom(state.forward, Math.abs(state.forward[2]) > 0.9 ? [1, 0, 0] : [0, 0, 1])
+  const forward = FORWARD[state.forward]
+  const axis = axisFrom(forward, Math.abs(forward[2]) > 0.9 ? [1, 0, 0] : [0, 0, 1])
   pushLine([0, 0, 0], V.mul(axis[0], 48), [1, 0.3, 0.3, 1], 2)
   pushLine([0, 0, 0], V.mul(axis[1], 32), [0.3, 1, 0.3, 1], 2)
   pushLine([0, 0, 0], V.mul(axis[2], 32), [0.4, 0.5, 1, 1], 2)
@@ -414,14 +416,14 @@ $('fit').onclick = fit
 $('time').oninput = (e) => { state.playing = false; $('play').textContent = 'Play'; sim.seek(Number(e.target.value)) }
 $('speed').onchange = (e) => { state.speed = Number(e.target.value) }
 $('loop').onchange = (e) => { state.loop = e.target.checked }
-$('forward').value = state.forward.join(',')
-$('forward').onchange = (e) => { state.forward = e.target.value.split(',').map(Number); sim = makeSim(); fit() }
+$('forward').value = state.forward
+$('forward').onchange = (e) => { state.forward = e.target.value; sim = makeSim(); fit() }
 $('seed').value = state.seed
 $('seed').onchange = (e) => { state.seed = Number(e.target.value); sim = makeSim() }
 $('ground').value = state.ground === null ? 'off' : '0'
 $('ground').onchange = (e) => { state.ground = e.target.value === 'off' ? null : 0; sim = makeSim() }
-$('bg').value = String(state.bg)
-$('bg').onchange = (e) => { state.bg = Number(e.target.value) }
+$('bg').value = params.bg ?? 'dark'
+$('bg').onchange = (e) => { state.bg = BG[e.target.value] }
 $('grid').checked = state.grid
 $('grid').onchange = (e) => { state.grid = e.target.checked }
 $('player').checked = state.player
