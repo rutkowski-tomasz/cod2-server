@@ -65,7 +65,7 @@ export function createPlayers(map, world) {
       return outer
     },
     // Moves the copies on by the time since the last call; true when one is drawn in `cam`'s view, so the page has
-    // to draw again. A copy is not drawn while it or a group above it is hidden, or while `cut` (a height, or null)
+    // to draw again. A copy is not drawn while a group above it is hidden, or while `cut` (a height, or null)
     // is below its feet. False once frozen.
     update(cam, cut) {
       const now = performance.now()
