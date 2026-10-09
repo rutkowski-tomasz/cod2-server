@@ -49,15 +49,19 @@ export function parseSurfaces(buf) {
     const normals = []
     const colors = []
     const uvs = []
+    const binormals = []
+    const tangents = []
     for (let v = 0; v < vertexCount; v++, o += 60) {
       normals.push(buf.readFloatLE(o), buf.readFloatLE(o + 4), buf.readFloatLE(o + 8))
       colors.push(buf[o + 12], buf[o + 13], buf[o + 14], buf[o + 15])
       uvs.push(buf.readFloatLE(o + 16), buf.readFloatLE(o + 20))
+      binormals.push(buf.readFloatLE(o + 24), buf.readFloatLE(o + 28), buf.readFloatLE(o + 32))
+      tangents.push(buf.readFloatLE(o + 36), buf.readFloatLE(o + 40), buf.readFloatLE(o + 44))
       positions.push(buf.readFloatLE(o + 48), buf.readFloatLE(o + 52), buf.readFloatLE(o + 56))
     }
     const indices = []
     for (let t = 0; t < triangleCount * 3; t++, o += 2) indices.push(buf.readUInt16LE(o))
-    surfaces.push({ positions, normals, colors, uvs, indices })
+    surfaces.push({ positions, normals, colors, uvs, tangents, binormals, indices })
   }
   return surfaces
 }

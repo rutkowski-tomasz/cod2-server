@@ -63,8 +63,8 @@ export function buildBundle(target, search) {
     const surfaces = readXModel(name, search)
     if (!surfaces) { missing.models.push(name); return }
     for (const s of surfaces) loadMaterial(s.material)
-    // fxview draws models without vertex colours, so they stay out of the page.
-    models[name] = { surfaces: surfaces.map(({ colors, ...s }) => s) }
+    // fxview draws only these; the rest, such as vertex colours, stay out of the page.
+    models[name] = { surfaces: surfaces.map(({ material, positions, normals, uvs, indices }) => ({ material, positions, normals, uvs, indices })) }
   }
 
   function loadMaterial(name) {

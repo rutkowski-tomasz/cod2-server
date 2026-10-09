@@ -31,7 +31,7 @@ export function createWorld(map, renderer, scene, onChange) {
   const sunColor = new THREE.Color(...wsVec('suncolor', [1, 1, 1]))
   const materials = new Map()
   const textures = new Map()
-  const view = { textures: true, lightmap: true }
+  const view = { textures: true, lightmap: true, normals: true }
   const fog = buildFog()
   let pending = 0
 
@@ -67,6 +67,7 @@ export function createWorld(map, renderer, scene, onChange) {
     setView(state) {
       view.textures = state.textures
       view.lightmap = state.lightmap
+      view.normals = state.normals
       tools.visible = state.tools
       for (const mat of materials.values()) refresh(mat)
       const shadows = state.shadows && !state.top
@@ -92,14 +93,10 @@ export function createWorld(map, renderer, scene, onChange) {
 
   function buildGeometry(s) {
     const geom = new THREE.BufferGeometry()
-    const pos = map.f32(s.positions), nor = map.f32(s.normals)
-    const p3 = new Float32Array(pos.length), n3 = new Float32Array(nor.length)
-    for (let i = 0; i < pos.length; i += 3) {
-      p3[i] = pos[i]; p3[i + 1] = pos[i + 2]; p3[i + 2] = -pos[i + 1]
-      n3[i] = nor[i]; n3[i + 1] = nor[i + 2]; n3[i + 2] = -nor[i + 1]
-    }
-    geom.setAttribute('position', new THREE.BufferAttribute(p3, 3))
-    geom.setAttribute('normal', new THREE.BufferAttribute(n3, 3))
+    geom.setAttribute('position', new THREE.BufferAttribute(zUpToYUp(map.f32(s.positions)), 3))
+    geom.setAttribute('normal', new THREE.BufferAttribute(zUpToYUp(map.f32(s.normals)), 3))
+    if (s.tangents) geom.setAttribute('tangentU', new THREE.BufferAttribute(zUpToYUp(map.f32(s.tangents)), 3))
+    if (s.binormals) geom.setAttribute('binormalV', new THREE.BufferAttribute(zUpToYUp(map.f32(s.binormals)), 3))
     geom.setAttribute('uv', new THREE.BufferAttribute(map.f32(s.uvs), 2))
     if (s.lmuvs) geom.setAttribute('uv1', new THREE.BufferAttribute(map.f32(s.lmuvs), 2))
     if (s.colors) geom.setAttribute('rgba', new THREE.BufferAttribute(map.u8(s.colors), 4, true))
@@ -140,14 +137,13 @@ export function createWorld(map, renderer, scene, onChange) {
     }
     if (tool) Object.assign(mat, { transparent: true, opacity: 0.35, depthWrite: false })
     if (/decal/.test(info.name) || /decal/.test(info.techset ?? '')) Object.assign(mat, PULL_FORWARD)
-    const image = map.images[info.image]
-    if (image) {
-      loadTexture(info.image, image.png, (tex) => {
-        tex.wrapS = tex.wrapT = THREE.RepeatWrapping
-        // The game multiplies in gamma space; only the three.js-lit .map path uses its linear pipeline.
-        tex.colorSpace = lit ? THREE.NoColorSpace : THREE.SRGBColorSpace
-        tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy())
-      }).then((tex) => { mat.userData.texture = tex; refresh(mat) })
+    // The game multiplies in gamma space; only the three.js-lit .map path uses its linear pipeline.
+    if (map.images[info.image]) loadImage(info.image, lit ? THREE.NoColorSpace : THREE.SRGBColorSpace).then((tex) => { mat.userData.texture = tex; refresh(mat) })
+    // Only the lightmap shader uses normal and specular maps; collision faces draw as tool brushes and skip them.
+    if (mat.isShaderMaterial) {
+      for (const key of ['normalMap', 'specularMap']) {
+        if (info[key]) loadImage(info[key], THREE.NoColorSpace).then((tex) => { mat.userData[key] = tex; refresh(mat) })
+      }
     }
     if (lit && lightmap >= 0) {
       Promise.all(map.lightmaps[lightmap].map((src, page) => loadTexture(`lightmap ${lightmap}/${page}`, src, (tex) => {
@@ -168,13 +164,14 @@ export function createWorld(map, renderer, scene, onChange) {
         lmR: { value: null }, lmG: { value: null }, lmB: { value: null }, lmSun: { value: null },
         useLm: { value: 0 }, sunShade: { value: 0 }, sunDir: { value: sunDir }, sunColor: { value: sunColor.clone().multiplyScalar(sunlight) },
         blend: { value: blend },
+        normalMap: { value: null }, hasNormalMap: { value: 0 }, specularMap: { value: null }, hasSpecularMap: { value: 0 },
       },
     })
   }
 
   // Water has no info: it looks the same whatever the view options.
   function refresh(mat) {
-    const { info, texture, lightmaps, baseColor, blend, sunShade, tool } = mat.userData
+    const { info, texture, lightmaps, normalMap, specularMap, baseColor, blend, sunShade, tool } = mat.userData
     if (!info) return
     const colorMap = view.textures && texture ? texture : null
     // Tool images are a faint translucent colour, red for clip, as Radiant shows them; an alpha test would discard it.
@@ -189,6 +186,10 @@ export function createWorld(map, renderer, scene, onChange) {
       if (useLm) [u.lmR.value, u.lmG.value, u.lmB.value, u.lmSun.value] = lightmaps
       // With the lightmap off the world draws full-bright, so sun-shaded models do too.
       u.sunShade.value = sunShade && view.lightmap ? 1 : 0
+      u.normalMap.value = normalMap ?? null
+      u.hasNormalMap.value = view.normals && normalMap ? 1 : 0
+      u.specularMap.value = specularMap ?? null
+      u.hasSpecularMap.value = view.normals && specularMap ? 1 : 0
     } else {
       mat.map = colorMap
       mat.color.copy(colorMap ? new THREE.Color(0xffffff) : baseColor)
@@ -196,6 +197,14 @@ export function createWorld(map, renderer, scene, onChange) {
       mat.needsUpdate = true
     }
     onChange()
+  }
+
+  function loadImage(name, colorSpace) {
+    return loadTexture(name, map.images[name].png, (tex) => {
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping
+      tex.colorSpace = colorSpace
+      tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy())
+    })
   }
 
   function loadTexture(key, src, setup) {
@@ -283,6 +292,13 @@ void main() {
     scene.add(sky)
     return sky
   }
+}
+
+// Directions and points in CoD's Z-up frame to three.js's Y-up one, as `toThree` does.
+function zUpToYUp(v) {
+  const out = new Float32Array(v.length)
+  for (let i = 0; i < v.length; i += 3) { out[i] = v[i]; out[i + 1] = v[i + 2]; out[i + 2] = -v[i + 1] }
+  return out
 }
 
 // Untextured surfaces get a stable colour per material name.

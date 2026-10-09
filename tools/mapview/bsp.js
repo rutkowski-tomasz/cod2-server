@@ -45,6 +45,8 @@ export function readBsp(buf) {
       color: [dv[o + 24], dv[o + 25], dv[o + 26], dv[o + 27]],
       uv: [dv.readFloatLE(o + 28), dv.readFloatLE(o + 32)],
       lmuv: [dv.readFloatLE(o + 36), dv.readFloatLE(o + 40)],
+      tangent: [dv.readFloatLE(o + 44), dv.readFloatLE(o + 48), dv.readFloatLE(o + 52)],
+      binormal: [dv.readFloatLE(o + 56), dv.readFloatLE(o + 60), dv.readFloatLE(o + 64)],
     }
   }
   const di = lump(LUMP.DRAWINDICES)
@@ -69,15 +71,16 @@ export function readBsp(buf) {
     for (let s = model.firstSoup; s < model.firstSoup + model.soupCount; s++) {
       const soup = soups[s]
       const key = `${soup.material}/${soup.lightmap}`
-      if (!groups.has(key)) groups.set(key, { material: materials[soup.material] || `#${soup.material}`, lightmap: soup.lightmap === NO_LIGHTMAP ? -1 : soup.lightmap, remap: new Map(), positions: [], normals: [], colors: [], uvs: [], lmuvs: [], indices: [] })
+      if (!groups.has(key)) groups.set(key, { material: materials[soup.material] || `#${soup.material}`, lightmap: soup.lightmap === NO_LIGHTMAP ? -1 : soup.lightmap, remap: new Map(), positions: [], normals: [], colors: [], uvs: [], lmuvs: [], tangents: [], binormals: [], indices: [] })
       const g = groups.get(key)
       // D3D front faces are clockwise; flip each triangle for GL.
       for (let t = 0; t + 2 < soup.indexCount; t += 3) for (const i of [t, t + 2, t + 1]) {
         const v = soup.firstVertex + di.readUInt16LE((soup.firstIndex + i) * 2)
         if (!g.remap.has(v)) {
           g.remap.set(v, g.remap.size)
-          const { position, normal, color, uv, lmuv } = vertex(v)
+          const { position, normal, color, uv, lmuv, tangent, binormal } = vertex(v)
           g.positions.push(...position); g.normals.push(...normal); g.colors.push(...color); g.uvs.push(...uv); g.lmuvs.push(...lmuv)
+          g.tangents.push(...tangent); g.binormals.push(...binormal)
         }
         g.indices.push(g.remap.get(v))
       }
