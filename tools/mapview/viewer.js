@@ -1,6 +1,7 @@
 import { createWorld, toThree, fromThree } from './draw.js'
 import { createMarkers } from './markers.js'
 import { createPlayers } from './player.js'
+import { createLive } from './live.js'
 import { anglesToForward, anglesToMatrix, d2r } from './math.js'
 
 const map = decodeGeometry(JSON.parse(document.getElementById('bundle').textContent))
@@ -31,13 +32,14 @@ document.title = `${map.name} – mapview`
 const world = createWorld(map, renderer, scene, () => { needRender = true })
 const players = map.player && createPlayers(map, world)
 const markers = createMarkers(map, renderer, scene, world.occluders, players)
+const live = map.defaults.live ? createLive(map, scene, players, map.defaults.live, mapChanged) : null
 
 readParams(params)
 applyView()
 setupControls()
 $('status').style.display = 'none'
 renderLoop()
-whenIdle().then(() => { window.mapReady = true })
+Promise.all([whenIdle(), live?.ready]).then(() => { window.mapReady = true })
 
 window.mapview = {
   // Resets the view to the page defaults plus `p`, waits for the frame, returns the camera.
@@ -176,10 +178,12 @@ function renderLoop() {
   const cam = updateCamera()
   const changed = move() || needRender || world.loading()
   const animated = !!players && players.update(cam, state.cut)
+  const liveMoved = live?.animate() ?? false
   // The players' animation alone moves no label, so it leaves label occlusion settled.
-  if (changed || animated) {
+  if (changed || animated || liveMoved) {
     markers.hideNear(cam, state.top)
     renderer.render(scene, cam)
+    live?.place(cam)
     fps.frames++
   }
   if (changed) {
@@ -288,6 +292,17 @@ function whenIdle() {
     }
     check()
   })
+}
+
+// `mapview.js live` serves the server's current map, so a reload picks the new one up; a file page cannot follow.
+// The camera of the old map means nothing on the new one, so the reload drops it and keeps the other view params.
+function mapChanged(name) {
+  if (location.protocol.startsWith('http')) {
+    const hash = new URLSearchParams(location.hash.slice(1))
+    for (const k of ['pos', 'angles', 'at', 'look', 'center', 'span']) hash.delete(k)
+    location.hash = hash
+    location.reload()
+  } else $('live').textContent = `live · the server plays ${name}, not ${map.name}`
 }
 
 function round(n) {

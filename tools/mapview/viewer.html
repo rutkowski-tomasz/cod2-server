@@ -9,14 +9,18 @@
   #hud { position: absolute; left: 8px; top: 8px; background: rgba(0,0,0,.55); padding: 6px 8px; border-radius: 4px; white-space: pre; pointer-events: none; }
   #hud b { color: #ffd166; }
   #status { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); background: rgba(0,0,0,.7); padding: 10px 14px; border-radius: 4px; }
-  #labels div { position: absolute; transform: translate(-50%, -100%); padding: 1px 4px; border-radius: 3px; background: rgba(0,0,0,.6); white-space: nowrap; pointer-events: none; font-size: 11px; }
+  #labels div, #live-labels div { position: absolute; transform: translate(-50%, -100%); padding: 1px 4px; border-radius: 3px; background: rgba(0,0,0,.6); white-space: nowrap; pointer-events: none; font-size: 11px; }
   #ticks div { position: absolute; color: #fff; text-shadow: 0 0 3px #000, 0 0 3px #000; font-size: 11px; pointer-events: none; }
+  #live { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); background: rgba(0,0,0,.55); padding: 2px 8px; border-radius: 4px; pointer-events: none; }
+  #live:empty { display: none; }
   #fps { position: absolute; right: 8px; top: 8px; color: #8c8; background: rgba(0,0,0,.55); padding: 2px 6px; border-radius: 4px; pointer-events: none; }
   #legend { position: absolute; right: 8px; bottom: 8px; background: rgba(0,0,0,.55); padding: 6px 8px; border-radius: 4px; white-space: pre; pointer-events: none; }
 </style>
 </head>
 <body>
 <div id="labels"></div>
+<div id="live-labels"></div>
+<div id="live"></div>
 <div id="ticks"></div>
 <div id="hud"></div>
 <div id="fps">idle</div>

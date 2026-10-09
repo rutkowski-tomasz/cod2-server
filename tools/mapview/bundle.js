@@ -27,7 +27,8 @@ const PLAYER = {
 // `target` is a .map or .d3dbsp file, or a game path or stock name like mp_harbor.
 // Returns the scene as JSON, its geometry as one buffer that surfaces point into, and the lightmap pages.
 // `scriptDir` holds map scripts by name, `<name>.gsc`, for maps whose script is not in the sources.
-export function loadScene(target, search, { prefabRoots = [], scriptDir } = {}) {
+// `withPlayer` bundles the player even without CTF allied spawns.
+export function loadScene(target, search, { prefabRoots = [], scriptDir, withPlayer = false } = {}) {
   const source = loadTarget(target, search)
   const parsed = source.kind === 'map' ? readMap(source.path, prefabRoots) : readBsp(source.buffer)
   // Only the lightmap shader draws normal and specular maps, so pages without lightmaps leave them out.
@@ -92,7 +93,7 @@ export function loadScene(target, search, { prefabRoots = [], scriptDir } = {}) 
   }
   let player = null
   let missingPlayer = null
-  if (entities.some((e) => e.classname === PLAYER.classname)) {
+  if (withPlayer || entities.some((e) => e.classname === PLAYER.classname)) {
     const rig = readRig(PLAYER.models, search)
     const idle = search.read(PLAYER.idle)
     const animation = idle && parseXAnim(idle)

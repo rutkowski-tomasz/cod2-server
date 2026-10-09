@@ -1,4 +1,4 @@
-// The bundle's player, one skinned copy per spawn, playing the idle animation in a loop.
+// The bundle's player, one skinned copy per spawn or live player, playing the idle animation in a loop.
 // THREE comes from the page script. Each copy is built in CoD's Z-up frame, like the bundle's bones and geometry,
 // and turned into three.js's Y-up one by its outer group.
 import { toThree } from './draw.js'
@@ -32,37 +32,22 @@ export function createPlayers(map, world) {
     // A copy for the spawn `e`, to place at its origin. The game drops these spawns to the floor below them
     // (placeSpawnpoint in the gametype script), so the copy stands there.
     create(e) {
-      const body = new THREE.Group()
-      const skeleton = new THREE.Skeleton(bones.map((b) => {
-        const bone = new THREE.Bone()
-        bone.name = b.name
-        bone.position.fromArray(b.offset)
-        bone.quaternion.fromArray(b.rotation)
-        return bone
-      }))
-      bones.forEach((b, i) => (b.parent < 0 ? body : skeleton.bones[b.parent]).add(skeleton.bones[i]))
-      const meshes = geometries.map(([geometry, material]) => new THREE.SkinnedMesh(geometry, material))
-      body.add(...meshes)
-      // Bound before the copy is turned, so the bind pose is in the body's own frame.
-      body.updateMatrixWorld(true)
-      for (const mesh of meshes) {
-        mesh.bind(skeleton)
-        // The bind pose's bounds would cull a copy whose animation leans out of them.
-        mesh.frustumCulled = false
-      }
-      body.rotation.z = (e.angles ? e.angles[1] : 0) * d2r
-      const mixer = new THREE.AnimationMixer(body)
-      const start = (copies.length * PHASE_STEP) % clip.duration
-      mixer.clipAction(clip).play().time = start
+      const outer = createCopy((e.angles ? e.angles[1] : 0) * d2r)
       const drop = floorDrop(e.origin)
-      const outer = new THREE.Group()
-      outer.rotation.x = -Math.PI / 2
       outer.position.y = -drop
-      outer.add(body)
-      copies.push({ outer, mixer, start })
       // `offset` is the camera's position relative to the spawn, in three.js's frame.
       outer.userData.hides = (offset) => Math.hypot(offset.x, offset.z) < HIDE_RADIUS && offset.y > -drop && offset.y < HIDE_TOP
       return outer
+    },
+    // A copy facing +X with its feet at its parent's origin, for a live player; `remove` it once the player is gone.
+    createLive() {
+      return createCopy(0)
+    },
+    remove(outer) {
+      const i = copies.findIndex((c) => c.outer === outer)
+      copies[i].skeleton.dispose()
+      copies.splice(i, 1)
+      outer.removeFromParent()
     },
     // Moves the copies on by the time since the last call; true when one is drawn in `cam`'s view, so the page has
     // to draw again. A copy is not drawn while a group above it is hidden, or while `cut` (a height, or null)
@@ -89,6 +74,36 @@ export function createPlayers(map, world) {
       frozen = true
       for (const { mixer, start } of copies) mixer.setTime(start)
     },
+  }
+
+  function createCopy(yaw) {
+    const body = new THREE.Group()
+    const skeleton = new THREE.Skeleton(bones.map((b) => {
+      const bone = new THREE.Bone()
+      bone.name = b.name
+      bone.position.fromArray(b.offset)
+      bone.quaternion.fromArray(b.rotation)
+      return bone
+    }))
+    bones.forEach((b, i) => (b.parent < 0 ? body : skeleton.bones[b.parent]).add(skeleton.bones[i]))
+    const meshes = geometries.map(([geometry, material]) => new THREE.SkinnedMesh(geometry, material))
+    body.add(...meshes)
+    // Bound before the copy is turned, so the bind pose is in the body's own frame.
+    body.updateMatrixWorld(true)
+    for (const mesh of meshes) {
+      mesh.bind(skeleton)
+      // The bind pose's bounds would cull a copy whose animation leans out of them.
+      mesh.frustumCulled = false
+    }
+    body.rotation.z = yaw
+    const mixer = new THREE.AnimationMixer(body)
+    const start = (copies.length * PHASE_STEP) % clip.duration
+    mixer.clipAction(clip).play().time = start
+    const outer = new THREE.Group()
+    outer.rotation.x = -Math.PI / 2
+    outer.add(body)
+    copies.push({ outer, mixer, start, skeleton })
+    return outer
   }
 
   function floorDrop([x, y, z]) {

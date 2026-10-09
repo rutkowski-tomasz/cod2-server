@@ -5,6 +5,7 @@ import { dirname, join, basename, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { homedir } from 'node:os'
 import { execFileSync } from 'node:child_process'
+import { createServer } from 'node:http'
 import { createSearch } from '../shared/assets.js'
 import { inlineModules } from '../shared/inline.js'
 import { loadScene, buildBundle } from './bundle.js'
@@ -13,12 +14,15 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const OUT = join(HERE, '..', '..', 'out', 'mapview')
 const LIBRARY_IWDS = join(homedir(), 'Dev/nl-cod2-library/src/iwds')
 const LIBRARY_SCRIPTS = join(homedir(), 'Dev/nl-cod2-library/src/scripts')
+// The dev server's livemap relay (stacks/livemap).
+const RELAY = 'ws://mynl.pl:28970'
 const USAGE = `usage:
   mapview.js view   <map> [-o out.html] [--open] [view options]   build an interactive page
   mapview.js render <map> [-o out.png] [view options]             headless screenshot
   mapview.js render <map> --batch shots.json [-o dir]             one screenshot per entry, one browser
   mapview.js info   <map> [--json]                                bounds, entities, materials, missing assets
   mapview.js list   [name prefix]                                 compiled maps found in the sources
+  mapview.js live   [relay] [--port 8643] [--open] [view options]  serve the map a server plays, with its players moving; entities start off
 
 <map>: a .map, .d3dbsp or .iwd file, a stock name like mp_harbor, or an nl-cod2-library name like mp_square
 
@@ -34,9 +38,10 @@ view options:
   --top                orthographic top-down    --center x,y --span u     top view window
   --cut z              hide everything above z
   --labels off|all     --ents off   --tex off   --lightmap off   --normals off   --shadows off
-  --fog off   --grid   --tools`
+  --fog off   --grid   --tools
+  --live ws://…        draw the players a livemap relay streams; live sets it to its relay (default ${RELAY})`
 
-const VIEW_KEYS = ['pos', 'angles', 'at', 'look', 'fov', 'top', 'center', 'span', 'cut', 'labels', 'ents', 'tex', 'lightmap', 'normals', 'shadows', 'fog', 'grid', 'tools']
+const VIEW_KEYS = ['pos', 'angles', 'at', 'look', 'fov', 'top', 'center', 'span', 'cut', 'labels', 'ents', 'tex', 'lightmap', 'normals', 'shadows', 'fog', 'grid', 'tools', 'live']
 const FLAGS = ['open', 'json', 'top', 'grid', 'tools']
 
 const args = process.argv.slice(2)
@@ -52,22 +57,27 @@ while (args.length) {
   else positional.push(a)
 }
 
-// A map's iwd also holds its textures, so it is a source too.
-const iwd = cmd === 'list' ? null : targetIwd(positional[0])
-const search = createSearch([...opts.source, ...(iwd ? [iwd] : [])])
-const sceneOptions = { prefabRoots: opts.prefabs, scriptDir: LIBRARY_SCRIPTS }
+const search = searchFor(['list', 'live'].includes(cmd) ? null : positional[0])
+const sceneOptions = { prefabRoots: opts.prefabs, scriptDir: LIBRARY_SCRIPTS, withPlayer: cmd === 'live' || opts.live !== undefined }
 
 switch (cmd) {
   case 'view': view(); break
   case 'render': await render(); break
   case 'info': info(); break
   case 'list': list(); break
+  case 'live': live(); break
   default: console.error(USAGE); process.exit(1)
 }
 
 function target() {
   if (!positional[0]) { console.error(USAGE); process.exit(1) }
   return positional[0]
+}
+
+// A map's iwd also holds its textures, so it is a source too.
+function searchFor(name) {
+  const iwd = targetIwd(name)
+  return createSearch([...opts.source, ...(iwd ? [iwd] : [])])
 }
 
 // A bare name that is not a file can be an nl-cod2-library map.
@@ -145,6 +155,55 @@ async function render() {
   } finally {
     await browser.close()
   }
+}
+
+// Serves the page of the map the relay's server plays, built once per map; the page reloads itself when the map changes.
+// Entity markers start off, so spawn labels do not bury the players.
+function live() {
+  const relay = positional[0] ?? RELAY
+  const port = +(opts.port ?? 8643)
+  let map = null
+  let page = null
+  follow()
+  createServer((req, res) => {
+    if (req.url !== '/') return res.writeHead(404).end()
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(html())
+  }).listen(port, () => {
+    const address = `http://localhost:${port}/`
+    console.log(`${address}  following ${relay}`)
+    if (opts.open) execFileSync('open', [address])
+  })
+
+  function follow() {
+    const ws = new WebSocket(relay)
+    ws.onmessage = (e) => {
+      const next = JSON.parse(e.data).map
+      if (next !== map) console.log(`server map: ${next}`)
+      map = next
+    }
+    ws.onclose = () => setTimeout(follow, 2000)
+  }
+
+  // A map missing from the local sources, such as a library map not pulled yet, waits like no map at all.
+  function html() {
+    if (!map) return waitingPage(`waiting for a map from ${relay}`)
+    if (page?.map !== map) {
+      try {
+        const bundle = buildBundle(map, searchFor(map), sceneOptions)
+        reportMissing(bundle)
+        page = { map, html: buildHtml(bundle, { ents: 'off', ...viewOf(opts), live: relay }) }
+      } catch (e) {
+        return waitingPage(`${map}: ${e.message}`)
+      }
+    }
+    return page.html
+  }
+}
+
+function waitingPage(text) {
+  const escaped = text.replace(/[&<>]/g, (c) => `&#${c.charCodeAt(0)};`)
+  return `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="3"><title>mapview live</title>
+<body style="margin:0;height:100vh;display:grid;place-items:center;background:#202830;color:#e8ecf0;font:12px ui-monospace,Menlo,monospace">${escaped}`
 }
 
 function info() {
