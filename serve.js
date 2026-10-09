@@ -1,12 +1,13 @@
-// Serves the before/after comparisons in <area>/<topic>/ with an index at http://localhost:8642/, newest first.
+// Serves the before/after comparisons in <area>/<what-changed>/ with an index at http://localhost:8642/, newest first.
 import { createServer } from 'node:http'
-import { createReadStream, readdirSync, readFileSync, statSync, existsSync } from 'node:fs'
+import { createReadStream, readdirSync, statSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join, extname, sep } from 'node:path'
 
 const ROOT = import.meta.dirname
 const PORT = 8642
 const IMAGES = { '.png': 'image/png', '.jpg': 'image/jpeg' }
+const TYPES = { ...IMAGES, '.html': 'text/html; charset=utf-8' }
 
 const dirs = (dir) => readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory() && !e.name.startsWith('.')).map((e) => e.name)
 
@@ -30,11 +31,11 @@ function comparisons() {
     const key = `${area}/${topic}`
     const dir = join(ROOT, key)
     const names = readdirSync(dir)
-    const titleFile = join(dir, 'title.txt')
-    const title = existsSync(titleFile) ? readFileSync(titleFile, 'utf8').trim() : `${area}: ${topic.replace(/-/g, ' ')}`
+    const title = `${area}: ${topic.replace(/-/g, ' ')}`
     const files = names.filter((f) => IMAGES[extname(f)]).sort()
+    const pages = new Set(names.filter((f) => extname(f) === '.html'))
     const time = committed.get(key) ?? Math.max(...names.map((f) => statSync(join(dir, f)).mtimeMs))
-    return { key, title, files, time }
+    return { key, title, files, pages, time }
   })).filter((c) => c.files.length).sort((a, b) => b.time - a.time)
 }
 
@@ -45,7 +46,7 @@ function views(files) {
     const stem = f.slice(0, -extname(f).length)
     const view = stem.replace(/_(before|after)$/, '')
     const list = byView.get(view) ?? byView.set(view, []).get(view)
-    list.push({ file: f, label: stem === view ? '' : stem.slice(view.length + 1) })
+    list.push({ file: f, stem, label: stem === view ? '' : stem.slice(view.length + 1) })
   }
   return [...byView].map(([view, list]) => [view, list.sort((a, b) => (a.label === 'after') - (b.label === 'after'))])
 }
@@ -85,7 +86,7 @@ function detail(key) {
   const c = comparisons().find((c) => c.key === key)
   if (!c) return undefined
   const rows = views(c.files).map(([view, list]) => `<h2>${esc(view)}</h2><div class="pair">${list.map((i) =>
-    `<figure><a href="${href(c.key, i.file)}"><img src="${href(c.key, i.file)}" alt=""></a><figcaption>${esc(i.label || i.file)}</figcaption></figure>`).join('')}</div>`)
+    `<figure><a href="${href(c.key, i.file)}"><img src="${href(c.key, i.file)}" alt=""></a><figcaption>${esc(i.label || i.file)}${c.pages.has(`${i.stem}.html`) ? ` · <a href="${href(c.key, `${i.stem}.html`)}">interactive</a>` : ''}</figcaption></figure>`).join('')}</div>`)
   return page(c.title, `<h1><a href="/">Before and after</a> / ${esc(c.title)} <span class="muted">${when(c.time)}</span></h1>${rows.join('')}`)
 }
 
@@ -99,7 +100,7 @@ function respond(req, res) {
     return res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }).end(html)
   }
   const file = join(ROOT, path)
-  const type = IMAGES[extname(file)]
+  const type = TYPES[extname(file)]
   if (!file.startsWith(ROOT + sep) || !type || !statSync(file, { throwIfNoEntry: false })?.isFile()) return res.writeHead(404).end('not found')
   res.writeHead(200, { 'content-type': type, 'cache-control': 'no-store' })
   createReadStream(file).pipe(res)
