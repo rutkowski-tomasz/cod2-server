@@ -1,6 +1,6 @@
 # pr-assets
 
-Before and after screenshots of changes, one folder per change: `<area>/<topic>/`.
+Before and after screenshots of changes, one folder per change: `<area>/<topic>/`. Everything changed in one conversation goes in one folder.
 
 - `<area>` is the tool or thing that changed (`mapview`, `fxview`, `menuview`).
 - `title.txt` holds one line shown in the index, like `mapview: draw normal and specular maps`. Use the PR or commit title, scope first.
@@ -12,8 +12,8 @@ PRs embed these images from GitHub, so never rename or move a folder that a PR l
 ## Browse
 
 ```bash
-git worktree add ../cod2-server-pr-assets pr-assets   # once, from cod2-server
-cd ../cod2-server-pr-assets
+git worktree add ~/cod2-server-pr-assets pr-assets   # once, from cod2-server
+cd ~/cod2-server-pr-assets
 curl -sf localhost:8642 >/dev/null || nohup node serve.js >/dev/null 2>&1 &
 ```
 
