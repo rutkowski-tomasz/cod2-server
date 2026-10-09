@@ -18,9 +18,9 @@ const BODY_RADIUS = 50
 
 // `world` gives the floor the players stand on and the material models draw with.
 export function createPlayers(map, world) {
-  const { bones, surfaces, idle } = map.player
-  const geometries = surfaces.map((s) => [geometryOf(map, s), world.modelMaterial(map.materials[s.material])])
-  const clip = buildClip(bones, idle)
+  const { idle } = map.player
+  const base = partsOf(map.player, map, map.materials)
+  const rigParts = new Map()
   const copies = []
   let lastUpdate = performance.now()
   let frozen = false
@@ -32,16 +32,22 @@ export function createPlayers(map, world) {
     // A copy for the spawn `e`, to place at its origin. The game drops these spawns to the floor below them
     // (placeSpawnpoint in the gametype script), so the copy stands there.
     create(e) {
-      const outer = createCopy((e.angles ? e.angles[1] : 0) * d2r)
+      const outer = createCopy((e.angles ? e.angles[1] : 0) * d2r, base)
       const drop = floorDrop(e.origin)
       outer.position.y = -drop
       // `offset` is the camera's position relative to the spawn, in three.js's frame.
       outer.userData.hides = (offset) => Math.hypot(offset.x, offset.z) < HIDE_RADIUS && offset.y > -drop && offset.y < HIDE_TOP
       return outer
     },
-    // A copy facing +X with its feet at its parent's origin, for a live player; `remove` it once the player is gone.
-    createLive() {
-      return createCopy(0)
+    // A copy facing +X with its feet at its parent's origin, for a live player: of `rig`, a player the live server
+    // built (bundle.js buildRig), else of the bundle's player. `remove` it once the player is gone.
+    createLive(rig) {
+      if (!rig) return createCopy(0, base)
+      if (!rigParts.has(rig)) {
+        Object.assign(map.images, rig.images)
+        rigParts.set(rig, partsOf(rig, decodeGeometry(rig.geometry), rig.materials))
+      }
+      return createCopy(0, rigParts.get(rig))
     },
     remove(outer) {
       const i = copies.findIndex((c) => c.outer === outer)
@@ -76,7 +82,16 @@ export function createPlayers(map, world) {
     },
   }
 
-  function createCopy(yaw) {
+  // The geometry, materials and idle clip one rig's copies share; `data` reads the rig's packed arrays.
+  function partsOf(rig, data, materials) {
+    return {
+      bones: rig.bones,
+      geometries: rig.surfaces.map((s) => [geometryOf(data, s), world.modelMaterial(materials[s.material])]),
+      clip: buildClip(rig.bones, idle),
+    }
+  }
+
+  function createCopy(yaw, { bones, geometries, clip }) {
     const body = new THREE.Group()
     const skeleton = new THREE.Skeleton(bones.map((b) => {
       const bone = new THREE.Bone()
@@ -113,25 +128,37 @@ export function createPlayers(map, world) {
   }
 }
 
-function geometryOf(map, s) {
+function geometryOf(data, s) {
   const geom = new THREE.BufferGeometry()
-  geom.setAttribute('position', new THREE.BufferAttribute(map.f32(s.positions), 3))
-  geom.setAttribute('normal', new THREE.BufferAttribute(map.f32(s.normals), 3))
-  if (s.tangents) geom.setAttribute('tangentU', new THREE.BufferAttribute(map.f32(s.tangents), 3))
-  if (s.binormals) geom.setAttribute('binormalV', new THREE.BufferAttribute(map.f32(s.binormals), 3))
-  geom.setAttribute('uv', new THREE.BufferAttribute(map.f32(s.uvs), 2))
-  geom.setAttribute('rgba', new THREE.BufferAttribute(map.u8(s.colors), 4, true))
-  geom.setAttribute('skinIndex', new THREE.BufferAttribute(map.u16(s.skinIndices), 4))
-  geom.setAttribute('skinWeight', new THREE.BufferAttribute(map.f32(s.skinWeights), 4))
-  geom.setIndex(new THREE.BufferAttribute(map.u32(s.indices), 1))
+  geom.setAttribute('position', new THREE.BufferAttribute(data.f32(s.positions), 3))
+  geom.setAttribute('normal', new THREE.BufferAttribute(data.f32(s.normals), 3))
+  if (s.tangents) geom.setAttribute('tangentU', new THREE.BufferAttribute(data.f32(s.tangents), 3))
+  if (s.binormals) geom.setAttribute('binormalV', new THREE.BufferAttribute(data.f32(s.binormals), 3))
+  geom.setAttribute('uv', new THREE.BufferAttribute(data.f32(s.uvs), 2))
+  geom.setAttribute('rgba', new THREE.BufferAttribute(data.u8(s.colors), 4, true))
+  geom.setAttribute('skinIndex', new THREE.BufferAttribute(data.u16(s.skinIndices), 4))
+  geom.setAttribute('skinWeight', new THREE.BufferAttribute(data.f32(s.skinWeights), 4))
+  geom.setIndex(new THREE.BufferAttribute(data.u32(s.indices), 1))
   return geom
 }
 
+// A rig's packed arrays, sent as base64 like the bundle's.
+function decodeGeometry(base64) {
+  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))
+  return {
+    u8: (ref) => new Uint8Array(bytes.buffer, ref.offset, ref.count),
+    u16: (ref) => new Uint16Array(bytes.buffer, ref.offset, ref.count),
+    f32: (ref) => new Float32Array(bytes.buffer, ref.offset, ref.count),
+    u32: (ref) => new Uint32Array(bytes.buffer, ref.offset, ref.count),
+  }
+}
+
 // Animated rotations replace the bone's own; animated translations are offsets from its own position.
+// Animated bones the rig lacks, such as another uniform's coat tails, are left out.
 function buildClip(bones, anim) {
   const times = (keys) => keys.frames.map((f) => f / anim.fps)
   const tracks = []
-  for (const b of anim.bones) {
+  for (const b of anim.bones.filter((a) => bones.some((r) => r.name === a.name))) {
     if (b.rotations) tracks.push(new THREE.QuaternionKeyframeTrack(`${b.name}.quaternion`, times(b.rotations), b.rotations.values))
     if (b.translations) {
       const own = bones.find((x) => x.name === b.name).offset

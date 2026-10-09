@@ -44,9 +44,10 @@ In the page: click to look around, WASD to move, Shift for speed, E and Q for up
 
 ## Live players
 
-`live` follows the dev server: it serves the map the server plays at http://localhost:8643/ (`--port`), with every playing player drawn where the server says. The server's `livemap` module (nl-cod2-zom-scripts) sends `{ map, players: [{ id, name, team, origin, yaw }] }` 10 times a second to the `livemap` relay (`stacks/livemap`), which passes it on to pages at `ws://mynl.pl:28970`; pass another relay as the first argument, such as `ws://localhost:28970`.
+`live` follows the dev server: it serves the map the server plays at http://localhost:8643/ (`--port`), with every playing player drawn where the server says. The server's `livemap` module (nl-cod2-zom-scripts) sends `{ map, players: [{ id, name, team, origin, yaw, models }] }` 10 times a second to the `livemap` relay (`stacks/livemap`), which passes it on to pages at `ws://mynl.pl:28970`; pass another relay as the first argument, such as `ws://localhost:28970`.
 
-- Each player is the rifleman model on a ring with a yaw arrow, red for axis, blue for allies, teal otherwise, and glides between updates. Its name shows through walls.
+- Each player stands on a ring with a yaw arrow, red for axis, blue for allies, teal otherwise, and glides between updates. Its name shows through walls.
+- Players wear the models the server streams for them: the body and what is attached to it, such as head and helmet. The live server builds each set once and serves it at `/rig?models=…`; until it arrives, the player is the CTF rifleman. `render` and `view --live` bake in the sets the relay's players wear at that moment.
 - When the server changes map, the page reloads onto the new one. It keeps view params such as `#top=1` and drops the camera. Each map is built once, so the first load of a map takes as long as `view`.
 - Entity markers start off (`--ents on`, or F). Other view options work as in `view`.
 - A map not in the sources, such as a library map not pulled yet, shows a waiting page until it is.

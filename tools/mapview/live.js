@@ -15,7 +15,8 @@ const TEAM_COLORS = { allies: 0x3a86ff, axis: 0xff3355 }
 const OTHER_COLOR = 0x2ec4b6
 
 // `players` draws each player's model; without the model in the sources it is null, and players are only their
-// rings and arrows. `onMapChange` gets the server's map once it differs from the page's.
+// rings and arrows. Each player wears the default model until the rig of the models it streams arrives: baked into
+// the page (`map.rigs`) or fetched from the live server. `onMapChange` gets the server's map once it differs.
 export function createLive(map, scene, players, url, onMapChange) {
   const ring = new THREE.RingGeometry(20, 28, 24)
   const cone = new THREE.ConeGeometry(8, 28, 8)
@@ -24,6 +25,7 @@ export function createLive(map, scene, players, url, onMapChange) {
   const group = new THREE.Group()
   scene.add(group)
   const shown = new Map()
+  const rigs = new Map()
   let lastMessage = 0
   let connected = false
   // A removal must reach the screen even when no players are left to keep the page drawing.
@@ -71,7 +73,7 @@ export function createLive(map, scene, players, url, onMapChange) {
     ws.onmessage = (e) => receive(JSON.parse(e.data))
   }
 
-  // { map, players: [{ id, name, team, origin, yaw }] }; the server sends an empty players list as {}.
+  // { map, players: [{ id, name, team, origin, yaw, models }] }; the server sends an empty players list as {}.
   function receive(msg) {
     lastMessage = performance.now()
     if (msg.map !== map.name) return onMapChange(msg.map)
@@ -93,18 +95,22 @@ export function createLive(map, scene, players, url, onMapChange) {
     const arrow = new THREE.Mesh(cone, material)
     arrow.rotation.z = -Math.PI / 2
     arrow.position.set(42, 2, 0)
-    const model = players?.createLive()
     g.add(disc, arrow)
-    if (model) g.add(model)
     group.add(g)
     const label = document.createElement('div')
     labelsDiv.appendChild(label)
-    const p = { group: g, model, material, label, from: new THREE.Vector3(), to: new THREE.Vector3(), fromYaw: 0, toYaw: 0, start: 0, fresh: true }
+    const p = { group: g, model: null, modelsKey: null, material, label, from: new THREE.Vector3(), to: new THREE.Vector3(), fromYaw: 0, toYaw: 0, start: 0, fresh: true }
+    if (players) wear(p, players.createLive())
     shown.set(id, p)
     return p
   }
 
-  function update(p, { name, team, origin, yaw }) {
+  function update(p, { name, team, origin, yaw, models }) {
+    const key = models.join(',')
+    if (players && key !== p.modelsKey) {
+      p.modelsKey = key
+      rigOf(key).then((rig) => { if (rig && p.modelsKey === key && p.group.parent) wear(p, players.createLive(rig)) })
+    }
     const to = toThree(...origin)
     const jump = p.fresh || to.distanceTo(p.group.position) > TELEPORT
     p.from.copy(jump ? to : p.group.position)
@@ -117,6 +123,23 @@ export function createLive(map, scene, players, url, onMapChange) {
     p.material.color.setHex(color)
     p.label.textContent = name.replace(/\^\d/g, '')
     p.label.style.color = `#${new THREE.Color(color).getHexString()}`
+  }
+
+  function wear(p, model) {
+    if (p.model) players.remove(p.model)
+    p.group.add(model)
+    p.model = model
+  }
+
+  // Null when the live server cannot build it, or the page has no live server to ask.
+  function rigOf(key) {
+    if (!rigs.has(key)) {
+      const rig = map.rigs && key in map.rigs ? Promise.resolve(map.rigs[key])
+        : location.protocol.startsWith('http') ? fetch(`rig?models=${encodeURIComponent(key)}`).then((r) => (r.ok ? r.json() : null))
+          : Promise.resolve(null)
+      rigs.set(key, rig)
+    }
+    return rigs.get(key)
   }
 
   function remove(id, p) {

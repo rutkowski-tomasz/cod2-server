@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process'
 import { createServer } from 'node:http'
 import { createSearch } from '../shared/assets.js'
 import { inlineModules } from '../shared/inline.js'
-import { loadScene, buildBundle } from './bundle.js'
+import { loadScene, buildBundle, buildRig } from './bundle.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const OUT = join(HERE, '..', '..', 'out', 'mapview')
@@ -61,7 +61,7 @@ const search = searchFor(['list', 'live'].includes(cmd) ? null : positional[0])
 const sceneOptions = { prefabRoots: opts.prefabs, scriptDir: LIBRARY_SCRIPTS, withPlayer: cmd === 'live' || opts.live !== undefined }
 
 switch (cmd) {
-  case 'view': view(); break
+  case 'view': await view(); break
   case 'render': await render(); break
   case 'info': info(); break
   case 'list': list(); break
@@ -114,21 +114,23 @@ function buildHtml(bundle, defaults) {
     .replace('__BUNDLE__', () => JSON.stringify({ ...bundle, defaults }).replace(/</g, '\\u003c'))
 }
 
-function load() {
+// With --live, the page also gets the rigs the relay's players wear right now, since a file page cannot fetch them.
+async function load() {
   const bundle = buildBundle(target(), search, sceneOptions)
   reportMissing(bundle)
+  if (opts.live) bundle.rigs = rigsOf((await nextMessage(opts.live))?.players, new Map(), search)
   return bundle
 }
 
-function view() {
+async function view() {
   const out = outName('html')
-  writeFileSync(out, buildHtml(load(), viewOf(opts)))
+  writeFileSync(out, buildHtml(await load(), viewOf(opts)))
   console.log(out)
   if (opts.open) execFileSync('open', [out])
 }
 
 async function render() {
-  const bundle = load()
+  const bundle = await load()
   const shots = opts.batch ? JSON.parse(readFileSync(opts.batch, 'utf8')) : [{ ...viewOf(opts), out: outName('png') }]
   const outDir = opts.batch ? opts.out ?? OUT : dirname(shots[0].out)
   mkdirSync(outDir, { recursive: true })
@@ -162,12 +164,17 @@ async function render() {
 function live() {
   const relay = positional[0] ?? RELAY
   const port = +(opts.port ?? 8643)
-  let map = null
+  let latest = null
   let page = null
+  const rigs = new Map()
   follow()
   createServer((req, res) => {
-    if (req.url !== '/') return res.writeHead(404).end()
-    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(html())
+    const url = new URL(req.url, 'http://localhost')
+    if (url.pathname === '/') return res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(html())
+    if (url.pathname !== '/rig') return res.writeHead(404).end()
+    const models = url.searchParams.get('models').split(',')
+    const rig = rigsOf([{ models }], rigs, search)[models.join(',')]
+    res.writeHead(rig ? 200 : 404, { 'content-type': 'application/json' }).end(JSON.stringify(rig))
   }).listen(port, () => {
     const address = `http://localhost:${port}/`
     console.log(`${address}  following ${relay}`)
@@ -177,20 +184,22 @@ function live() {
   function follow() {
     const ws = new WebSocket(relay)
     ws.onmessage = (e) => {
-      const next = JSON.parse(e.data).map
-      if (next !== map) console.log(`server map: ${next}`)
-      map = next
+      const next = JSON.parse(e.data)
+      if (next.map !== latest?.map) console.log(`server map: ${next.map}`)
+      latest = next
     }
     ws.onclose = () => setTimeout(follow, 2000)
   }
 
   // A map missing from the local sources, such as a library map not pulled yet, waits like no map at all.
   function html() {
-    if (!map) return waitingPage(`waiting for a map from ${relay}`)
+    if (!latest) return waitingPage(`waiting for a map from ${relay}`)
+    const { map } = latest
     if (page?.map !== map) {
       try {
         const bundle = buildBundle(map, searchFor(map), sceneOptions)
         reportMissing(bundle)
+        bundle.rigs = rigsOf(latest.players, rigs, search)
         page = { map, html: buildHtml(bundle, { ents: 'off', ...viewOf(opts), live: relay }) }
       } catch (e) {
         return waitingPage(`${map}: ${e.message}`)
@@ -198,6 +207,28 @@ function live() {
     }
     return page.html
   }
+}
+
+// One message from the relay, or null if none comes within 5 s.
+function nextMessage(relay) {
+  return new Promise((resolve) => {
+    const ws = new WebSocket(relay)
+    const done = (msg) => { ws.close(); resolve(msg) }
+    ws.onmessage = (e) => done(JSON.parse(e.data))
+    setTimeout(() => done(null), 5000)
+  })
+}
+
+// The rigs `players` wear, keyed by their models joined with commas as the page asks for them; null for one a model
+// of which is missing. Built once per key into `cache`.
+function rigsOf(players, cache, search) {
+  const rigs = {}
+  for (const { models } of Object.values(players ?? {})) {
+    const key = models.join(',')
+    if (!cache.has(key)) cache.set(key, buildRig(models, search))
+    rigs[key] = cache.get(key)
+  }
+  return rigs
 }
 
 function waitingPage(text) {
