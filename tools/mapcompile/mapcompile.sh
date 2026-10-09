@@ -34,7 +34,7 @@ docker --context desktop-linux build --platform linux/amd64 -q -t cod2-mapcompil
 docker --context desktop-linux run --rm --platform linux/amd64 \
     -v "$build/maps:/cod2/main/maps" -v "$binaries:/binaries:ro" cod2-mapcompile bash -c "
         set -e
-        ln -s /binaries/1_0/iw_0[06789].iwd /binaries/1_0/iw_1[0123].iwd /binaries/1_3/iw_15.iwd /cod2/main/
+        ln -s /binaries/1_0/iw_0[06789].iwd /binaries/1_0/iw_1[01234].iwd /binaries/1_3/iw_15.iwd /cod2/main/
         wine cod2map.exe -platform pc 'Z:\\cod2\\main\\maps\\mp\\$map'
         wine cod2rad.exe -platform pc $rad 'Z:\\cod2\\main\\maps\\mp\\$map'
     "

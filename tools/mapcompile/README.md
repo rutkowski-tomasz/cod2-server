@@ -12,7 +12,7 @@ The map is named after the file. A `mp_name.arena` next to the `.map` goes into 
 
 Most of the time goes to `cod2rad`, which runs emulated and always on 2 threads. `--fast` passes it `-Fast`: lighting is rougher but about 7× quicker, which suits test builds. Build without it before release.
 
-Runs on the `desktop-linux` Docker context. The first run builds the `cod2-mapcompile` image (about 2 GB): wine, d3dx9_27 and the Mod Tools installer from archive.org. The compilers read stock materials from `~/Dev/cod2-binaries` (set `COD2_BINARIES` for another clone): `1_0/iw_00`, `iw_06`–`iw_13` and `1_3/iw_15` must be pulled.
+Runs on the `desktop-linux` Docker context. The first run builds the `cod2-mapcompile` image (about 2 GB): wine, d3dx9_27 and the Mod Tools installer from archive.org. The compilers read stock materials and models from `~/Dev/cod2-binaries` (set `COD2_BINARIES` for another clone): `1_0/iw_00`, `iw_06`–`iw_14` and `1_3/iw_15` must be pulled.
 
 Check the result with mapview: `node tools/mapview/mapview.js render out/mapcompile/mp_name.iwd --at mp_tdm_spawn`.
 
