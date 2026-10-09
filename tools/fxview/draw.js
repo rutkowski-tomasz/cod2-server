@@ -43,14 +43,14 @@ export function createRenderer(canvas, { materials, models }) {
     fill(ctx, w, h)
     return uploadTexture(c)
   }
-  function uploadTexture(src) {
+  function uploadTexture(src, wrap = gl.CLAMP_TO_EDGE) {
     const tex = gl.createTexture()
     gl.bindTexture(gl.TEXTURE_2D, tex)
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src)
     gl.generateMipmap(gl.TEXTURE_2D)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap)
     return tex
   }
   textures.white = solidTexture(2, 2, (ctx, w, h) => { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h) })
@@ -59,9 +59,11 @@ export function createRenderer(canvas, { materials, models }) {
   textures.model = solidTexture(32, 32, (ctx, w, h) => { ctx.fillStyle = '#9a9a9a'; ctx.fillRect(2, 2, w - 4, h - 4); ctx.strokeStyle = '#333'; ctx.lineWidth = 2; ctx.strokeRect(3, 3, w - 6, h - 6) })
   materialMeta.white = materialMeta.missing = materialMeta.model = { blend: 'blend', atlasCols: 1, atlasRows: 1 }
   materialMeta.light = { blend: 'add', atlasCols: 1, atlasRows: 1 }
+  // Model UVs run past 0..1 and expect the texture to tile.
+  const modelMaterials = new Set(Object.values(models).flatMap((m) => m.surfaces.map((s) => s.material)))
   const textureLoads = Object.entries(materials).map(([name, m]) => new Promise((resolve) => {
     const img = new Image()
-    img.onload = () => { textures[name] = uploadTexture(img); materialMeta[name] = m; resolve() }
+    img.onload = () => { textures[name] = uploadTexture(img, modelMaterials.has(name) ? gl.REPEAT : gl.CLAMP_TO_EDGE); materialMeta[name] = m; resolve() }
     img.onerror = resolve
     img.src = m.png
   }))
@@ -100,10 +102,22 @@ export function createRenderer(canvas, { materials, models }) {
       vUv = uv;
       vLight = 0.5 + 0.5 * max(dot(normalize(mat3(model) * nrm), normalize(vec3(0.4, 0.3, 0.85))), 0.0);
     }`, `
-    precision mediump float; in vec2 vUv; in float vLight; uniform sampler2D tex; out vec4 o;
-    void main() { o = vec4(texture(tex, vUv).rgb * vLight, 1.0); }`)
+    precision mediump float; in vec2 vUv; in float vLight; uniform sampler2D tex; uniform int mode; out vec4 o;
+    void main() {
+      vec4 t = texture(tex, vUv);
+      if (mode == 1 && t.a < 0.5) discard;
+      o = vec4(t.rgb * vLight, mode == 2 ? t.a : 1.0);
+    }`)
   const uMeshVp = gl.getUniformLocation(meshProgram, 'vp')
   const uMeshModel = gl.getUniformLocation(meshProgram, 'model')
+  const uMeshMode = gl.getUniformLocation(meshProgram, 'mode')
+  // From the material's technique set: phong_replace*, phong_alphatest*, phong_blend.
+  const MESH_MODES = { opaque: 0, alphaTest: 1, blend: 2 }
+  function meshMode(techset = '') {
+    if (techset.includes('_blend')) return MESH_MODES.blend
+    if (techset.includes('alphatest')) return MESH_MODES.alphaTest
+    return MESH_MODES.opaque
+  }
   const vbo = gl.createBuffer()
   const ibo = gl.createBuffer()
   const vao = gl.createVertexArray()
@@ -136,7 +150,7 @@ export function createRenderer(canvas, { materials, models }) {
     }
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer())
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(s.indices), gl.STATIC_DRAW)
-    return { vao: meshVao, count: s.indices.length, material: s.material }
+    return { vao: meshVao, count: s.indices.length, material: s.material, mode: meshMode(materials[s.material]?.techset) }
   })
 
   // ---------- drawing ----------
@@ -204,7 +218,7 @@ export function createRenderer(canvas, { materials, models }) {
       return { corners: [V.add(l.a, sideA), V.add(l.b, sideB), V.sub(l.b, sideB), V.sub(l.a, sideA)], color: l.color, tex: 'white', frame: 0 }
     })
     drawQuads(lq)
-    drawModels(sim.particles.filter((p) => meshes[p.model] && shown(p)))
+    drawModels(sim.particles.filter((p) => meshes[p.model] && shown(p)), eye, viewFwd)
     gl.enable(gl.BLEND)
     gl.depthMask(false)
 
@@ -275,15 +289,30 @@ export function createRenderer(canvas, { materials, models }) {
     return { corners: [V.sub(V.sub(center, r), u), V.sub(V.add(center, r), u), V.add(V.add(center, r), u), V.add(V.sub(center, r), u)], color, tex, frame }
   }
 
-  function drawModels(particles) {
+  // Opaque and alpha-tested surfaces first, then blended ones far to near without depth write.
+  function drawModels(particles, eye, viewFwd) {
     gl.useProgram(meshProgram)
-    gl.disable(gl.BLEND)
+    const placed = []
     for (const p of particles) {
       const scale = sampleVisual(p).width
       if (scale <= 0) continue
       const [f, l, u] = modelAxis(p).map((a) => V.mul(a, scale))
-      gl.uniformMatrix4fv(uMeshModel, false, [...f, 0, ...l, 0, ...u, 0, ...p.pos, 1])
-      for (const surface of meshes[p.model]) {
+      placed.push({ matrix: [...f, 0, ...l, 0, ...u, 0, ...p.pos, 1], surfaces: meshes[p.model], depth: V.dot(V.sub(p.pos, eye), viewFwd) })
+    }
+    gl.disable(gl.BLEND)
+    drawSurfaces(placed, (s) => s.mode !== MESH_MODES.blend)
+    gl.enable(gl.BLEND)
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+    gl.depthMask(false)
+    drawSurfaces(placed.sort((a, b) => b.depth - a.depth), (s) => s.mode === MESH_MODES.blend)
+  }
+
+  function drawSurfaces(placed, include) {
+    for (const { matrix, surfaces } of placed) {
+      gl.uniformMatrix4fv(uMeshModel, false, matrix)
+      for (const surface of surfaces) {
+        if (!include(surface)) continue
+        gl.uniform1i(uMeshMode, surface.mode)
         gl.bindTexture(gl.TEXTURE_2D, textures[surface.material] ?? textures.missing)
         gl.bindVertexArray(surface.vao)
         gl.drawElements(gl.TRIANGLES, surface.count, gl.UNSIGNED_SHORT, 0)
