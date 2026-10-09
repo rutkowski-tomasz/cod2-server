@@ -188,6 +188,7 @@ export function createSim(bundle, opts = {}) {
       effectAxis: s.effectAxis,
       absVel: flags.includes('absoluteVel') || d.spawnFlags.includes('absoluteVel'),
       absVel2: flags.includes('absoluteVel2'),
+      absAccel: flags.includes('absoluteAccel') || d.spawnFlags.includes('absoluteAccel'),
       hasRandVel: flags.includes('useRandomVelocity'),
       hasRandVel2: flags.includes('useRandomVelocity2'),
       usePhysics: flags.includes('usePhysics'),
@@ -217,7 +218,7 @@ export function createSim(bundle, opts = {}) {
       addAxis(p.end, randInBox(d.origin2), s.effectAxis)
     }
     if (d.velocity && !p.absVel) p.physVel = toWorld(p.physVel, axis)
-    if (p.accel && !p.absVel) p.accel = toWorld(p.accel, axis)
+    if (p.accel && !p.absAccel) p.accel = toWorld(p.accel, axis)
     sim.particles.push(p)
   }
 
