@@ -45,7 +45,7 @@ export function createSim(bundle, opts = {}) {
     sim.pending = []
     sim.instances = 0
     sim.dropped = 0
-    spawnEffect(bundle.root, origin, axis, 0, 0)
+    spawnEffect(bundle.root, origin, axis, 0, 0, [])
   }
 
   function seek(t) {
@@ -60,7 +60,7 @@ export function createSim(bundle, opts = {}) {
     sim.pending.sort((a, b) => a.time - b.time)
     while (sim.pending.length && sim.pending[0].time <= t1) {
       const s = sim.pending.shift()
-      if (s.effect) spawnEffect(s.effect, s.pos, s.axis, s.time, s.depth)
+      if (s.effect) spawnEffect(s.effect, s.pos, s.axis, s.time, s.depth, s.ranges)
       else spawnParticle(s)
     }
     const dts = STEP / 1000
@@ -97,7 +97,7 @@ export function createSim(bundle, opts = {}) {
     if (p.usePhysics && ground !== null && p.pos[2] <= ground && v[2] < 0) {
       p.pos[2] = ground
       // Only the first hit: a resting particle keeps touching the ground every step.
-      if (d.impactfx && p.bounces === 0) queueEffect(d.impactfx, [p.pos[0], p.pos[1], ground], axisFacing([0, 0, 1]), now, p.depth + 1)
+      if (d.impactfx && p.bounces === 0) queueEffect(d.impactfx, [p.pos[0], p.pos[1], ground], axisFacing([0, 0, 1]), now, p.depth + 1, p.ranges)
       if (p.impactKills) {
         p.dead = true
         return
@@ -112,22 +112,22 @@ export function createSim(bundle, opts = {}) {
       p.travel += dist(p.pos, p.last)
       while (p.travel >= p.emitEvery) {
         p.travel -= p.emitEvery
-        queueEffect(d.emitfx, [...p.pos], p.axis, now, p.depth + 1)
+        queueEffect(d.emitfx, [...p.pos], p.axis, now, p.depth + 1, p.ranges)
       }
     }
   }
 
   function onDeath(p, now) {
-    if ((p.type === 'Emitter' || p.type === 'Line') && p.def.deathfx && p.def.flags.includes('deathFx')) queueEffect(p.def.deathfx, [...p.pos], p.axis, now, p.depth + 1)
+    if ((p.type === 'Emitter' || p.type === 'Line') && p.def.deathfx && p.def.flags.includes('deathFx')) queueEffect(p.def.deathfx, [...p.pos], p.axis, now, p.depth + 1, p.ranges)
   }
 
-  function queueEffect(path, pos, axis, time, depth) {
+  function queueEffect(path, pos, axis, time, depth, ranges) {
     if (depth > MAX_DEPTH) { sim.warnings.add(`sub-effect depth over ${MAX_DEPTH}: ${path}`); return }
     if (!bundle.effects[path]) { sim.warnings.add(`missing effect ${path}`); return }
-    sim.pending.push({ effect: path, pos, axis, time, depth })
+    sim.pending.push({ effect: path, pos, axis, time, depth, ranges })
   }
 
-  function spawnEffect(path, pos, axis, time, depth) {
+  function spawnEffect(path, pos, axis, time, depth, ranges) {
     const effect = bundle.effects[path]
     if (!effect) return
     sim.instances++
@@ -136,7 +136,7 @@ export function createSim(bundle, opts = {}) {
       const even = def.spawnFlags.includes('evenDistribution')
       for (let i = 0; i < count; i++) {
         const delay = even ? def.delay[0] + (def.delay[1] - def.delay[0]) * ((i + 0.5) / count) : rand(def.delay)
-        sim.pending.push({ def, path, index: i, count, time: time + delay, effectPos: pos, effectAxis: axis, depth })
+        sim.pending.push({ def, path, index: i, count, time: time + delay, effectPos: pos, effectAxis: axis, depth, ranges })
       }
     }
   }
@@ -157,10 +157,12 @@ export function createSim(bundle, opts = {}) {
       const r = rand(d.radius)
       for (let i = 0; i < 3; i++) pos[i] += dir[i] * r
     }
+    // Every spawnRange on the way from the root effect, checked against the camera when drawing.
+    const ranges = d.spawnRange ? [...s.ranges, { at: [...pos], range: d.spawnRange }] : s.ranges
     if (d.type === 'FxRunner') {
       let runAxis = s.effectAxis
       if (d.spawnFlags.includes('randrotaroundfwd')) runAxis = rotateAroundForward(s.effectAxis, rng() * Math.PI * 2)
-      queueEffect(d.playfx, pos, runAxis, s.time, s.depth + 1)
+      queueEffect(d.playfx, pos, runAxis, s.time, s.depth + 1, ranges)
       return
     }
     const windSpeed = rand(d.wind)
@@ -171,6 +173,7 @@ export function createSim(bundle, opts = {}) {
       path: s.path,
       index: s.index,
       depth: s.depth,
+      ranges,
       spawnTime: s.time,
       age: 0,
       life: Math.max(1, rand(d.life)),
@@ -212,7 +215,7 @@ export function createSim(bundle, opts = {}) {
     if (d.type === 'Line' && d.spawnFlags.includes('org2fromTrace')) {
       const hit = trace(pos, s.effectAxis[0])
       p.end = hit.end
-      if (d.impactfx && d.spawnFlags.includes('traceImpactFx')) queueEffect(d.impactfx, hit.end, axisFacing(hit.normal), s.time, s.depth + 1)
+      if (d.impactfx && d.spawnFlags.includes('traceImpactFx')) queueEffect(d.impactfx, hit.end, axisFacing(hit.normal), s.time, s.depth + 1, ranges)
     } else if (d.type === 'Line') {
       p.end = [...s.effectPos]
       addAxis(p.end, randInBox(d.origin2), s.effectAxis)
@@ -387,6 +390,15 @@ function effectDuration(bundle, path, depth, skipDecals) {
     max = Math.max(max, end)
   }
   return max
+}
+
+// The game spawns an element only while the camera is within its spawnRange of the spawn point, and stops drawing it past cullrange.
+export function inViewRange(p, eye) {
+  if (p.def.cullRange && dist(eye, p.pos) > p.def.cullRange) return false
+  return p.ranges.every((r) => {
+    const d = dist(eye, r.at)
+    return d >= r.range[0] && d <= r.range[1]
+  })
 }
 
 // World axis of a model particle: its own axis turned by its pitch, yaw and roll in degrees.
