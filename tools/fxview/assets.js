@@ -1,10 +1,35 @@
 // Asset lookup across plain folders and .iwd (zip) archives.
-// Later sources take precedence, so push stock iwds first and mod folders last.
 import { readFileSync, readdirSync, statSync, openSync, readSync, closeSync, existsSync } from 'node:fs'
 import { inflateRawSync } from 'node:zlib'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
+import { homedir } from 'node:os'
 
-export class AssetSearch {
+const HOME = homedir()
+// Stock game first, then the mod's unpacked iwd folders; later entries override earlier ones.
+const DEFAULT_SOURCES = [
+  `${HOME}/Dev/cod2-binaries/1_0`,
+  `${HOME}/Dev/cod2-binaries/1_3`,
+  ...modFolders(`${HOME}/Dev/nl-cod2-zom-iwds/iwds`),
+]
+
+function modFolders(root) {
+  if (!existsSync(root)) return []
+  const out = []
+  for (const iwd of readdirSync(root)) {
+    const dir = join(root, iwd)
+    if (!statSync(dir).isDirectory()) continue
+    for (const feature of readdirSync(dir)) if (statSync(join(dir, feature)).isDirectory()) out.push(join(dir, feature))
+  }
+  return out
+}
+
+export function createSearch(extraSources = []) {
+  const search = new AssetSearch()
+  for (const s of [...DEFAULT_SOURCES, ...extraSources]) search.add(resolve(s))
+  return search
+}
+
+class AssetSearch {
   constructor() {
     this.sources = []
   }

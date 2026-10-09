@@ -1,38 +1,11 @@
 // Builds the self-contained effect bundle: root effect, every effect it references, and the textures they use.
-import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs'
-import { resolve, join, basename } from 'node:path'
-import { homedir } from 'node:os'
+import { readFileSync, existsSync } from 'node:fs'
+import { resolve, basename } from 'node:path'
 import { parseEfx } from './parse.js'
 import { normalizeElement } from './normalize.js'
-import { AssetSearch } from './iwd.js'
 import { parseMaterial } from './material.js'
 import { decodeIwi } from './iwi.js'
 import { encodePng } from './png.js'
-
-const HOME = homedir()
-// Stock game first, then the mod's unpacked iwd folders; later entries override earlier ones.
-export const DEFAULT_SOURCES = [
-  `${HOME}/Dev/cod2-binaries/1_0`,
-  `${HOME}/Dev/cod2-binaries/1_3`,
-  ...modFolders(`${HOME}/Dev/nl-cod2-zom-iwds/iwds`),
-]
-
-function modFolders(root) {
-  if (!existsSync(root)) return []
-  const out = []
-  for (const iwd of readdirSync(root)) {
-    const dir = join(root, iwd)
-    if (!statSync(dir).isDirectory()) continue
-    for (const feature of readdirSync(dir)) if (statSync(join(dir, feature)).isDirectory()) out.push(join(dir, feature))
-  }
-  return out
-}
-
-export function createSearch(extraSources = []) {
-  const search = new AssetSearch()
-  for (const s of [...DEFAULT_SOURCES, ...extraSources]) search.add(resolve(s))
-  return search
-}
 
 // `target` is a file path (ending in .efx) or an fx path like fx/explosions/grenade_flash.
 export function buildBundle(target, search) {
