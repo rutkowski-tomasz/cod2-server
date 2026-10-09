@@ -34,6 +34,7 @@ export const LIGHTMAP_SHADER = {
   fog: true,
   vertexShader: `#include <clipping_planes_pars_vertex>
 #include <fog_pars_vertex>
+#include <skinning_pars_vertex>
 attribute vec2 uv1; attribute vec4 rgba; attribute vec3 tangentU; attribute vec3 binormalV;
 varying vec2 vUv; varying vec2 vLm; varying vec3 vNormal; varying vec3 vTangent; varying vec3 vBinormal; varying vec3 vWorld; varying vec4 vColor;
 void main() {
@@ -42,10 +43,21 @@ void main() {
   #ifdef USE_INSTANCING
   m = m * instanceMatrix;
   #endif
-  vNormal = mat3(m) * normal;
-  vTangent = mat3(m) * tangentU;
-  vBinormal = mat3(m) * binormalV;
-  vec4 world = m * vec4(position, 1.0);
+  vec3 objectNormal = normal;
+  vec3 transformed = position;
+  vec3 objectTangent = tangentU;
+  vec3 objectBinormal = binormalV;
+  #include <skinbase_vertex>
+  #include <skinnormal_vertex>
+  #include <skinning_vertex>
+  #ifdef USE_SKINNING
+  objectTangent = (skinMatrix * vec4(objectTangent, 0.0)).xyz;
+  objectBinormal = (skinMatrix * vec4(objectBinormal, 0.0)).xyz;
+  #endif
+  vNormal = mat3(m) * objectNormal;
+  vTangent = mat3(m) * objectTangent;
+  vBinormal = mat3(m) * objectBinormal;
+  vec4 world = m * vec4(transformed, 1.0);
   vWorld = world.xyz;
   vec4 mvPosition = viewMatrix * world;
   gl_Position = projectionMatrix * mvPosition;

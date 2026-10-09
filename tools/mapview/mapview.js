@@ -149,7 +149,7 @@ async function render() {
 
 function info() {
   const { scene: s } = loadScene(target(), search, sceneOptions)
-  if (opts.json) { console.log(JSON.stringify({ ...s, surfaces: undefined }, null, 2)); return }
+  if (opts.json) { console.log(JSON.stringify({ ...s, surfaces: undefined, player: s.player?.classname }, null, 2)); return }
   const r = (v) => v.map((x) => Math.round(x)).join(' ')
   console.log(`${s.name} (${s.kind}) ${s.path}`)
   console.log(`bounds: min ${r(s.bounds.min)}  max ${r(s.bounds.max)}  size ${r([0, 1, 2].map((i) => s.bounds.max[i] - s.bounds.min[i]))}`)
@@ -181,5 +181,6 @@ function reportMissing(scene) {
   const missing = scene.materials.filter((m) => m.missing && !m.tool)
   if (missing.length) console.log(`missing images: ${missing.map((m) => `${m.name} ${m.missing}`).join(', ')}`)
   if (scene.boxModels.length) console.log(`models drawn as boxes (missing, skinned or bone-bound): ${scene.boxModels.join(', ')}`)
+  if (scene.missingPlayer) console.log(`${scene.missingPlayer.classname} drawn as spawn boxes: one of ${scene.missingPlayer.files.join(', ')} is missing or unreadable`)
   if (scene.missingPrefabs.length) console.log(`missing prefabs: ${scene.missingPrefabs.join(', ')} (use --prefabs <dir>)`)
 }

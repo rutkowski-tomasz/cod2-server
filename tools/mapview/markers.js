@@ -1,8 +1,9 @@
-// Entity markers and their labels; THREE comes from the page script. Labels hide behind walls, past LABEL_RANGE and where they would overlap.
+// Entity markers, players at their spawns, and the labels; THREE comes from the page script. Labels hide behind walls, past LABEL_RANGE and where they would overlap.
 import { toThree } from './draw.js'
 import { d2r } from './math.js'
 
-const PLAYER = { width: 30, height: 72 }
+const SPAWN_BOX = { width: 30, height: 72 }
+const ALLIED_COLOR = 0x3a86ff
 const LABEL_RANGE = 2000
 // Markers closer than this to the camera would fill the view, as when standing on a spawn.
 const NEAR = 80
@@ -14,7 +15,8 @@ const NO_MARKER = /^node_|^info_vehicle_node|^actor_/
 const SKIPPED = /^misc_model|^script_model|^misc_prefab|^info_null|^script_origin|^light$/
 const ANONYMOUS = /^info_null|^script_origin/
 
-export function createMarkers(map, renderer, scene, occluders) {
+// `players` stand in for the spawns of their classname, when the map has them.
+export function createMarkers(map, renderer, scene, occluders, players) {
   const labelsDiv = document.getElementById('labels')
   const markers = new THREE.Group()
   const items = map.entities.filter((e) => e.origin && e.classname !== 'worldspawn' && !NO_MARKER.test(e.classname)).map(buildMarker)
@@ -31,8 +33,13 @@ export function createMarkers(map, renderer, scene, occluders) {
       markers.visible = state.entities
     },
     // Before drawing, so the frame never shows the markers around the camera.
+    // A marker can bring its own test, given the camera's position relative to it.
     hideNear(cam, top) {
-      for (const g of markers.children) g.visible = top || g.position.distanceTo(cam.position) >= NEAR
+      const offset = new THREE.Vector3()
+      for (const g of markers.children) {
+        offset.subVectors(cam.position, g.position)
+        g.visible = top || !(g.userData.hides ? g.userData.hides(offset) : offset.length() < NEAR)
+      }
     },
     drawn(cam, top) {
       dirty = true
@@ -54,10 +61,15 @@ export function createMarkers(map, renderer, scene, occluders) {
     let label = cls
     const group = new THREE.Group()
     group.position.copy(toThree(...e.origin))
-    if (/spawn|info_player_start|intermission/.test(cls)) {
-      color = /allied|allies|american|british|russian/.test(cls) ? 0x3a86ff : /axis|german/.test(cls) ? 0xff3355 : 0x2ec4b6
-      const box = new THREE.Mesh(new THREE.BoxGeometry(PLAYER.width, PLAYER.height, PLAYER.width), new THREE.MeshBasicMaterial({ color, wireframe: true, fog: false }))
-      box.position.y = PLAYER.height / 2
+    if (cls === players?.classname) {
+      color = ALLIED_COLOR
+      const player = players.create(e)
+      group.add(player)
+      group.userData.hides = player.userData.hides
+    } else if (/spawn|info_player_start|intermission/.test(cls)) {
+      color = /allied|allies|american|british|russian/.test(cls) ? ALLIED_COLOR : /axis|german/.test(cls) ? 0xff3355 : 0x2ec4b6
+      const box = new THREE.Mesh(new THREE.BoxGeometry(SPAWN_BOX.width, SPAWN_BOX.height, SPAWN_BOX.width), new THREE.MeshBasicMaterial({ color, wireframe: true, fog: false }))
+      box.position.y = SPAWN_BOX.height / 2
       const yaw = (e.angles ? e.angles[1] : 0) * d2r
       const arrow = new THREE.Mesh(new THREE.ConeGeometry(8, 28, 8), new THREE.MeshBasicMaterial({ color, fog: false }))
       arrow.position.copy(toThree(Math.cos(yaw) * 34, Math.sin(yaw) * 34, 3))

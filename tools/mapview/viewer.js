@@ -1,5 +1,6 @@
 import { createWorld, toThree, fromThree } from './draw.js'
 import { createMarkers } from './markers.js'
+import { createPlayers } from './player.js'
 import { anglesToForward, anglesToMatrix, d2r } from './math.js'
 
 const map = decodeGeometry(JSON.parse(document.getElementById('bundle').textContent))
@@ -28,7 +29,8 @@ const ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 131072)
 addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); needRender = true })
 document.title = `${map.name} – mapview`
 const world = createWorld(map, renderer, scene, () => { needRender = true })
-const markers = createMarkers(map, renderer, scene, world.occluders)
+const players = map.player && createPlayers(map, world)
+const markers = createMarkers(map, renderer, scene, world.occluders, players)
 
 readParams(params)
 applyView()
@@ -39,7 +41,9 @@ whenIdle().then(() => { window.mapReady = true })
 
 window.mapview = {
   // Resets the view to the page defaults plus `p`, waits for the frame, returns the camera.
+  // Only headless renders call this; they hold the players still, so a view renders the same every time.
   async apply(p) {
+    players?.freeze()
     readParams(withDefaults(p))
     applyView()
     await whenIdle()
@@ -63,6 +67,7 @@ function decodeGeometry(bundle) {
   return {
     ...bundle,
     u8: (ref) => new Uint8Array(bytes.buffer, ref.offset, ref.count),
+    u16: (ref) => new Uint16Array(bytes.buffer, ref.offset, ref.count),
     f32: (ref) => new Float32Array(bytes.buffer, ref.offset, ref.count),
     u32: (ref) => new Uint32Array(bytes.buffer, ref.offset, ref.count),
   }
@@ -169,21 +174,25 @@ function updateCamera() {
 
 function renderLoop() {
   const cam = updateCamera()
-  const moved = move()
-  if (needRender || moved || world.loading()) {
+  const changed = move() || needRender || world.loading()
+  const animated = !!players && players.update(cam, state.cut)
+  // The players' animation alone moves no label, so it leaves label occlusion settled.
+  if (changed || animated) {
     markers.hideNear(cam, state.top)
     renderer.render(scene, cam)
+    fps.frames++
+  }
+  if (changed) {
     markers.drawn(cam, state.top)
     updateTicks()
     updateHud()
     needRender = false
-    fps.frames++
   } else markers.settle(cam, state.top)
   updateFps()
   requestAnimationFrame(renderLoop)
 }
 
-// Frames are drawn only when the view changes, so this counts drawn frames and says idle when none were.
+// Frames are drawn only when the view changes or a player is on view, so this counts drawn frames and says idle when none were.
 function updateFps() {
   const elapsed = performance.now() - fps.since
   if (elapsed < 500) return
