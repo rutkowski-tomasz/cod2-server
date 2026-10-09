@@ -85,8 +85,6 @@ export function createLive(map, scene, players, url, onMapChange) {
     kills: () => kills,
     // Kills still waiting to play, with `at` the time they will.
     upcomingKills: () => queue.flatMap((q) => Object.values(q.msg.kills ?? {}).map((k) => ({ ...k, at: q.at + delay }))),
-    // The names of the players shown, in id order.
-    names: () => [...shown.entries()].sort((a, b) => a[0] - b[0]).map(([, p]) => p.name),
     // Name labels over every player, walls or not, since following players is the point.
     place(cam) {
       const v = new THREE.Vector3()
@@ -106,10 +104,11 @@ export function createLive(map, scene, players, url, onMapChange) {
       connected = false
       setTimeout(connect, RECONNECT_MS)
     }
+    // Also plays what is due here, as a hidden tab draws no frames and would otherwise queue messages for hours.
     ws.onmessage = (e) => {
       lastMessage = performance.now()
       queue.push({ at: lastMessage, msg: JSON.parse(e.data) })
-      if (!delay) receive(queue.shift().msg)
+      while (queue.length && queue[0].at <= lastMessage - delay) receive(queue.shift().msg)
     }
   }
 

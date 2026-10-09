@@ -239,7 +239,7 @@ function setDirector(on) {
 // The next live player to follow after the one followed, then back to the free camera after the last.
 function followNext() {
   setDirector(false)
-  const names = live.names()
+  const names = live.roster().sort((a, b) => a.id - b.id).map((p) => p.name)
   state.follow = names[names.indexOf(state.follow) + 1] ?? null
   needRender = true
 }
