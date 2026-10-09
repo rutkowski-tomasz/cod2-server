@@ -5,6 +5,7 @@ import { dirname, join, basename } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { createSearch } from '../fxview/assets.js'
+import { inlineModules } from '../fxview/inline.js'
 import { buildBundle } from './bundle.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -72,7 +73,7 @@ function load() {
 function buildHtml(bundle) {
   const defaults = { menus: opts.menu ? opts.menu.split(',') : [], dvars, outline: !!opts.outline, bg: opts.bg ?? 'mid' }
   return readFileSync(join(HERE, 'viewer.html'), 'utf8')
-    .replace('__SCRIPT__', () => readFileSync(join(HERE, 'viewer.js'), 'utf8'))
+    .replace('__SCRIPT__', () => inlineModules(HERE, 'viewer.js'))
     .replace('__BUNDLE__', () => JSON.stringify({ ...bundle, defaults }).replace(/</g, '\\u003c'))
 }
 
