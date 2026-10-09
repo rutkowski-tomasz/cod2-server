@@ -55,7 +55,8 @@ export function createWorld(map, renderer, scene, onChange) {
     else occluders.add(mesh)
   }
   // Models stay out of `occluders` too: their own labels sit inside them.
-  const models = buildModels(map, buildGeometry, (info) => materialFor(info, { doubleSided: true, sunShade: true }))
+  const modelMaterial = (info) => materialFor(info, { doubleSided: true, sunShade: true })
+  const models = buildModels(map, buildGeometry, modelMaterial)
   scene.add(occluders, triggers, tools, models)
   const sun = lit ? null : addLights()
   const grid = buildGrid()
@@ -63,6 +64,7 @@ export function createWorld(map, renderer, scene, onChange) {
 
   return {
     occluders,
+    modelMaterial,
     loading: () => pending > 0,
     setView(state) {
       view.textures = state.textures

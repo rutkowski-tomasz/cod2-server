@@ -1,11 +1,16 @@
 // Entity markers and their labels; THREE comes from the page script. Labels hide behind walls, past LABEL_RANGE and where they would overlap.
 import { toThree } from './draw.js'
 import { d2r } from './math.js'
+import { createPlayers } from './player.js'
 
 const PLAYER = { width: 30, height: 72 }
 const LABEL_RANGE = 2000
 // Markers closer than this to the camera would fill the view, as when standing on a spawn.
 const NEAR = 80
+// A player hides only once the camera is about inside it, measured from its middle, so it can be looked at up close.
+const PLAYER_NEAR = 40
+// How far below its origin a spawn looks for the floor.
+const MAX_DROP = 4096
 // Occlusion is read back from the GPU only once the view has been still this long.
 const QUIET_MS = 150
 // Entities without a marker: AI paths and actors.
@@ -14,9 +19,14 @@ const NO_MARKER = /^node_|^info_vehicle_node|^actor_/
 const SKIPPED = /^misc_model|^script_model|^misc_prefab|^info_null|^script_origin|^light$/
 const ANONYMOUS = /^info_null|^script_origin/
 
-export function createMarkers(map, renderer, scene, occluders) {
+// `world` gives the occluders that hide labels and the material models draw with.
+export function createMarkers(map, renderer, scene, world) {
   const labelsDiv = document.getElementById('labels')
   const markers = new THREE.Group()
+  const players = map.player && createPlayers(map, world.modelMaterial)
+  let lastAnimated = performance.now()
+  // The floor is found by casting rays at the world before its first frame has placed its brush models.
+  world.occluders.updateMatrixWorld(true)
   const items = map.entities.filter((e) => e.origin && e.classname !== 'worldspawn' && !NO_MARKER.test(e.classname)).map(buildMarker)
   scene.add(markers)
   let dirty = true
@@ -32,7 +42,12 @@ export function createMarkers(map, renderer, scene, occluders) {
     },
     // Before drawing, so the frame never shows the markers around the camera.
     hideNear(cam, top) {
-      for (const g of markers.children) g.visible = top || g.position.distanceTo(cam.position) >= NEAR
+      const middle = new THREE.Vector3()
+      for (const g of markers.children) {
+        g.visible = top || (g.userData.player
+          ? middle.copy(g.position).setY(g.position.y + PLAYER.height / 2).distanceTo(cam.position) >= PLAYER_NEAR
+          : g.position.distanceTo(cam.position) >= NEAR)
+      }
     },
     drawn(cam, top) {
       dirty = true
@@ -46,6 +61,15 @@ export function createMarkers(map, renderer, scene, occluders) {
       place(cam, top)
     },
     settled: () => !dirty,
+    // Moves the players on; true while they are shown, so the page has to draw again.
+    animate() {
+      const now = performance.now()
+      const seconds = (now - lastAnimated) / 1000
+      lastAnimated = now
+      if (!players || !markers.visible) return false
+      players.update(seconds)
+      return true
+    },
   }
 
   function buildMarker(e) {
@@ -54,7 +78,15 @@ export function createMarkers(map, renderer, scene, occluders) {
     let label = cls
     const group = new THREE.Group()
     group.position.copy(toThree(...e.origin))
-    if (/spawn|info_player_start|intermission/.test(cls)) {
+    if (cls === map.player?.classname) {
+      color = 0x3a86ff
+      // The game drops these spawns to the floor below them (placeSpawnpoint in the gametype script), so the player
+      // stands there; its marker stays at the origin.
+      const player = players.create(e.angles ? e.angles[1] : 0)
+      player.position.y = -floorDrop(e.origin)
+      group.add(player)
+      group.userData.player = true
+    } else if (/spawn|info_player_start|intermission/.test(cls)) {
       color = /allied|allies|american|british|russian/.test(cls) ? 0x3a86ff : /axis|german/.test(cls) ? 0xff3355 : 0x2ec4b6
       const box = new THREE.Mesh(new THREE.BoxGeometry(PLAYER.width, PLAYER.height, PLAYER.width), new THREE.MeshBasicMaterial({ color, wireframe: true, fog: false }))
       box.position.y = PLAYER.height / 2
@@ -81,6 +113,12 @@ export function createMarkers(map, renderer, scene, occluders) {
     div.style.color = `#${new THREE.Color(color).getHexString()}`
     const important = !SKIPPED.test(cls) || (e.keys.targetname && !ANONYMOUS.test(cls))
     return { div, pos: group.position.clone().add(new THREE.Vector3(0, 40, 0)), important }
+  }
+
+  function floorDrop([x, y, z]) {
+    const ray = new THREE.Raycaster(toThree(x, y, z + 1), new THREE.Vector3(0, -1, 0), 0, MAX_DROP)
+    const hit = ray.intersectObject(world.occluders)[0]
+    return hit ? hit.distance - 1 : 0
   }
 
   // Nearest labels win; until occlusion is known after a change, every label in range counts as visible.
@@ -126,13 +164,13 @@ export function createMarkers(map, renderer, scene, occluders) {
     const points = new THREE.Points(geom, new THREE.PointsMaterial({ size: 5, sizeAttenuation: false, vertexColors: true }))
     points.frustumCulled = false
     o.scene.overrideMaterial = o.depthMaterial
-    o.scene.add(occluders)
+    o.scene.add(world.occluders)
     renderer.setRenderTarget(o.target)
     renderer.setClearColor(0x000000, 1)
     renderer.clear()
     renderer.render(o.scene, cam)
     o.scene.overrideMaterial = null
-    scene.add(occluders)
+    scene.add(world.occluders)
     o.scene.add(points)
     renderer.autoClear = false
     renderer.render(o.scene, cam)

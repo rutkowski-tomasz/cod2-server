@@ -4,7 +4,8 @@ import { resolve, basename, join } from 'node:path'
 import { parseMaterial } from '../shared/material.js'
 import { decodeIwi, iwiInfo } from '../shared/iwi.js'
 import { pngDataUrl } from '../shared/png.js'
-import { readXModel } from '../shared/xmodel.js'
+import { readXModel, readRig } from '../shared/xmodel.js'
+import { parseXAnim } from '../shared/xanim.js'
 import { readBsp } from './bsp.js'
 import { readMap } from './map.js'
 import { parseVec } from './math.js'
@@ -15,6 +16,13 @@ const TEXTURE_SIZE = 512
 // Normal and specular maps are noisy and compress badly, so they get half the size to keep the page small.
 const NORMAL_MAP_SIZE = 256
 const DEFAULT_BOUNDS = { min: [-512, -512, -64], max: [512, 512, 256] }
+// CTF allied spawns draw as a player playing the multiplayer idle: one of the riflemen the game picks from for
+// Americans in Normandy, with the head and helmet his character script attaches.
+const PLAYER = {
+  classname: 'mp_ctf_spawn_allied',
+  models: ['xmodel/playerbody_american_normandy01', 'xmodel/head_us_ranger_braeburn', 'xmodel/helmet_us_ranger_generic'],
+  idle: 'xanim/pb_stand_alert',
+}
 
 // `target` is a .map or .d3dbsp file, or a game path or stock name like mp_harbor.
 // Returns the scene as JSON, its geometry as one buffer that surfaces point into, and the lightmap pages.
@@ -48,6 +56,7 @@ export function loadScene(target, search, { prefabRoots = [], scriptDir } = {}) 
   const packGeometry = (s, material) => {
     const bumped = materials[material].normalMap && s.tangents
     return {
+      ...(s.skinIndices && { skinIndices: push(Uint16Array.from(s.skinIndices)), skinWeights: push(Float32Array.from(s.skinWeights)) }),
       positions: push(Float32Array.from(s.positions)),
       normals: push(Float32Array.from(s.normals)),
       colors: s.colors ? push(Uint8Array.from(s.colors)) : null,
@@ -82,13 +91,28 @@ export function loadScene(target, search, { prefabRoots = [], scriptDir } = {}) 
     })
     else boxModels.push(name)
   }
+  let player = null
+  if (entities.some((e) => e.classname === PLAYER.classname)) {
+    const rig = readRig(PLAYER.models, search)
+    const idle = search.read(PLAYER.idle)
+    if (rig && idle) {
+      const surfaces = rig.surfaces.map((s) => {
+        const material = materialId(s.material)
+        return { material, ...packGeometry(s, material) }
+      })
+      const animation = parseXAnim(idle)
+      // Animated bones the rig lacks, such as other uniforms' coat tails, would only warn on the page.
+      animation.bones = animation.bones.filter((b) => rig.bones.some((r) => r.name === b.name))
+      player = { classname: PLAYER.classname, bones: rig.bones, surfaces, idle: animation }
+    } else boxModels.push(...PLAYER.models, PLAYER.idle)
+  }
 
   const scene = {
     name: source.name, kind: source.kind, path: source.path,
     bounds: Number.isFinite(bounds.min[0]) ? bounds : DEFAULT_BOUNDS,
     worldspawn: entities[0]?.keys ?? {},
     fog: readFog(source.name, search, scriptDir),
-    materials, surfaces, entities, models, boxModels,
+    materials, surfaces, entities, models, boxModels, player,
     lightmapCount: parsed.lightmaps?.length ?? 0,
     missingPrefabs: parsed.missingPrefabs ?? [],
   }
