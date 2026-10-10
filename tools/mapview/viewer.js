@@ -1,6 +1,6 @@
-import { createWorld, toThree, fromThree } from './draw.js'
+import { createWorld, toThree, fromThree, decodeGeometry } from './draw.js'
 import { createMarkers } from './markers.js'
-import { createPlayers, decodeGeometry } from './player.js'
+import { createPlayers } from './player.js'
 import { anglesToForward, anglesToMatrix, d2r } from './math.js'
 
 const bundle = JSON.parse(document.getElementById('bundle').textContent)

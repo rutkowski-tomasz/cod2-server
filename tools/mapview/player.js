@@ -2,7 +2,7 @@
 // themselves, in any rig, weapon and animation.
 // THREE comes from the page script. Each copy is built in CoD's Z-up frame, like the bundle's bones and geometry,
 // and turned into three.js's Y-up one by its outer group.
-import { toThree } from './draw.js'
+import { toThree, decodeGeometry } from './draw.js'
 import { d2r } from './math.js'
 
 // Seconds between the points of the loop that consecutive copies start at, so they do not move in step.
@@ -45,8 +45,8 @@ export function createPlayers(map, world) {
       outer.userData.hides = (offset) => Math.hypot(offset.x, offset.z) < HIDE_RADIUS && offset.y > -drop && offset.y < HIDE_TOP
       return outer
     },
-    // A copy facing +X with its feet at its parent's origin, for an add-on to place: of `rig`, a player built by
-    // bundle.js buildRig, else of the bundle's player. `remove` it once it is no longer needed.
+    // An actor, a copy for an add-on to place, facing +X with its feet at its parent's origin: of `rig`, a player
+    // built by bundle.js buildRig, else of the bundle's player. `remove` it once it is no longer needed.
     createActor(rig) {
       if (!rig) return createCopy(0, base)
       if (!rigParts.has(rig)) {
@@ -55,18 +55,18 @@ export function createPlayers(map, world) {
       }
       return createCopy(0, rigParts.get(rig))
     },
-    // Puts `weapon` (built like a rig by bundle.js buildWeapon), or nothing for null, in the right hand of the copy
-    // `outer` from createActor, so it follows the hand's animation.
-    hold(outer, weapon) {
-      const copy = copies.find((c) => c.outer === outer)
+    // Puts `weapon` (built like a rig by bundle.js buildWeapon), or nothing for null, in `actor`'s right hand, so it
+    // follows the hand's animation.
+    hold(actor, weapon) {
+      const copy = copies.find((c) => c.outer === actor)
       copy.weapon?.removeFromParent()
       copy.weapon = weapon && weaponMesh(weapon)
       if (copy.weapon) copy.skeleton.getBoneByName('tag_weapon_right')?.add(copy.weapon)
     },
-    // Plays the parsed xanim `legs` on the copy `outer` from createActor, with `torso` over its upper body when given, blending
-    // from what it played. With neither it keeps what it plays.
-    pose(outer, legs, torso) {
-      const copy = copies.find((c) => c.outer === outer)
+    // Plays the parsed xanim `legs` on `actor`, with `torso` over its upper body when given, blending from what it
+    // played. With neither it keeps what it plays.
+    pose(actor, legs, torso) {
+      const copy = copies.find((c) => c.outer === actor)
       const next = [
         legs && copy.mixer.clipAction(clipOf(copy.parts, legs, torso ? 'lower' : 'all')),
         torso && copy.mixer.clipAction(clipOf(copy.parts, torso, 'upper')),
@@ -82,11 +82,11 @@ export function createPlayers(map, world) {
       copy.actions = next
       if (frozen) copy.mixer.update(0)
     },
-    remove(outer) {
-      const i = copies.findIndex((c) => c.outer === outer)
+    remove(actor) {
+      const i = copies.findIndex((c) => c.outer === actor)
       copies[i].skeleton.dispose()
       copies.splice(i, 1)
-      outer.removeFromParent()
+      actor.removeFromParent()
     },
     // Moves the copies on by the time since the last call; true when one is drawn in `cam`'s view, so the page has
     // to draw again. A copy is not drawn while a group above it is hidden, or while `cut` (a height, or null)
@@ -198,19 +198,6 @@ function geometryOf(data, s) {
   geom.setAttribute('skinWeight', new THREE.BufferAttribute(data.f32(s.skinWeights), 4))
   geom.setIndex(new THREE.BufferAttribute(data.u32(s.indices), 1))
   return geom
-}
-
-// Readers of packed arrays sent as base64: the bundle's geometry, or a rig's.
-export function decodeGeometry(base64) {
-  const text = atob(base64)
-  const bytes = new Uint8Array(text.length)
-  for (let i = 0; i < text.length; i++) bytes[i] = text.charCodeAt(i)
-  return {
-    u8: (ref) => new Uint8Array(bytes.buffer, ref.offset, ref.count),
-    u16: (ref) => new Uint16Array(bytes.buffer, ref.offset, ref.count),
-    f32: (ref) => new Float32Array(bytes.buffer, ref.offset, ref.count),
-    u32: (ref) => new Uint32Array(bytes.buffer, ref.offset, ref.count),
-  }
 }
 
 // The names of the upper body's bones: UPPER_BODY and every bone below it.
