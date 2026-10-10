@@ -43,7 +43,7 @@ In the page: click to look around, WASD to move, Shift for speed, E and Q for up
 
 ## Add-ons
 
-`--addon <file.js>` (repeatable) runs a script on the page after the viewer, for what mapview does not draw itself, such as players streamed from a server. Its own `import { … } from './x.js'` lines are inlined like the viewer's; `THREE` is in scope. A program can build the page itself with `buildPage(bundle, defaults, addons)` from `page.js` and `buildBundle` from `bundle.js`, putting what its add-on needs into the bundle or the defaults.
+`--addon <file.js>` (repeatable) runs a script on the page after the viewer, for what mapview does not draw itself, such as players streamed from a server. Its own `import { … } from './x.js'` lines are inlined like the viewer's; `THREE` is in scope. A program can build the page itself with `buildPage(bundle, defaults, addons)` from `page.js` and `buildBundle(target, search)` from `bundle.js`, putting what its add-on needs into the bundle or the defaults; `createSearch(sources)` from `../shared/assets.js` makes the `search`, over the default sources plus `sources` (folders or iwds, later wins).
 
 `window.mapview` gives an add-on:
 
@@ -51,7 +51,7 @@ In the page: click to look around, WASD to move, Shift for speed, E and Q for up
 - `scene`, `players` (the bundle's players, or null without them), `toThree(x, y, z)` and `fromThree(v)` between CoD's Z-up coordinates and three.js's Y-up ones.
 - `onFrame(fn)`: `fn()` runs every frame before the camera is placed and returns true when it changed what is drawn; the page draws only then, or when the view changes.
 - `onDraw(fn)`: `fn(cam)` runs after every drawn frame. `onMove(fn)`: `fn()` runs whenever the keys move the camera.
-- `setEye(pos, angles)` puts the camera at CoD's eye position and view angles. `waitFor(promise)` makes `render` wait for it.
+- `setEye(pos, angles)` puts the camera at CoD's eye position and view angles. `waitFor(promise)` makes `render` wait for it. `addLegend(text)` adds the add-on's keys to the key legend.
 
 The page's own keys are taken: WASD, E, Q, L, F, T, G, K, M, N, O, H, 1 and Esc.
 

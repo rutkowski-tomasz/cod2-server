@@ -73,6 +73,10 @@ window.mapview = {
   },
   // `render` waits for `promise` before the first shot.
   waitFor: (promise) => addons.waits.push(promise),
+  // Adds `text`, such as the add-on's keys, to the key legend.
+  addLegend(text) {
+    $('legend').textContent += ` · ${text}`
+  },
 }
 
 // readParams ranks at over pos and look over angles, so a camera in `p` drops the baked one it replaces.
