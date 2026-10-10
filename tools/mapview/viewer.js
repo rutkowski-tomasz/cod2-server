@@ -99,6 +99,8 @@ window.mapview = {
     state.fov = fov
     needRender = true
   },
+  // How far along the line from CoD's `from` to `to` the first map or sky surface is, as a fraction; 1 when none is.
+  trace: (from, to) => world.trace(from, to),
   // `render` waits for `promise` before the first shot.
   waitFor: (promise) => addons.waits.push(promise),
   // Adds `text`, such as the add-on's keys, to the key legend.
@@ -301,7 +303,8 @@ function move() {
 
 function setupControls() {
   const canvas = renderer.domElement
-  canvas.addEventListener('click', () => { if (!state.top) canvas.requestPointerLock() })
+  // iOS Safari has no pointer lock.
+  canvas.addEventListener('click', () => { if (!state.top) canvas.requestPointerLock?.() })
   addEventListener('mousemove', (e) => {
     if (document.pointerLockElement !== canvas) return
     state.angles[1] = ((state.angles[1] - e.movementX * 0.12 + 540) % 360) - 180
@@ -322,7 +325,7 @@ function setupControls() {
     keys.add(e.code)
     if (e.repeat) return
     if (toggles[e.code]) { state[toggles[e.code]] = e.code === 'KeyL' && e.shiftKey ? 'all' : !state[toggles[e.code]]; applyView() }
-    if (e.code === 'Escape') document.exitPointerLock()
+    if (e.code === 'Escape') document.exitPointerLock?.()
   })
   addEventListener('keyup', (e) => keys.delete(e.code))
   addEventListener('blur', () => keys.clear())
