@@ -16,8 +16,8 @@ const TOOL_MATERIALS = /^(caulk|clip|nodraw|hint|skip|trigger|portal|lightgrid|l
 const TEXTURE_SIZE = 512
 // Normal and specular maps are noisy and compress badly, so they get half the size to keep the page small.
 const NORMAL_MAP_SIZE = 256
-// The weapon file key of each view animation buildViewmodel bundles.
-const VIEW_ANIMS = { idle: 'idleAnim', fire: 'fireAnim', reload: 'reloadAnim' }
+// The weapon file key of each view animation buildViewmodel bundles besides the idle.
+const ACTION_ANIMS = { fire: 'fireAnim', reload: 'reloadAnim', melee: 'meleeAnim' }
 const DEFAULT_BOUNDS = { min: [-512, -512, -64], max: [512, 512, 256] }
 // CTF allied spawns draw as a player playing the multiplayer idle: one of the riflemen the game picks from for
 // Americans in Normandy, with the head and helmet his character script attaches.
@@ -134,15 +134,18 @@ export function buildRig(models, search, attachTo) {
 }
 
 // The model a player holding `weapon` (a weapon file name such as mp40_mp) shows in its hand, built like a rig:
-// the weapon file's worldModel. Null without one, as for "none".
+// the weapon file's worldModel, with its worldFlashEffect as `flash`, an effect or null. Null without a worldModel,
+// as for "none".
 export function buildWeapon(weapon, search) {
-  const model = readWeaponFile(weapon, search)?.worldModel
-  return model ? buildRig([model], search) : null
+  const file = readWeaponFile(weapon, search)
+  const rig = file?.worldModel && buildRig([file.worldModel], search)
+  if (!rig) return null
+  return { ...rig, flash: file.worldFlashEffect ? buildEffect(file.worldFlashEffect, search) : null }
 }
 
 // What a player holding `weapon` sees of it in first person, built like a rig: the `hands` xmodel (what the game's
 // setViewModel set, else the weapon file's handModel) with the weapon file's gunModel hanging from its tag_weapon,
-// the view animations by what they are for (idle, fire, reload), each an xanim or null, and the muzzle flash seen
+// the view animations by what they are for (idle, fire, reload, melee), each an xanim or null, and the muzzle flash seen
 // in first person, an effect or null. Its root, tag_view, is the eye. Null without a gunModel or when a model is
 // missing.
 export function buildViewmodel(weapon, hands, search) {
@@ -151,7 +154,9 @@ export function buildViewmodel(weapon, hands, search) {
   const rig = buildRig([hands || file.handModel, file.gunModel].map(xmodelPath), search, 'tag_weapon')
   if (!rig) return null
   const hip = file.adsDownAnim && buildAnim(file.adsDownAnim, search)
-  const anims = Object.fromEntries(Object.entries(VIEW_ANIMS).map(([use, key]) => [use, atHip(file[key] && buildAnim(file[key], search), hip)]))
+  const idle = holding(file.idleAnim && buildAnim(file.idleAnim, search), hip)
+  const actions = Object.entries(ACTION_ANIMS).map(([use, key]) => [use, holding(file[key] && buildAnim(file[key], search), idle ?? hip)])
+  const anims = { idle, ...Object.fromEntries(actions) }
   return { ...rig, anims, flash: file.viewFlashEffect ? buildEffect(file.viewFlashEffect, search) : null }
 }
 
@@ -162,13 +167,14 @@ export function buildEffect(path, search) {
   return search.read(`${fx}.efx`) ? buildEffectBundle(fx, search) : null
 }
 
-// The game holds the gun at the hip with the last frame of the weapon's adsDownAnim, which moves tag_torso, over the
-// view animation playing; without it the gun sits where the sights line up. So every bone `hip` moves keeps that
-// last pose in `anim`, unless `anim` moves it itself.
-function atHip(anim, hip) {
-  if (!anim || !hip) return anim
+// `anim` with every bone `base` moves and `anim` does not held at `base`'s last pose. The game holds the gun at the
+// hip with the last frame of the weapon's adsDownAnim, which moves tag_torso, over the view animation playing; without
+// it the gun sits where the sights line up. And an action, such as a knife's melee, may move only some bones, which
+// keep the idle's pose in game; here they would fall back to their bind pose at the eye.
+function holding(anim, base) {
+  if (!anim || !base) return anim
   const last = (keys, size) => keys && { frames: [0], values: keys.values.slice(-size) }
-  const held = hip.bones
+  const held = base.bones
     .filter((b) => !anim.bones.some((a) => a.name === b.name))
     .map((b) => ({ name: b.name, rotations: last(b.rotations, 4), translations: last(b.translations, 3) }))
   return { ...anim, bones: [...anim.bones, ...held] }

@@ -51,7 +51,8 @@ export function createPlayers(map, world) {
       return createCopy(0, rigParts.get(rig))
     },
     // Puts `weapon` (built like a rig by bundle.js buildWeapon), or nothing for null, in `actor`'s right hand, so it
-    // follows the hand's animation.
+    // follows the hand's animation. The weapon's bones come along as objects named after them, such as tag_flash,
+    // for effects to play on.
     hold(actor, weapon) {
       const copy = copies.find((c) => c.outer === actor)
       copy.weapon?.removeFromParent()
@@ -127,6 +128,7 @@ export function createPlayers(map, world) {
     }
     const group = new THREE.Group()
     for (const [geometry, material] of weaponParts.get(weapon)) group.add(new THREE.Mesh(geometry, material))
+    boneTree(weapon.bones, group, THREE.Object3D)
     return group
   }
 
@@ -153,14 +155,7 @@ export function createPlayers(map, world) {
   function createCopy(yaw, parts) {
     const { bones, geometries, clip } = parts
     const body = new THREE.Group()
-    const skeleton = new THREE.Skeleton(bones.map((b) => {
-      const bone = new THREE.Bone()
-      bone.name = b.name
-      bone.position.fromArray(b.offset)
-      bone.quaternion.fromArray(b.rotation)
-      return bone
-    }))
-    bones.forEach((b, i) => (b.parent < 0 ? body : skeleton.bones[b.parent]).add(skeleton.bones[i]))
+    const skeleton = new THREE.Skeleton(boneTree(bones, body, THREE.Bone))
     const meshes = geometries.map(([geometry, material]) => new THREE.SkinnedMesh(geometry, material))
     body.add(...meshes)
     // Bound before the copy is turned, so the bind pose is in the body's own frame.
@@ -181,6 +176,19 @@ export function createPlayers(map, world) {
     copies.push({ outer, mixer, start, skeleton, parts, actions: [action], posed: false })
     return outer
   }
+}
+
+// `bones` as objects of the class `Make` in their bind pose, each under its parent or `root`.
+function boneTree(bones, root, Make) {
+  const made = bones.map((b) => {
+    const bone = new Make()
+    bone.name = b.name
+    bone.position.fromArray(b.offset)
+    bone.quaternion.fromArray(b.rotation)
+    return bone
+  })
+  bones.forEach((b, i) => (b.parent < 0 ? root : made[b.parent]).add(made[i]))
+  return made
 }
 
 function geometryOf(data, s) {
