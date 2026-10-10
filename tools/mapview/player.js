@@ -64,8 +64,10 @@ export function createPlayers(map, world) {
       if (copy.weapon) copy.skeleton.getBoneByName('tag_weapon_right')?.add(copy.weapon)
     },
     // Plays the parsed xanim `legs` on `actor`, with `torso` over its upper body when given, blending from what it
-    // played. With neither it keeps what it plays.
-    pose(actor, legs, torso) {
+    // played. With neither it keeps what it plays. `once` plays them from the start, even when already playing, and
+    // holds their last frame. An actor's first pose plays at once: blending from the default idle would pull bones
+    // the idle does not move, such as a viewmodel's, toward their bind pose.
+    pose(actor, legs, torso, { once = false } = {}) {
       const copy = copies.find((c) => c.outer === actor)
       const next = [
         legs && copy.mixer.clipAction(clipOf(copy.parts, legs, torso ? 'lower' : 'all')),
@@ -73,14 +75,18 @@ export function createPlayers(map, world) {
       ].filter(Boolean)
       if (!next.length) return
       // A frozen render draws the new pose at once, as no frame will blend it in.
-      for (const a of copy.actions) if (!next.includes(a)) frozen ? a.stop() : a.fadeOut(FADE)
+      const atOnce = frozen || !copy.posed
+      for (const a of copy.actions) if (!next.includes(a)) atOnce ? a.stop() : a.fadeOut(FADE)
       for (const a of next) {
-        if (copy.actions.includes(a)) continue
+        if (copy.actions.includes(a) && !once) continue
+        a.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, Infinity)
+        a.clampWhenFinished = once
         a.reset().play()
-        if (!frozen) a.fadeIn(FADE)
+        if (!atOnce) a.fadeIn(FADE)
       }
       copy.actions = next
-      if (frozen) copy.mixer.update(0)
+      copy.posed = true
+      if (atOnce) copy.mixer.update(0)
     },
     remove(actor) {
       const i = copies.findIndex((c) => c.outer === actor)
@@ -175,7 +181,7 @@ export function createPlayers(map, world) {
     const outer = new THREE.Group()
     outer.rotation.x = -Math.PI / 2
     outer.add(body)
-    copies.push({ outer, mixer, start, skeleton, parts, actions: [action] })
+    copies.push({ outer, mixer, start, skeleton, parts, actions: [action], posed: false })
     return outer
   }
 
@@ -220,5 +226,6 @@ function buildClip(bones, anim, keep) {
       tracks.push(new THREE.VectorKeyframeTrack(`${b.name}.position`, times(b.translations), values))
     }
   }
-  return new THREE.AnimationClip('idle', (anim.frames - 1) / anim.fps, tracks)
+  // A single-frame animation, such as a gun's idle, still lasts a frame.
+  return new THREE.AnimationClip('idle', Math.max(1, anim.frames - 1) / anim.fps, tracks)
 }

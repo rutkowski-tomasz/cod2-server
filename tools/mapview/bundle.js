@@ -15,6 +15,8 @@ const TOOL_MATERIALS = /^(caulk|clip|nodraw|hint|skip|trigger|portal|lightgrid|l
 const TEXTURE_SIZE = 512
 // Normal and specular maps are noisy and compress badly, so they get half the size to keep the page small.
 const NORMAL_MAP_SIZE = 256
+// The weapon file key of each view animation buildViewmodel bundles.
+const VIEW_ANIMS = { idle: 'idleAnim', reload: 'reloadAnim' }
 const DEFAULT_BOUNDS = { min: [-512, -512, -64], max: [512, 512, 256] }
 // CTF allied spawns draw as a player playing the multiplayer idle: one of the riflemen the game picks from for
 // Americans in Normandy, with the head and helmet his character script attaches.
@@ -114,9 +116,10 @@ export function buildBundle(target, search, options) {
 
 // A player made of `models`, a body and what is attached to it, for an add-on's page: its bones, skinned
 // surfaces, and the materials and images they draw with, packed like a bundle. Null when a model is missing.
-// Its materials keep their normal and specular maps; a page without lightmaps leaves them unused.
-export function buildRig(models, search) {
-  const rig = readRig(models, search)
+// Its materials keep their normal and specular maps; a page without lightmaps leaves them unused. `attachTo` hangs
+// the later models from that bone, as in readRig.
+export function buildRig(models, search, attachTo) {
+  const rig = readRig(models, search, attachTo)
   if (!rig) return null
   const { push, buffer } = createPacker()
   const materials = []
@@ -132,9 +135,48 @@ export function buildRig(models, search) {
 // The model a player holding `weapon` (a weapon file name such as mp40_mp) shows in its hand, built like a rig:
 // the weapon file's worldModel. Null without one, as for "none".
 export function buildWeapon(weapon, search) {
-  const file = search.read(`weapons/mp/${weapon}`)?.toString('latin1').split('\\')
-  const model = file?.[file.indexOf('worldModel') + 1]
+  const model = readWeaponFile(weapon, search)?.worldModel
   return model ? buildRig([model], search) : null
+}
+
+// What a player holding `weapon` sees of it in first person, built like a rig: the `hands` xmodel (what the game's
+// setViewModel set, else the weapon file's handModel) with the weapon file's gunModel hanging from its tag_weapon,
+// and the view animations by what they are for (idle, reload), each an xanim or null. Its root, tag_view, is
+// the eye. Null without a gunModel or when a model is missing.
+export function buildViewmodel(weapon, hands, search) {
+  const file = readWeaponFile(weapon, search)
+  if (!file?.gunModel) return null
+  const rig = buildRig([hands || file.handModel, file.gunModel].map(xmodelPath), search, 'tag_weapon')
+  if (!rig) return null
+  const hip = file.adsDownAnim && buildAnim(file.adsDownAnim, search)
+  const anims = Object.fromEntries(Object.entries(VIEW_ANIMS).map(([use, key]) => [use, atHip(file[key] && buildAnim(file[key], search), hip)]))
+  return { ...rig, anims }
+}
+
+// The game holds the gun at the hip with the last frame of the weapon's adsDownAnim, which moves tag_torso, over the
+// view animation playing; without it the gun sits where the sights line up. So every bone `hip` moves keeps that
+// last pose in `anim`, unless `anim` moves it itself.
+function atHip(anim, hip) {
+  if (!anim || !hip) return anim
+  const last = (keys, size) => keys && { frames: [0], values: keys.values.slice(-size) }
+  const held = hip.bones
+    .filter((b) => !anim.bones.some((a) => a.name === b.name))
+    .map((b) => ({ name: b.name, rotations: last(b.rotations, 4), translations: last(b.translations, 3) }))
+  return { ...anim, bones: [...anim.bones, ...held] }
+}
+
+// A weapon file under weapons/mp/ as its keys and values, or null when missing.
+function readWeaponFile(weapon, search) {
+  const fields = search.read(`weapons/mp/${weapon}`)?.toString('latin1').split('\\')
+  if (!fields) return null
+  const file = {}
+  for (let i = 1; i + 1 < fields.length; i += 2) file[fields[i]] = fields[i + 1]
+  return file
+}
+
+// Weapon files name gun and hand models without the folder that world models carry.
+function xmodelPath(name) {
+  return name.startsWith('xmodel/') ? name : `xmodel/${name}`
 }
 
 // The player animation `name` plays (an xanim), or null for one without, such as `root`, which the torso plays when

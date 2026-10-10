@@ -1,6 +1,7 @@
 import { createWorld, toThree, fromThree, decodeGeometry } from './draw.js'
 import { createMarkers } from './markers.js'
 import { createPlayers } from './player.js'
+import { createViewmodelPass } from './viewmodel.js'
 import { anglesToForward, anglesToMatrix, d2r } from './math.js'
 
 const bundle = JSON.parse(document.getElementById('bundle').textContent)
@@ -33,6 +34,7 @@ document.title = `${map.name} – mapview`
 const world = createWorld(map, renderer, scene, () => { needRender = true })
 const players = map.player && createPlayers(map, world)
 const markers = createMarkers(map, renderer, scene, world.occluders, players)
+const viewmodel = createViewmodelPass(renderer)
 
 // What add-ons register through window.mapview.
 const addons = { frame: [], draw: [], move: [], waits: [] }
@@ -66,6 +68,12 @@ window.mapview = {
   onDraw: (fn) => addons.draw.push(fn),
   // `fn()` runs whenever the keys move the camera.
   onMove: (fn) => addons.move.push(fn),
+  // Draws `object`, such as an actor of a viewmodel rig, at the eye in CoD's view frame and over the world; null
+  // removes it. The top view leaves it out.
+  setViewmodel(object) {
+    viewmodel.set(object)
+    needRender = true
+  },
   // Moves the camera to `pos` with `angles`, CoD's eye position and view angles.
   setEye(pos, angles) {
     if ([...pos, ...angles].every((v, i) => v === [...state.pos, ...state.angles][i])) return
@@ -193,12 +201,14 @@ function renderLoop() {
   if (moved) for (const fn of addons.move) fn()
   const addonChanged = addons.frame.map((fn) => fn()).some(Boolean)
   const cam = updateCamera()
+  viewmodel.place(cam)
   const changed = moved || needRender || world.loading()
   const animated = !!players && players.update(cam, state.cut)
   // The players' animation alone moves no label, so it leaves label occlusion settled; so do add-ons' changes.
   if (changed || animated || addonChanged) {
     markers.hideNear(cam, state.top)
     renderer.render(scene, cam)
+    if (!state.top && viewmodel.shown()) viewmodel.draw(cam)
     for (const fn of addons.draw) fn(cam)
     fps.frames++
   }

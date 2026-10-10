@@ -116,9 +116,10 @@ export function readXModel(name, search) {
 }
 
 // Xmodels attached by bone name, as the game's `attach(model, "")` does: each model after the first reuses the bones
-// it shares by name with the ones before and adds the rest. Returns the bones and every surface in the bind pose,
-// or null when a model is missing.
-export function readRig(names, search) {
+// it shares by name with the ones before and adds the rest. With `attachTo`, the root bones of the models after the
+// first hang from the bone of that name, as a gun from the hands' tag_weapon. Returns the bones and every surface in
+// the bind pose, or null when a model is missing.
+export function readRig(names, search, attachTo) {
   const bones = []
   const models = []
   for (const name of names) {
@@ -126,9 +127,10 @@ export function readRig(names, search) {
     const parts = lod && search.read(`xmodelparts/${lod.name}`)
     if (!parts) return null
     const index = []
+    const root = models.length ? bones.findIndex((x) => x.name === attachTo) : -1
     for (const b of parseParts(parts)) {
       const i = bones.findIndex((x) => x.name === b.name)
-      index.push(i >= 0 ? i : bones.push({ ...b, parent: b.parent < 0 ? -1 : index[b.parent] }) - 1)
+      index.push(i >= 0 ? i : bones.push({ ...b, parent: b.parent < 0 ? root : index[b.parent] }) - 1)
     }
     models.push({ lod, index })
   }
