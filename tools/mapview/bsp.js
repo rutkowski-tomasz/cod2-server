@@ -1,6 +1,7 @@
 // Turns a compiled CoD2 map into what the page draws: entities, surfaces grouped by material and lightmap, lightmaps.
 import { readBsp as readCompiled } from '../shared/bsp.js'
-import { MeshBuilder, planePolygons } from './brush.js'
+import { MeshBuilder } from './brush.js'
+import { planePolygons } from '../shared/planes.js'
 
 // Collision faces have no texture mapping; their texture repeats every this many units.
 const COLLISION_TILE = 64
