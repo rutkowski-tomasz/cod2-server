@@ -51,7 +51,7 @@ In the page: click to look around, WASD to move, Shift for speed, E and Q for up
 - `scene`, `players` (the bundle's players, or null without them), `toThree(x, y, z)` and `fromThree(v)` between CoD's Z-up coordinates and three.js's Y-up ones.
 - `onFrame(fn)`: `fn()` runs every frame before the camera is placed and returns true when it changed what is drawn; the page draws only then, or when the view changes.
 - `onDraw(fn)`: `fn(cam)` runs after every drawn frame. `onMove(fn)`: `fn()` runs whenever the keys move the camera.
-- `gameHud` draws the game's HUD over the page, as the game draws a player's: a 640×480 virtual screen stretched to the window.
+- `gameHud` draws the game's HUD over the page, as the game draws a player's: a 640×480 virtual screen stretched to the window. Text keeps its shape on a wider screen, scaled by the window's height only, as in game.
   - `gameHud.add(assets)` loads the fonts from `buildHudFonts(search)` (the game's normal, big, small and bold) and the images from `buildHudImages(shaders, search)` (the materials in `shaders`), both in `bundle.js`.
   - `gameHud.set(elements)` draws hud elements: plain objects with the fields a script's `newHudElem` has.
   - Placement: `x`, `y`, `alignX` and `horzAlign` (left, center, right), `alignY` and `vertAlign` (top, middle, bottom), and `sort`.
