@@ -3,6 +3,7 @@
 - `hashHex = sha256(input, [iterations])` - Returns deterministic SHA-256 as a lowercase 64-character hex string. `iterations` is optional and defaults to `1`; when `iterations > 1`, each additional round hashes the previous 64-char hex output. Supports account hashing flows like `sha256(saltHex + password + pepper, iterations)`.
 - `result = collapseColors(string)`
 - `result = stripColors(string)`
+- `messages = takePrintedMessages()` - Returns the `iPrintln` and `iPrintlnBold` messages sent since the last call, oldest first, and forgets them; only the latest 256 are kept. Each is an array with `client` (the receiving player's entity number; undefined when sent to everyone), `bold` (`1` for `iPrintlnBold`) and `text`, as the game sends it: a run of plain text starts with `\x15`, a localized string is its key, and `\x14` and `\x16` mark its other parts. Messages to bots are kept too.
 
 # Animations
 
