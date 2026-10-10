@@ -18,7 +18,7 @@ const TEXTURE_SIZE = 512
 // Normal and specular maps are noisy and compress badly, so they get half the size to keep the page small.
 const NORMAL_MAP_SIZE = 256
 // The weapon file key of each view animation buildViewmodel bundles besides the idle.
-const ACTION_ANIMS = { fire: 'fireAnim', reload: 'reloadAnim', melee: 'meleeAnim' }
+const ACTION_ANIMS = { fire: 'fireAnim', reload: 'reloadAnim', melee: 'meleeAnim', adsUp: 'adsUpAnim', adsDown: 'adsDownAnim' }
 // The fonts game-hud.js draws text in, by the name its elements give.
 const HUD_FONTS = { normal: 'normalFont', big: 'bigFont', small: 'smallFont', bold: 'boldFont' }
 const DEFAULT_BOUNDS = { min: [-512, -512, -64], max: [512, 512, 256] }
@@ -148,9 +148,9 @@ export function buildWeapon(weapon, search) {
 
 // What a player holding `weapon` sees of it in first person, built like a rig: the `hands` xmodel (what the game's
 // setViewModel set, else the weapon file's handModel) with the weapon file's gunModel hanging from its tag_weapon,
-// the view animations by what they are for (idle, fire, reload, melee), each an xanim or null, and the muzzle flash seen
-// in first person, an effect or null. Its root, tag_view, is the eye. Null without a gunModel or when a model is
-// missing.
+// the view animations by what they are for (idle, fire, reload, melee; adsUp into aiming down the sights, aimed held
+// there, adsFire, adsDown back), each an xanim or null, and the muzzle flash seen in first person, an effect or null.
+// Its root, tag_view, is the eye. Null without a gunModel or when a model is missing.
 export function buildViewmodel(weapon, hands, search) {
   const file = readWeaponFile(weapon, search)
   if (!file?.gunModel) return null
@@ -158,8 +158,12 @@ export function buildViewmodel(weapon, hands, search) {
   if (!rig) return null
   const hip = file.adsDownAnim && buildAnim(file.adsDownAnim, search)
   const idle = holding(file.idleAnim && buildAnim(file.idleAnim, search), hip)
-  const actions = Object.entries(ACTION_ANIMS).map(([use, key]) => [use, holding(file[key] && buildAnim(file[key], search), idle ?? hip)])
-  const anims = { idle, ...Object.fromEntries(actions) }
+  // The pose an action holds for the bones it does not move.
+  const rest = idle ?? hip
+  const anim = (key, base) => holding(file[key] && buildAnim(file[key], search), base)
+  const actions = Object.fromEntries(Object.entries(ACTION_ANIMS).map(([use, key]) => [use, anim(key, rest)]))
+  const aimed = actions.adsUp && lastPose(actions.adsUp)
+  const anims = { idle, ...actions, aimed, adsFire: anim('adsFireAnim', aimed) }
   return { ...rig, anims, flash: file.viewFlashEffect ? buildEffect(file.viewFlashEffect, search) : null }
 }
 
@@ -201,11 +205,14 @@ export function buildEffect(path, search) {
 // keep the idle's pose in game; here they would fall back to their bind pose at the eye.
 function holding(anim, base) {
   if (!anim || !base) return anim
-  const last = (keys, size) => keys && { frames: [0], values: keys.values.slice(-size) }
-  const held = base.bones
-    .filter((b) => !anim.bones.some((a) => a.name === b.name))
-    .map((b) => ({ name: b.name, rotations: last(b.rotations, 4), translations: last(b.translations, 3) }))
+  const held = lastPose(base).bones.filter((b) => !anim.bones.some((a) => a.name === b.name))
   return { ...anim, bones: [...anim.bones, ...held] }
+}
+
+// `anim` held at its last frame, as an animation one frame long.
+function lastPose(anim) {
+  const last = (keys, size) => keys && { frames: [0], values: keys.values.slice(-size) }
+  return { ...anim, frames: 1, bones: anim.bones.map((b) => ({ name: b.name, rotations: last(b.rotations, 4), translations: last(b.translations, 3) })) }
 }
 
 // A weapon file under weapons/mp/ as its keys and values, or null when missing.

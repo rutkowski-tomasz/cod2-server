@@ -90,11 +90,13 @@ window.mapview = {
   playEffectOn(effect, object, forward = [1, 0, 0]) {
     effects.play(effect, object, [0, 0, 0], forward)
   },
-  // Moves the camera to `pos` with `angles`, CoD's eye position and view angles.
-  setEye(pos, angles) {
-    if ([...pos, ...angles].every((v, i) => v === [...state.pos, ...state.angles][i])) return
+  // Moves the camera to `pos` with `angles`, CoD's eye position and view angles, seeing `fov` degrees across, as a
+  // zoomed weapon does, until the keys or mouse move the camera; the page's own fov without it.
+  setEye(pos, angles, fov = state.baseFov) {
+    if ([...pos, ...angles, fov].every((v, i) => v === [...state.pos, ...state.angles, state.fov][i])) return
     state.pos = [...pos]
     state.angles = [...angles]
+    state.fov = fov
     needRender = true
   },
   // `render` waits for `promise` before the first shot.
@@ -131,7 +133,7 @@ function readParams(p) {
     const d = [t[0] - state.pos[0], t[1] - state.pos[1], (t[2] ?? state.pos[2]) - state.pos[2]]
     state.angles = [round(-Math.atan2(d[2], Math.hypot(d[0], d[1])) / d2r), round(Math.atan2(d[1], d[0]) / d2r), 0]
   }
-  state.fov = +p.fov || 80
+  state.fov = state.baseFov = +p.fov || 80
   state.top = on(p.top)
   state.span = +p.span || 0
   state.center = p.center !== undefined ? vec(p.center) : [state.pos[0], state.pos[1]]
@@ -287,7 +289,7 @@ function move() {
   const fwd = anglesToForward(state.angles)
   const right = [Math.sin(y), -Math.cos(y), 0]
   let moved = false
-  const step = (v, s) => { for (let k = 0; k < 3; k++) state.pos[k] += v[k] * s; moved = true }
+  const step = (v, s) => { for (let k = 0; k < 3; k++) state.pos[k] += v[k] * s; moved = true; state.fov = state.baseFov }
   if (keys.has('KeyW')) step(fwd, speed)
   if (keys.has('KeyS')) step(fwd, -speed)
   if (keys.has('KeyD')) step(right, speed)
@@ -304,6 +306,7 @@ function setupControls() {
     if (document.pointerLockElement !== canvas) return
     state.angles[1] = ((state.angles[1] - e.movementX * 0.12 + 540) % 360) - 180
     state.angles[0] = Math.max(-89, Math.min(89, state.angles[0] + e.movementY * 0.12))
+    state.fov = state.baseFov
     needRender = true
   })
   addEventListener('wheel', (e) => {
