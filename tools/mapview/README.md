@@ -53,6 +53,13 @@ In the page: click to look around, WASD to move, Shift for speed, E and Q for up
 - `onDraw(fn)`: `fn(cam)` runs after every drawn frame. `onMove(fn)`: `fn()` runs whenever the keys move the camera.
 - `setEye(pos, angles)` puts the camera at CoD's eye position and view angles. `waitFor(promise)` makes `render` wait for it. `addLegend(text)` adds the add-on's keys to the key legend.
 
+Players in any skin, weapon and animation, built by the program from the same sources: `buildRig(models, search)` (a body model and what is attached to it, such as head and helmet), `buildWeapon(name, search)` (a weapon file under `weapons/mp/`, drawn as its `worldModel`) and `buildAnim(name, search)` (an xanim) from `bundle.js`, each JSON the page can take as is, or null when missing. `buildBundle(target, search, { withPlayer: true })` bundles the default player even on maps without CTF allied spawns, so `players` is there. On the page:
+
+- `players.createActor(rig)`: an actor, a copy of `rig`, or of the default player without one, facing +X with its feet at its parent's origin; add it to the scene and move it yourself.
+- `players.hold(actor, weapon)` puts the weapon in its right hand (`tag_weapon_right`), null empties it.
+- `players.pose(actor, legs, torso)` plays the legs animation, with the torso one over the bones from `torso_stabilizer` down when given, blended in over 0.2 s.
+- `players.remove(actor)` once it is gone.
+
 The page's own keys are taken: WASD, E, Q, L, F, T, G, K, M, N, O, H, 1 and Esc.
 
 ## What is drawn
