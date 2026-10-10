@@ -54,9 +54,15 @@ export function createWorld(map, renderer, scene, onChange) {
   const occluders = new THREE.Group()
   const triggers = new THREE.Group()
   const tools = new THREE.Group()
+  // Sky surfaces are not drawn, as the sky box draws behind everything, but they stop traces as they do in game.
+  const skySurfaces = new THREE.Group()
+  const skyMaterial = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide })
   for (const [order, s] of map.surfaces.entries()) {
     const info = map.materials[s.material]
-    if (info.sky) continue
+    if (info.sky) {
+      skySurfaces.add(buildMesh(s, skyMaterial))
+      continue
+    }
     if (/^trigger/.test(map.entities[s.entity].classname)) {
       triggers.add(buildMesh(s, new THREE.MeshBasicMaterial({ color: TRIGGER_COLOR, transparent: true, opacity: 0.25, depthWrite: false, fog: false })))
       continue
@@ -77,8 +83,9 @@ export function createWorld(map, renderer, scene, onChange) {
   const grid = buildGrid()
   const sky = buildSky()
 
-  // The floor is found by casting rays at the world before its first frame has placed its brush models.
+  // Rays for the floor and traces are cast at the world before its first frame has placed its brush models.
   occluders.updateMatrixWorld(true)
+  skySurfaces.updateMatrixWorld(true)
 
   return {
     occluders,
@@ -89,6 +96,14 @@ export function createWorld(map, renderer, scene, onChange) {
       const ray = new THREE.Raycaster(toThree(x, y, z + 1), new THREE.Vector3(0, -1, 0), 0, MAX_DROP)
       const hit = ray.intersectObject(occluders)[0]
       return hit ? hit.distance - 1 : 0
+    },
+    // The fraction of the way from CoD's `from` to `to` where the first map or sky surface is; 1 when none is.
+    trace(from, to) {
+      const a = toThree(...from), b = toThree(...to)
+      const length = a.distanceTo(b)
+      const ray = new THREE.Raycaster(a, new THREE.Vector3().subVectors(b, a).normalize(), 0, length)
+      const hit = ray.intersectObjects([occluders, skySurfaces])[0]
+      return hit ? hit.distance / length : 1
     },
     loading: () => pending > 0,
     setView(state) {
