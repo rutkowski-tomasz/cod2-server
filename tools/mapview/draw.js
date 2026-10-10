@@ -7,6 +7,8 @@ import { BLEND, LIGHTMAP_SHADER, blendOf, ignoresAlpha, replaceFogChunks } from 
 // CoD2 is Z-up; three.js is Y-up. World coordinates convert as (x, y, z) -> (x, z, -y).
 export const toThree = (x, y, z) => new THREE.Vector3(x, z, -y)
 export const fromThree = (v) => [v.x, -v.z, v.y]
+// How far below a point floorDrop looks for the floor.
+const MAX_DROP = 4096
 
 // Readers of packed arrays sent as base64: the bundle's geometry, or a rig's.
 export function decodeGeometry(base64) {
@@ -75,9 +77,19 @@ export function createWorld(map, renderer, scene, onChange) {
   const grid = buildGrid()
   const sky = buildSky()
 
+  // The floor is found by casting rays at the world before its first frame has placed its brush models.
+  occluders.updateMatrixWorld(true)
+
   return {
     occluders,
     modelMaterial,
+    // How far below CoD's point `[x, y, z]` the first map surface is (not models, tool brushes or triggers); 0 when
+    // none is within MAX_DROP.
+    floorDrop([x, y, z]) {
+      const ray = new THREE.Raycaster(toThree(x, y, z + 1), new THREE.Vector3(0, -1, 0), 0, MAX_DROP)
+      const hit = ray.intersectObject(occluders)[0]
+      return hit ? hit.distance - 1 : 0
+    },
     loading: () => pending > 0,
     setView(state) {
       view.textures = state.textures

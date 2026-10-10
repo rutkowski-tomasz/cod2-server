@@ -8,9 +8,10 @@ const TRACE_RANGE = 512
 // z: pointing up, like playFx without a forward vector or an explosion on the ground. x: level, like a muzzle.
 export const FORWARD = { x: [1, 0, 0], z: [0, 0, 1], '-z': [0, 0, -1], '-x': [-1, 0, 0] }
 
+// `opts.forward` is a FORWARD key or a direction; `opts.ground` the height of the ground plane, null for none.
 export function createSim(bundle, opts = {}) {
   const rngSeed = opts.seed ?? 1
-  const forward = FORWARD[opts.forward ?? 'z']
+  const forward = Array.isArray(opts.forward) ? opts.forward : FORWARD[opts.forward ?? 'z']
   const axis = axisFacing(forward)
   const ground = opts.ground === undefined ? 0 : opts.ground
   const origin = [0, 0, 0]

@@ -9,6 +9,7 @@ import { readBsp } from './bsp.js'
 import { readMap } from './map.js'
 import { parseXAnim } from './xanim.js'
 import { parseVec } from './math.js'
+import { buildBundle as buildEffectBundle } from '../fxview/bundle.js'
 
 const TOOL_MATERIALS = /^(caulk|clip|nodraw|hint|skip|trigger|portal|lightgrid|ladder|mantle|sky$|origin|areaportal|sun_|lightmap_|\$|util_|physics|mirror|textures\/common)/i
 // Textures are downscaled to keep the page small; 512 still reads well at eye level.
@@ -16,7 +17,7 @@ const TEXTURE_SIZE = 512
 // Normal and specular maps are noisy and compress badly, so they get half the size to keep the page small.
 const NORMAL_MAP_SIZE = 256
 // The weapon file key of each view animation buildViewmodel bundles.
-const VIEW_ANIMS = { idle: 'idleAnim', reload: 'reloadAnim' }
+const VIEW_ANIMS = { idle: 'idleAnim', fire: 'fireAnim', reload: 'reloadAnim' }
 const DEFAULT_BOUNDS = { min: [-512, -512, -64], max: [512, 512, 256] }
 // CTF allied spawns draw as a player playing the multiplayer idle: one of the riflemen the game picks from for
 // Americans in Normandy, with the head and helmet his character script attaches.
@@ -141,8 +142,9 @@ export function buildWeapon(weapon, search) {
 
 // What a player holding `weapon` sees of it in first person, built like a rig: the `hands` xmodel (what the game's
 // setViewModel set, else the weapon file's handModel) with the weapon file's gunModel hanging from its tag_weapon,
-// and the view animations by what they are for (idle, reload), each an xanim or null. Its root, tag_view, is
-// the eye. Null without a gunModel or when a model is missing.
+// the view animations by what they are for (idle, fire, reload), each an xanim or null, and the muzzle flash seen
+// in first person, an effect or null. Its root, tag_view, is the eye. Null without a gunModel or when a model is
+// missing.
 export function buildViewmodel(weapon, hands, search) {
   const file = readWeaponFile(weapon, search)
   if (!file?.gunModel) return null
@@ -150,7 +152,14 @@ export function buildViewmodel(weapon, hands, search) {
   if (!rig) return null
   const hip = file.adsDownAnim && buildAnim(file.adsDownAnim, search)
   const anims = Object.fromEntries(Object.entries(VIEW_ANIMS).map(([use, key]) => [use, atHip(file[key] && buildAnim(file[key], search), hip)]))
-  return { ...rig, anims }
+  return { ...rig, anims, flash: file.viewFlashEffect ? buildEffect(file.viewFlashEffect, search) : null }
+}
+
+// The effect at `path` (fx/explosions/grenade_flash, with or without .efx) with every effect, material and model it
+// uses, as fxview bundles it, for the page's playEffect; null when missing.
+export function buildEffect(path, search) {
+  const fx = path.replace(/\.efx$/, '')
+  return search.read(`${fx}.efx`) ? buildEffectBundle(fx, search) : null
 }
 
 // The game holds the gun at the hip with the last frame of the weapon's adsDownAnim, which moves tag_torso, over the

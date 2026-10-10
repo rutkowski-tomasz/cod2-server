@@ -26,7 +26,7 @@ The tools are tested but can still have bugs or missing parts. If one gets in yo
 
 `tools/menuview/` previews `.menu` files without the game: `node tools/menuview/menuview.js render <menu>` writes a screenshot to look at, `view` an interactive page, `info` the items and their boxes. See `tools/menuview/README.md`.
 
-`tools/mapview/` draws maps (`.map`, `.d3dbsp`, a map's `.iwd` or a stock name) without the game: `node tools/mapview/mapview.js render <map> --at mp_tdm_spawn` writes a screenshot to look at, `view` an interactive page, `info` the entities and materials. See `tools/mapview/README.md`.
+`tools/mapview/` draws maps (`.map`, `.d3dbsp`, a map's `.iwd` or a stock name) without the game: `node tools/mapview/mapview.js render <map> --at mp_tdm_spawn` writes a screenshot to look at, `view` an interactive page, `info` the entities and materials. See `tools/mapview/README.md`. It draws effects with fxview's `bundle.js`, `sim.js` and `quads.js`; fxview never imports mapview.
 
 `tools/mapcompile/` compiles a `.map` into a map `.iwd` with the Mod Tools under wine in Docker: `tools/mapcompile/mapcompile.sh <file.map> [-o out.iwd] [--fast]`; `--fast` makes lighting about 7× quicker but rougher, for test builds. See `tools/mapcompile/README.md`.
 

@@ -14,6 +14,8 @@ Targets are a file path or an fx path. Fx paths, sub-effects (`playfx`, `emitfx`
 
 Output goes to `out/fxview/` unless `-o` is given. `render` writes the page next to the sheet, so the same frames can be inspected interactively. `--stats` adds a JSON with duration, bounds, warnings, missing assets and per-frame particle counts.
 
+mapview plays effects on its pages with this tool's `bundle.js`, `sim.js` and `quads.js` (the quad each particle draws as), so changes there show in both.
+
 ## Checking an effect as an agent
 
 1. `info` — element list, materials, blend modes, missing assets. A missing material or image means the effect will not look right in game either.
