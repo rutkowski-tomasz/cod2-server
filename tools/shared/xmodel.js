@@ -37,7 +37,8 @@ export function parseXModel(buf) {
 // Surface: tile mode u8, vertex count, triangle count, bone (-1 when every vertex names its own, then an unknown u16).
 // Vertex: normal, colour, uv, binormal, tangent (48 bytes); with per-vertex bones, the extra weight count u8 and the
 // bone u16; then the position. Extra weights follow an unknown byte: bone u16, position, weight u16 / 65535; the first
-// bone gets the rest. Positions and directions are relative to their bone. Each vertex gets four bones and weights.
+// bone gets the rest. Positions and directions are relative to their bone. Each vertex gets four bones and weights,
+// and in `bonePositions` its position relative to each of them, zero for the unused ones.
 export function parseSurfaces(buf) {
   const surfaces = []
   let o = 4
@@ -48,7 +49,7 @@ export function parseSurfaces(buf) {
     const triangleCount = buf.readUInt16LE(o + 3)
     const bone = buf.readInt16LE(o + 5)
     o += bone === -1 ? 9 : 7
-    const s = { bone, positions: [], normals: [], colors: [], uvs: [], binormals: [], tangents: [], indices: [], skinIndices: [], skinWeights: [] }
+    const s = { bone, positions: [], normals: [], colors: [], uvs: [], binormals: [], tangents: [], indices: [], skinIndices: [], skinWeights: [], bonePositions: [] }
     for (let v = 0; v < vertexCount; v++) {
       s.normals.push(...vec3(o))
       s.colors.push(buf[o + 12], buf[o + 13], buf[o + 14], buf[o + 15])
@@ -63,17 +64,21 @@ export function parseSurfaces(buf) {
         first = buf.readUInt16LE(o + 1)
         o += 3
       }
-      s.positions.push(...vec3(o))
+      const position = vec3(o)
+      s.positions.push(...position)
       o += extra ? 13 : 12
       const bones = [first, 0, 0, 0]
       const weights = [1, 0, 0, 0]
+      const positions = [position, [0, 0, 0], [0, 0, 0], [0, 0, 0]]
       for (let k = 1; k <= extra; k++, o += 16) {
         bones[k] = buf.readUInt16LE(o)
+        positions[k] = vec3(o + 2)
         weights[k] = buf.readUInt16LE(o + 14) / 65535
         weights[0] -= weights[k]
       }
       s.skinIndices.push(...bones)
       s.skinWeights.push(...weights)
+      s.bonePositions.push(...positions.flat())
     }
     for (let t = 0; t < triangleCount * 3; t++, o += 2) s.indices.push(buf.readUInt16LE(o))
     surfaces.push(s)
@@ -118,7 +123,8 @@ export function readXModel(name, search) {
 // Xmodels attached by bone name, as the game's `attach(model, "")` does: each model after the first reuses the bones
 // it shares by name with the ones before and adds the rest. With `attachTo`, the root bones of the models after the
 // first hang from the bone of that name, as a gun from the hands' tag_weapon. Returns the bones and every surface in
-// the bind pose, or null when a model is missing.
+// the bind pose, or null when a model is missing. A bone's `offset` may be moved so its vertices hold together (see
+// placeBones); `fileOffset` keeps the file's, which an animation's translations are relative to.
 export function readRig(names, search, attachTo) {
   const bones = []
   const models = []
@@ -134,19 +140,70 @@ export function readRig(names, search, attachTo) {
     }
     models.push({ lod, index })
   }
+  const parsed = models.flatMap(({ lod, index }) => parseSurfaces(lod.surfaces).map((s, i) => ({ ...s, skinIndices: s.skinIndices.map((b) => index[b]), material: lod.materials[i] })))
+  placeBones(bones, parsed)
   const pose = bindPose(bones)
-  const surfaces = models.flatMap(({ lod, index }) => parseSurfaces(lod.surfaces).map((s, i) => {
-    const skinIndices = s.skinIndices.map((b) => index[b])
-    const out = { ...s, skinIndices, material: lod.materials[i], positions: [], normals: [], binormals: [], tangents: [] }
+  const surfaces = parsed.map((s) => {
+    const out = { ...s, positions: [], normals: [], binormals: [], tangents: [] }
     for (let v = 0; v < s.positions.length / 3; v++) {
-      const { rotation, offset } = pose[skinIndices[v * 4]]
+      const { rotation, offset } = pose[s.skinIndices[v * 4]]
       const at = (a) => a.slice(v * 3, v * 3 + 3)
       out.positions.push(...rotate(rotation, at(s.positions)).map((x, k) => x + offset[k]))
       for (const key of ['normals', 'binormals', 'tangents']) out[key].push(...rotate(rotation, at(s[key])))
     }
     return out
-  }))
+  })
   return { bones, surfaces }
+}
+
+// Viewmodel hands keep every bone at its parent's origin and leave placing them to the animations, but a vertex
+// stores its position relative to each bone it follows. three.js skins from one bind position per vertex, so where
+// those positions disagree in the bind pose, the vertex is pulled apart. Moves each bone that shares vertices with
+// others to where its positions meet theirs, keeping the rotations.
+function placeBones(bones, surfaces) {
+  const rotations = bindPose(bones).map((p) => p.rotation)
+  // Per bone, the bones it shares a vertex with and its gap from each: its position minus theirs, in model space.
+  const links = bones.map(() => new Map())
+  for (const s of surfaces) {
+    const fromBone = (slot) => rotate(rotations[s.skinIndices[slot]], s.bonePositions.slice(slot * 3, slot * 3 + 3))
+    for (let v = 0; v < s.positions.length / 3; v++) {
+      const first = s.skinIndices[v * 4]
+      const fromFirst = fromBone(v * 4)
+      for (let slot = v * 4 + 1; slot < v * 4 + 4; slot++) {
+        const bone = s.skinIndices[slot]
+        if (!s.skinWeights[slot] || bone === first || links[bone].has(first)) continue
+        const fromOther = fromBone(slot)
+        const gap = fromFirst.map((x, j) => x - fromOther[j])
+        links[bone].set(first, gap)
+        links[first].set(bone, gap.map((x) => -x))
+      }
+    }
+  }
+  // Each bone's position in model space: from its parent, unless a linked bone placed it first.
+  const placed = []
+  bones.forEach((b, i) => {
+    if (placed[i]) return
+    const parent = placed[b.parent]
+    placed[i] = parent ? rotate(rotations[b.parent], b.offset).map((x, k) => x + parent[k]) : b.offset
+    const queue = [i]
+    while (queue.length) {
+      const from = queue.shift()
+      for (const [other, gap] of links[from]) {
+        if (placed[other]) continue
+        placed[other] = placed[from].map((x, k) => x - gap[k])
+        queue.push(other)
+      }
+    }
+  })
+  bones.forEach((b, i) => {
+    b.fileOffset = b.offset
+    if (b.parent < 0) {
+      b.offset = placed[i]
+      return
+    }
+    const [x, y, z, w] = rotations[b.parent]
+    b.offset = rotate([-x, -y, -z, w], placed[i].map((v, k) => v - placed[b.parent][k]))
+  })
 }
 
 function readLod(name, search) {
