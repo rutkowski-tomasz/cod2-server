@@ -2,6 +2,7 @@ import { createWorld, toThree, fromThree, decodeGeometry } from './draw.js'
 import { createMarkers } from './markers.js'
 import { createPlayers } from './player.js'
 import { createViewmodelPass } from './viewmodel.js'
+import { createEffects } from './effects.js'
 import { anglesToForward, anglesToMatrix, d2r } from './math.js'
 
 const bundle = JSON.parse(document.getElementById('bundle').textContent)
@@ -35,6 +36,7 @@ const world = createWorld(map, renderer, scene, () => { needRender = true })
 const players = map.player && createPlayers(map, world)
 const markers = createMarkers(map, renderer, scene, world.occluders, players)
 const viewmodel = createViewmodelPass(renderer)
+const effects = createEffects(scene)
 
 // What add-ons register through window.mapview.
 const addons = { frame: [], draw: [], move: [], waits: [] }
@@ -73,6 +75,16 @@ window.mapview = {
   setViewmodel(object) {
     viewmodel.set(object)
     needRender = true
+  },
+  // Plays `effect` (built by bundle.js buildEffect) at CoD's `origin`, its forward along `forward`, up by default,
+  // as playFx does; its particles bounce on the floor below.
+  playEffect(effect, origin, forward = [0, 0, 1]) {
+    effects.play(effect, null, origin, forward, -world.floorDrop(origin))
+  },
+  // Plays `effect` on `object`, such as a bone of an actor (tag_flash for a muzzle flash), along its X axis unless
+  // `forward` says otherwise; it moves with the object and ends when the object leaves the scene.
+  playEffectOn(effect, object, forward = [1, 0, 0]) {
+    effects.play(effect, object, [0, 0, 0], forward)
   },
   // Moves the camera to `pos` with `angles`, CoD's eye position and view angles.
   setEye(pos, angles) {
@@ -204,8 +216,10 @@ function renderLoop() {
   viewmodel.place(cam)
   const changed = moved || needRender || world.loading()
   const animated = !!players && players.update(cam, state.cut)
-  // The players' animation alone moves no label, so it leaves label occlusion settled; so do add-ons' changes.
-  if (changed || animated || addonChanged) {
+  const effecting = effects.update(cam)
+  // The players' animation alone moves no label, so it leaves label occlusion settled; so do effects and add-ons'
+  // changes.
+  if (changed || animated || effecting || addonChanged) {
     markers.hideNear(cam, state.top)
     renderer.render(scene, cam)
     if (!state.top && viewmodel.shown()) viewmodel.draw(cam)

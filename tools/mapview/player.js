@@ -2,13 +2,11 @@
 // themselves, in any rig, weapon and animation.
 // THREE comes from the page script. Each copy is built in CoD's Z-up frame, like the bundle's bones and geometry,
 // and turned into three.js's Y-up one by its outer group.
-import { toThree, decodeGeometry } from './draw.js'
+import { decodeGeometry } from './draw.js'
 import { d2r } from './math.js'
 
 // Seconds between the points of the loop that consecutive copies start at, so they do not move in step.
 const PHASE_STEP = 0.37
-// How far below its spawn a player looks for the floor.
-const MAX_DROP = 4096
 // A player hides while the camera is inside this upright cylinder around it, from its feet to this far above
 // its spawn, as when standing on the spawn: `--at` puts the eye 60 units above it.
 const HIDE_RADIUS = 24
@@ -30,16 +28,13 @@ export function createPlayers(map, world) {
   const copies = []
   let lastUpdate = performance.now()
   let frozen = false
-  // The floor is found by casting rays at the world before its first frame has placed its brush models.
-  world.occluders.updateMatrixWorld(true)
-
   return {
     classname: map.player.classname,
     // A copy for the spawn `e`, to place at its origin. The game drops these spawns to the floor below them
     // (placeSpawnpoint in the gametype script), so the copy stands there.
     create(e) {
       const outer = createCopy((e.angles ? e.angles[1] : 0) * d2r, base)
-      const drop = floorDrop(e.origin)
+      const drop = world.floorDrop(e.origin)
       outer.position.y = -drop
       // `offset` is the camera's position relative to the spawn, in three.js's frame.
       outer.userData.hides = (offset) => Math.hypot(offset.x, offset.z) < HIDE_RADIUS && offset.y > -drop && offset.y < HIDE_TOP
@@ -78,11 +73,13 @@ export function createPlayers(map, world) {
       const atOnce = frozen || !copy.posed
       for (const a of copy.actions) if (!next.includes(a)) atOnce ? a.stop() : a.fadeOut(FADE)
       for (const a of next) {
-        if (copy.actions.includes(a) && !once) continue
+        const playing = copy.actions.includes(a)
+        if (playing && !once) continue
         a.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, Infinity)
         a.clampWhenFinished = once
         a.reset().play()
-        if (!atOnce) a.fadeIn(FADE)
+        // A restart keeps its full weight: fading in from none would pull the bones toward their bind pose.
+        if (!atOnce && !playing) a.fadeIn(FADE)
       }
       copy.actions = next
       copy.posed = true
@@ -183,12 +180,6 @@ export function createPlayers(map, world) {
     outer.add(body)
     copies.push({ outer, mixer, start, skeleton, parts, actions: [action], posed: false })
     return outer
-  }
-
-  function floorDrop([x, y, z]) {
-    const ray = new THREE.Raycaster(toThree(x, y, z + 1), new THREE.Vector3(0, -1, 0), 0, MAX_DROP)
-    const hit = ray.intersectObject(world.occluders)[0]
-    return hit ? hit.distance - 1 : 0
   }
 }
 

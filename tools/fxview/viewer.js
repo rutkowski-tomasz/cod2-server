@@ -1,5 +1,6 @@
 import { createSim } from './sim.js'
-import { createRenderer, cameraEye, V } from './draw.js'
+import { createRenderer, cameraEye } from './draw.js'
+import { V } from './quads.js'
 
 const bundle = JSON.parse(document.getElementById('bundle').textContent)
 const params = { ...(bundle.defaults ?? {}), ...Object.fromEntries(new URLSearchParams(location.hash.slice(1))) }
