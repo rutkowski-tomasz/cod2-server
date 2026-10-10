@@ -7,6 +7,7 @@ const SCREEN_H = 480
 // A hud element's text at fontScale 1 is this many virtual pixels high, as the game's own HUD scripts assume.
 const LINE_HEIGHT = 12
 const FONT_SCALE = LINE_HEIGHT / FONT_HEIGHT
+const NORMAL_SIZES = ['small', 'normal', 'big']
 const HORZ = { left: 0, subleft: 0, fullscreen: 0, noscale: 0, center: SCREEN_W / 2, right: SCREEN_W }
 const VERT = { top: 0, subtop: 0, fullscreen: 0, noscale: 0, middle: SCREEN_H / 2, bottom: SCREEN_H }
 
@@ -44,17 +45,21 @@ export function createGameHud() {
   }
 
   function draw() {
-    if (canvas.width !== innerWidth || canvas.height !== innerHeight) Object.assign(canvas, { width: innerWidth, height: innerHeight })
+    // Drawn in device pixels, so text stays sharp on high-density screens.
+    const width = Math.round(innerWidth * devicePixelRatio)
+    const height = Math.round(innerHeight * devicePixelRatio)
+    if (canvas.width !== width || canvas.height !== height) Object.assign(canvas, { width, height })
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     ctx.setTransform(canvas.width / SCREEN_W, 0, 0, canvas.height / SCREEN_H, 0, 0)
+    ctx.imageSmoothingQuality = 'high'
     for (const e of elems) if ((e.alpha ?? 1) > 0) drawElement(e)
   }
 
   function drawElement(e) {
-    const font = fonts[e.font ?? 'normal']
     const scale = FONT_SCALE * (e.fontScale ?? 1)
     const lineHeight = LINE_HEIGHT * (e.fontScale ?? 1)
+    const font = fontFor(e.font ?? 'normal', (lineHeight * canvas.height) / SCREEN_H)
     const parts = (e.parts ?? [e]).map((p) => {
       if (p.shader) return images[p.shader] && { ...p, w: p.width, h: p.height }
       return font && p.text && { text: p.text, w: paint.width(p.text, font, scale), h: lineHeight }
@@ -68,6 +73,14 @@ export function createGameHud() {
       else paint.text(p.text, x, y + (height + p.h) / 2, color, font, scale, e.shadow ? TEXTSTYLE.SHADOWED : 0)
       x += p.w
     }
+  }
+
+  // The font `name`. The game draws normal text from its normal font; here it comes from the smallest of the small,
+  // normal and big fonts at least `pixels` high on screen, so large text stays sharp.
+  function fontFor(name, pixels) {
+    if (name !== 'normal') return fonts[name]
+    const sizes = NORMAL_SIZES.map((n) => fonts[n]).filter(Boolean)
+    return sizes.find((f) => f.pixelHeight >= pixels) ?? sizes.at(-1)
   }
 
   // `p.shader` filling the `p.w` by `p.h` box at x, y.
