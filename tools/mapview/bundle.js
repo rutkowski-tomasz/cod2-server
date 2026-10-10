@@ -27,7 +27,8 @@ const PLAYER = {
 // `target` is a .map or .d3dbsp file, or a game path or stock name like mp_harbor.
 // Returns the scene as JSON, its geometry as one buffer that surfaces point into, and the lightmap pages.
 // `scriptDir` holds map scripts by name, `<name>.gsc`, for maps whose script is not in the sources.
-export function loadScene(target, search, { prefabRoots = [], scriptDir } = {}) {
+// `withPlayer` bundles the player even without CTF allied spawns.
+export function loadScene(target, search, { prefabRoots = [], scriptDir, withPlayer = false } = {}) {
   const source = loadTarget(target, search)
   const parsed = source.kind === 'map' ? readMap(source.path, prefabRoots) : readBsp(source.buffer)
   // Only the lightmap shader draws normal and specular maps, so pages without lightmaps leave them out.
@@ -40,31 +41,8 @@ export function loadScene(target, search, { prefabRoots = [], scriptDir } = {}) 
     return materialIndex.get(name)
   }
 
-  const chunks = []
-  let byteLength = 0
-  const push = (typed) => {
-    const ref = { offset: byteLength, count: typed.length }
-    chunks.push(Buffer.from(typed.buffer, typed.byteOffset, typed.byteLength))
-    byteLength += typed.byteLength
-    const pad = (4 - (byteLength % 4)) % 4
-    if (pad) { chunks.push(Buffer.alloc(pad)); byteLength += pad }
-    return ref
-  }
-  // The arrays that map and model surfaces share, packed into the geometry buffer.
-  // Tangents and binormals only matter under a normal map, so other surfaces leave them out of the page;
-  // rebuilt collision faces have none.
-  const packGeometry = (s, material) => {
-    const bumped = materials[material].normalMap && s.tangents
-    return {
-      positions: push(Float32Array.from(s.positions)),
-      normals: push(Float32Array.from(s.normals)),
-      colors: s.colors ? push(Uint8Array.from(s.colors)) : null,
-      uvs: push(Float32Array.from(s.uvs)),
-      tangents: bumped ? push(Float32Array.from(s.tangents)) : null,
-      binormals: bumped ? push(Float32Array.from(s.binormals)) : null,
-      indices: push(Uint32Array.from(s.indices)),
-    }
-  }
+  const { push, buffer } = createPacker()
+  const packGeometry = (s, material) => packSurface(push, s, materials[material].normalMap && s.tangents)
 
   const bounds = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] }
   const grow = (p) => { for (let k = 0; k < 3; k++) { bounds.min[k] = Math.min(bounds.min[k], p[k]); bounds.max[k] = Math.max(bounds.max[k], p[k]) } }
@@ -92,17 +70,14 @@ export function loadScene(target, search, { prefabRoots = [], scriptDir } = {}) 
   }
   let player = null
   let missingPlayer = null
-  if (entities.some((e) => e.classname === PLAYER.classname)) {
+  if (withPlayer || entities.some((e) => e.classname === PLAYER.classname)) {
     const rig = readRig(PLAYER.models, search)
     const idle = search.read(PLAYER.idle)
     const animation = idle && parseXAnim(idle)
     if (rig && animation) {
       const surfaces = rig.surfaces.map((s) => {
         const material = materialId(s.material)
-        return {
-          material, ...packGeometry(s, material),
-          skinIndices: push(Uint16Array.from(s.skinIndices)), skinWeights: push(Float32Array.from(s.skinWeights)),
-        }
+        return { material, ...packGeometry(s, material), ...packSkin(push, s) }
       })
       // Animated bones the rig lacks, such as other uniforms' coat tails, would only warn on the page.
       animation.bones = animation.bones.filter((b) => rig.bones.some((r) => r.name === b.name))
@@ -119,23 +94,13 @@ export function loadScene(target, search, { prefabRoots = [], scriptDir } = {}) 
     lightmapCount: parsed.lightmaps?.length ?? 0,
     missingPrefabs: parsed.missingPrefabs ?? [],
   }
-  return { scene, geometry: Buffer.concat(chunks), lightmaps: parsed.lightmaps ?? [] }
+  return { scene, geometry: buffer(), lightmaps: parsed.lightmaps ?? [] }
 }
 
 // The scene plus every image it uses as PNG data URLs, ready to embed in the page.
 export function buildBundle(target, search, options) {
   const { scene, geometry, lightmaps } = loadScene(target, search, options)
-  const images = {}
-  for (const m of scene.materials) {
-    if (m.sky || !m.width) continue
-    if (!images[m.image]) {
-      const img = decodeIwi(search.read(`images/${m.image}.iwi`))
-      images[m.image] = { png: pngDataUrl(downscale(img, TEXTURE_SIZE)), alpha: hasAlpha(img.rgba) }
-    }
-    for (const name of [m.normalMap, m.specularMap]) {
-      if (name && !images[name]) images[name] = { png: pngDataUrl(downscale(decodeIwi(search.read(`images/${name}.iwi`)), NORMAL_MAP_SIZE)) }
-    }
-  }
+  const images = imagesOf(scene.materials, search)
   const skyMaterial = scene.materials.find((m) => m.sky && m.width)
   const sky = skyMaterial && decodeIwi(search.read(`images/${skyMaterial.image}.iwi`))
   return {
@@ -145,6 +110,89 @@ export function buildBundle(target, search, options) {
     lightmaps: lightmaps.map((pages) => pages.map(pngDataUrl)),
     sky: sky?.faces?.map((rgba) => pngDataUrl(downscale({ width: sky.width, height: sky.height, rgba }, TEXTURE_SIZE))) ?? null,
   }
+}
+
+// A player made of `models`, a body and what is attached to it, for an add-on's page: its bones, skinned
+// surfaces, and the materials and images they draw with, packed like a bundle. Null when a model is missing.
+// Its materials keep their normal and specular maps; a page without lightmaps leaves them unused.
+export function buildRig(models, search) {
+  const rig = readRig(models, search)
+  if (!rig) return null
+  const { push, buffer } = createPacker()
+  const materials = []
+  const materialIndex = new Map()
+  const surfaces = rig.surfaces.map((s) => {
+    if (!materialIndex.has(s.material)) materialIndex.set(s.material, materials.push(describeMaterial(s.material, search, true)) - 1)
+    const material = materialIndex.get(s.material)
+    return { material, ...packSurface(push, s, materials[material].normalMap && s.tangents), ...packSkin(push, s) }
+  })
+  return { bones: rig.bones, surfaces, materials, images: imagesOf(materials, search), geometry: buffer().toString('base64') }
+}
+
+// The model a player holding `weapon` (a weapon file name such as mp40_mp) shows in its hand, built like a rig:
+// the weapon file's worldModel. Null without one, as for "none".
+export function buildWeapon(weapon, search) {
+  const file = search.read(`weapons/mp/${weapon}`)?.toString('latin1').split('\\')
+  const model = file?.[file.indexOf('worldModel') + 1]
+  return model ? buildRig([model], search) : null
+}
+
+// The player animation `name` plays (an xanim), or null for one without, such as `root`, which the torso plays when
+// only the legs animate.
+export function buildAnim(name, search) {
+  const buf = search.read(`xanim/${name}`)
+  return buf && parseXAnim(buf)
+}
+
+// Typed arrays packed one after another, each 4-byte aligned; `push` returns where its array sits.
+function createPacker() {
+  const chunks = []
+  let byteLength = 0
+  return {
+    push(typed) {
+      const ref = { offset: byteLength, count: typed.length }
+      chunks.push(Buffer.from(typed.buffer, typed.byteOffset, typed.byteLength))
+      byteLength += typed.byteLength
+      const pad = (4 - (byteLength % 4)) % 4
+      if (pad) { chunks.push(Buffer.alloc(pad)); byteLength += pad }
+      return ref
+    },
+    buffer: () => Buffer.concat(chunks),
+  }
+}
+
+// The arrays that map and model surfaces share. Tangents and binormals only matter under a normal map, so other
+// surfaces leave them out of the page; rebuilt collision faces have none.
+function packSurface(push, s, bumped) {
+  return {
+    positions: push(Float32Array.from(s.positions)),
+    normals: push(Float32Array.from(s.normals)),
+    colors: s.colors ? push(Uint8Array.from(s.colors)) : null,
+    uvs: push(Float32Array.from(s.uvs)),
+    tangents: bumped ? push(Float32Array.from(s.tangents)) : null,
+    binormals: bumped ? push(Float32Array.from(s.binormals)) : null,
+    indices: push(Uint32Array.from(s.indices)),
+  }
+}
+
+function packSkin(push, s) {
+  return { skinIndices: push(Uint16Array.from(s.skinIndices)), skinWeights: push(Float32Array.from(s.skinWeights)) }
+}
+
+// Every image the materials draw with, as PNG data URLs; the sky is handled on its own.
+function imagesOf(materials, search) {
+  const images = {}
+  for (const m of materials) {
+    if (m.sky || !m.width) continue
+    if (!images[m.image]) {
+      const img = decodeIwi(search.read(`images/${m.image}.iwi`))
+      images[m.image] = { png: pngDataUrl(downscale(img, TEXTURE_SIZE)), alpha: hasAlpha(img.rgba) }
+    }
+    for (const name of [m.normalMap, m.specularMap]) {
+      if (name && !images[name]) images[name] = { png: pngDataUrl(downscale(decodeIwi(search.read(`images/${name}.iwi`)), NORMAL_MAP_SIZE)) }
+    }
+  }
+  return images
 }
 
 // A material with an image it can draw has `width`; `missing` says why one has none.
@@ -171,8 +219,8 @@ function describeMaterial(name, search, lit) {
 
 // The fog the map's script sets: its first setExpFog or setCullFog called with numbers.
 function readFog(name, search, scriptDir) {
-  const file = join(scriptDir, `${name}.gsc`)
-  const script = search.read(`maps/mp/${name}.gsc`) ?? (existsSync(file) ? readFileSync(file) : null)
+  const file = scriptDir && join(scriptDir, `${name}.gsc`)
+  const script = search.read(`maps/mp/${name}.gsc`) ?? (file && existsSync(file) ? readFileSync(file) : null)
   if (!script) return null
   const code = script.toString('latin1').replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '')
   for (const [, kind, args] of code.matchAll(/\bset(exp|cull)fog\s*\(([^)]*)\)/gi)) {

@@ -1,9 +1,11 @@
 import { createWorld, toThree, fromThree } from './draw.js'
 import { createMarkers } from './markers.js'
-import { createPlayers } from './player.js'
+import { createPlayers, decodeGeometry } from './player.js'
 import { anglesToForward, anglesToMatrix, d2r } from './math.js'
 
-const map = decodeGeometry(JSON.parse(document.getElementById('bundle').textContent))
+const bundle = JSON.parse(document.getElementById('bundle').textContent)
+// The geometry arrives as one base64 blob; surfaces hold { offset, count } refs into it.
+const map = { ...bundle, ...decodeGeometry(bundle.geometry) }
 const params = withDefaults(Object.fromEntries(new URLSearchParams(location.hash.slice(1))))
 const $ = (id) => document.getElementById(id)
 const EYE_HEIGHT = 60
@@ -85,20 +87,6 @@ function withDefaults(p) {
   if (p.at !== undefined) return { ...rest, ...p }
   if (p.pos !== undefined) return { ...rest, angles, ...p }
   return { ...rest, at, pos, angles, look: p.angles !== undefined ? undefined : look, ...p }
-}
-
-// The geometry arrives as one base64 blob; surfaces hold { offset, count } refs into it.
-function decodeGeometry(bundle) {
-  const text = atob(bundle.geometry)
-  const bytes = new Uint8Array(text.length)
-  for (let i = 0; i < text.length; i++) bytes[i] = text.charCodeAt(i)
-  return {
-    ...bundle,
-    u8: (ref) => new Uint8Array(bytes.buffer, ref.offset, ref.count),
-    u16: (ref) => new Uint16Array(bytes.buffer, ref.offset, ref.count),
-    f32: (ref) => new Float32Array(bytes.buffer, ref.offset, ref.count),
-    u32: (ref) => new Uint32Array(bytes.buffer, ref.offset, ref.count),
-  }
 }
 
 function readParams(p) {
