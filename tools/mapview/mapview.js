@@ -6,8 +6,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { homedir } from 'node:os'
 import { execFileSync } from 'node:child_process'
 import { createSearch } from '../shared/assets.js'
-import { inlineModules } from '../shared/inline.js'
 import { loadScene, buildBundle } from './bundle.js'
+import { buildPage } from './page.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const OUT = join(HERE, '..', '..', 'out', 'mapview')
@@ -25,6 +25,7 @@ const USAGE = `usage:
 options:
   --source <dir|iwd>   extra asset source, repeatable; mod folders beat stock
   --prefabs <dir>      where misc_prefab paths resolve, repeatable (.map)
+  --addon <file.js>    script the page runs after the viewer, repeatable (view, render); see README.md
   --size 1280x720      image size (render); a batch shot can set its own size
 
 view options:
@@ -41,12 +42,12 @@ const FLAGS = ['open', 'json', 'top', 'grid', 'tools']
 
 const args = process.argv.slice(2)
 const cmd = args.shift()
-const opts = { source: [], prefabs: [] }
+const opts = { source: [], prefabs: [], addon: [] }
 const positional = []
 while (args.length) {
   const a = args.shift()
   if (a === '-o') opts.out = args.shift()
-  else if (a === '--source' || a === '--prefabs') opts[a.slice(2)].push(args.shift())
+  else if (['--source', '--prefabs', '--addon'].includes(a)) opts[a.slice(2)].push(args.shift())
   else if (FLAGS.includes(a.slice(2))) opts[a.slice(2)] = true
   else if (a.startsWith('--')) opts[a.slice(2)] = args.shift()
   else positional.push(a)
@@ -88,22 +89,6 @@ function viewOf(o) {
   return Object.fromEntries(VIEW_KEYS.filter((k) => o[k] !== undefined).map((k) => [k, o[k]]))
 }
 
-// three.js ships as two ES modules; the page imports them from data URLs, since file:// pages cannot import files.
-function threeUrl() {
-  const dir = join(HERE, 'node_modules', 'three', 'build')
-  const dataUrl = (source) => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`
-  const core = dataUrl(readFileSync(join(dir, 'three.core.js'), 'utf8'))
-  return dataUrl(readFileSync(join(dir, 'three.module.js'), 'utf8').replaceAll("'./three.core.js'", JSON.stringify(core)))
-}
-
-// Command line view options are baked into the page as defaults; URL hash params still override them.
-function buildHtml(bundle, defaults) {
-  return readFileSync(join(HERE, 'viewer.html'), 'utf8')
-    .replace('__THREE__', threeUrl)
-    .replace('__SCRIPT__', () => inlineModules(HERE, 'viewer.js'))
-    .replace('__BUNDLE__', () => JSON.stringify({ ...bundle, defaults }).replace(/</g, '\\u003c'))
-}
-
 function load() {
   const bundle = buildBundle(target(), search, sceneOptions)
   reportMissing(bundle)
@@ -112,7 +97,7 @@ function load() {
 
 function view() {
   const out = outName('html')
-  writeFileSync(out, buildHtml(load(), viewOf(opts)))
+  writeFileSync(out, buildPage(load(), viewOf(opts), opts.addon))
   console.log(out)
   if (opts.open) execFileSync('open', [out])
 }
@@ -123,7 +108,7 @@ async function render() {
   const outDir = opts.batch ? opts.out ?? OUT : dirname(shots[0].out)
   mkdirSync(outDir, { recursive: true })
   const html = join(outDir, `${opts.batch ? bundle.name : basename(shots[0].out, '.png')}.html`)
-  writeFileSync(html, buildHtml(bundle, opts.batch ? {} : viewOf(opts)))
+  writeFileSync(html, buildPage(bundle, opts.batch ? {} : viewOf(opts), opts.addon))
   const viewport = (size) => { const [width, height] = size.split('x').map(Number); return { width, height } }
   const defaultSize = opts.size ?? '1280x720'
   const { chromium } = await import('playwright-core')
