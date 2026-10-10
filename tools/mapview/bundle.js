@@ -1,7 +1,8 @@
 // Builds the self-contained map bundle: geometry, entities, and the textures, lightmaps and sky it draws with.
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve, basename, join } from 'node:path'
-import { parseMaterial } from '../shared/material.js'
+import { parseMaterial, readMaterialImage } from '../shared/material.js'
+import { parseFont } from '../shared/font.js'
 import { decodeIwi, iwiInfo } from '../shared/iwi.js'
 import { pngDataUrl } from '../shared/png.js'
 import { readXModel, readRig } from '../shared/xmodel.js'
@@ -18,6 +19,8 @@ const TEXTURE_SIZE = 512
 const NORMAL_MAP_SIZE = 256
 // The weapon file key of each view animation buildViewmodel bundles besides the idle.
 const ACTION_ANIMS = { fire: 'fireAnim', reload: 'reloadAnim', melee: 'meleeAnim' }
+// The fonts game-hud.js draws text in, by the name its elements give.
+const HUD_FONTS = { normal: 'normalFont', big: 'bigFont', small: 'smallFont', bold: 'boldFont' }
 const DEFAULT_BOUNDS = { min: [-512, -512, -64], max: [512, 512, 256] }
 // CTF allied spawns draw as a player playing the multiplayer idle: one of the riflemen the game picks from for
 // Americans in Normandy, with the head and helmet his character script attaches.
@@ -160,6 +163,31 @@ export function buildViewmodel(weapon, hands, search) {
   return { ...rig, anims, flash: file.viewFlashEffect ? buildEffect(file.viewFlashEffect, search) : null }
 }
 
+// The game's fonts for game-hud.js, with their atlases among `images`.
+export function buildHudFonts(search) {
+  const fonts = {}
+  const images = {}
+  for (const [name, file] of Object.entries(HUD_FONTS)) {
+    const buf = search.read(`fonts/${file}`)
+    const font = buf && parseFont(buf)
+    const atlas = font && readMaterialImage(font.material, search)
+    if (!atlas || atlas.missing) continue
+    images[`font:${font.material}`] = atlas
+    fonts[name] = { pixelHeight: font.pixelHeight, image: `font:${font.material}`, glyphs: font.glyphs }
+  }
+  return { fonts, images }
+}
+
+// The images of `shaders`, materials game-hud.js elements show, each a PNG data URL; a missing one is left out.
+export function buildHudImages(shaders, search) {
+  const images = {}
+  for (const name of shaders) {
+    const image = readMaterialImage(name, search)
+    if (!image.missing) images[name] = image
+  }
+  return { images }
+}
+
 // The effect at `path` (fx/explosions/grenade_flash, with or without .efx) with every effect, material and model it
 // uses, as fxview bundles it, for the page's playEffect; null when missing.
 export function buildEffect(path, search) {
@@ -181,7 +209,7 @@ function holding(anim, base) {
 }
 
 // A weapon file under weapons/mp/ as its keys and values, or null when missing.
-function readWeaponFile(weapon, search) {
+export function readWeaponFile(weapon, search) {
   const fields = search.read(`weapons/mp/${weapon}`)?.toString('latin1').split('\\')
   if (!fields) return null
   const file = {}

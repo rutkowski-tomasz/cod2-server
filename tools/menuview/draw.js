@@ -1,16 +1,12 @@
 // Draws the open menus on a 640x480 canvas the way the CoD2 UI lays them out.
+import { createPainter, rgba, FONT_HEIGHT } from '../shared/paint.js'
 const TYPE = { TEXT: 0, BUTTON: 1, LISTBOX: 6, SLIDER: 10, YESNO: 11, MULTI: 12, BIND: 14 }
 const FIELD_TYPES = new Set([4, 9, 16, 17, 18])
 const STYLE = { FILLED: 1, GRADIENT: 2, SHADER: 3, CINEMATIC: 5, DVAR_SHADER: 6, LOADBAR: 7 }
-const TEXTSTYLE = { SHADOWED: 3, OUTLINED: 4, OUTLINESHADOWED: 5, SHADOWEDMORE: 6 }
-// ^0-^9. ^8 and ^9 are not in the stock assets; these are guesses.
-const CODE_COLORS = [[0, 0, 0], [1, 0.2, 0.2], [0, 1, 0], [1, 1, 0], [0.2, 0.2, 1], [0, 1, 1], [1, 0, 1], [1, 1, 1], [1, 0.55, 0], [0.55, 0.55, 0.55]]
 const BORDER = { FULL: 1, HORZ: 2, VERT: 3, KCGRADIENT: 4 }
 const TEXTALIGN = { CENTER: 1, RIGHT: 2, CENTER2: 3 }
 const BACKGROUNDS = { dark: '#181818', light: '#c8c8c8', black: '#000' }
 const DEFAULT_TEXTSCALE = 0.55
-// Height in virtual pixels of text at textscale 1.
-const FONT_HEIGHT = 48
 export const SCREEN_W = 640
 export const SCREEN_H = 480
 
@@ -27,15 +23,10 @@ export function isVisible(state, item) {
 
 export const isFocusable = (state, item) => !item.decoration && isVisible(state, item)
 
-const isColorCode = (text, i) => text[i] === '^' && /[0-9]/.test(text[i + 1] ?? '')
-// Glyphs are scaled so the font's pixel height becomes FONT_HEIGHT × textscale virtual pixels.
-const glyphScale = (font, scale) => (scale * FONT_HEIGHT) / font.pixelHeight
-const rgba = (c, alpha = 1) => `rgba(${c[0] * 255},${c[1] * 255},${c[2] * 255},${Math.min(1, Math.max(0, (c[3] ?? 1) * alpha))})`
-
 // `images` holds the loaded <img> of each bundle image. `draw` takes the viewer's state: open menus, item colors, dvars, hover.
 export function createRenderer(canvas, bundle, images) {
   const ctx = canvas.getContext('2d')
-  const tints = new Map()
+  const paint = createPainter(ctx, images)
   let state
   return function draw(current, { width, height, outline, bg }) {
     state = current
@@ -111,32 +102,7 @@ export function createRenderer(canvas, bundle, images) {
       placeholder([x, y, w, h], name)
       return
     }
-    ctx.save()
-    ctx.globalAlpha = Math.min(1, color[3] ?? 1)
-    if (bundle.images[name].blend === 'add') ctx.globalCompositeOperation = 'lighter'
-    ctx.drawImage(tinted(name, color), x, y, w, h)
-    ctx.restore()
-  }
-
-  // Image multiplied by an RGB color, alpha kept; cached per color.
-  function tinted(name, color) {
-    if (color[0] >= 1 && color[1] >= 1 && color[2] >= 1) return images[name]
-    const key = `${name}|${color.slice(0, 3).join(',')}`
-    if (!tints.has(key)) {
-      const img = images[name]
-      const c = document.createElement('canvas')
-      c.width = img.width
-      c.height = img.height
-      const g = c.getContext('2d')
-      g.drawImage(img, 0, 0)
-      g.globalCompositeOperation = 'multiply'
-      g.fillStyle = rgba([...color.slice(0, 3), 1])
-      g.fillRect(0, 0, c.width, c.height)
-      g.globalCompositeOperation = 'destination-in'
-      g.drawImage(img, 0, 0)
-      tints.set(key, c)
-    }
-    return tints.get(key)
+    paint.image(name, x, y, w, h, color, bundle.images[name].blend)
   }
 
   function placeholder([x, y, w, h], label) {
@@ -167,14 +133,14 @@ export function createRenderer(canvas, bundle, images) {
     const scale = item.textscale ?? DEFAULT_TEXTSCALE
     const lineHeight = FONT_HEIGHT * scale
     let lines = label.split('\n')
-    if (item.autowrapped && item.box[2]) lines = lines.flatMap((l) => wrap(l, font, scale, item.box[2]))
+    if (item.autowrapped && item.box[2]) lines = lines.flatMap((l) => paint.wrap(l, font, scale, item.box[2]))
     let endX = item.box[0] + (item.textalignx ?? 0)
     lines.forEach((line, i) => {
-      const width = textWidth(line, font, scale)
+      const width = paint.width(line, font, scale)
       let x = item.box[0] + (item.textalignx ?? 0)
       if (item.textalign === TEXTALIGN.CENTER || item.textalign === TEXTALIGN.CENTER2) x -= width / 2
       else if (item.textalign === TEXTALIGN.RIGHT) x -= width
-      drawText(line, x, item.box[1] + (item.textaligny ?? 0) + i * lineHeight, color, font, scale, item.textstyle)
+      paint.text(line, x, item.box[1] + (item.textaligny ?? 0) + i * lineHeight, color, font, scale, item.textstyle)
       endX = x + width
     })
     if (value === null) return
@@ -187,7 +153,7 @@ export function createRenderer(canvas, bundle, images) {
       ctx.fillRect(vx, vy - lineHeight * 0.6, 96, 2)
       ctx.fillStyle = rgba(color)
       ctx.fillRect(vx + 96 * Math.min(1, Math.max(0, (v - min) / (max - min || 1))) - 2, vy - lineHeight * 0.8, 4, lineHeight * 0.6)
-    } else drawText(value, vx, vy, color, font, scale, item.textstyle)
+    } else paint.text(value, vx, vy, color, font, scale, item.textstyle)
   }
 
   // Label, and the value the game paints after it for dvar-backed controls (null for plain text and buttons).
@@ -218,58 +184,6 @@ export function createRenderer(canvas, bundle, images) {
     const scale = item.textscale ?? DEFAULT_TEXTSCALE
     const id = item.textfont || (scale <= 0.25 ? 3 : scale >= 0.4 ? 2 : 1)
     return bundle.fonts[id]
-  }
-
-  function textWidth(text, font, scale) {
-    const s = glyphScale(font, scale)
-    let w = 0
-    for (let i = 0; i < text.length; i++) {
-      if (isColorCode(text, i)) { i++; continue }
-      w += (font.glyphs[text.charCodeAt(i)] ?? font.glyphs[63])?.[2] ?? 0
-    }
-    return w * s
-  }
-
-  function wrap(line, font, scale, width) {
-    const out = []
-    let current = ''
-    for (const word of line.split(' ')) {
-      const next = current ? `${current} ${word}` : word
-      if (current && textWidth(next, font, scale) > width) { out.push(current); current = word }
-      else current = next
-    }
-    out.push(current)
-    return out
-  }
-
-  function drawText(text, x, y, color, font, scale, style) {
-    const shadow = [0, 0, 0, color[3] ?? 1]
-    if (style === TEXTSTYLE.SHADOWED || style === TEXTSTYLE.OUTLINESHADOWED) drawRun(text, x + 1, y + 1, shadow, font, scale, false)
-    if (style === TEXTSTYLE.SHADOWEDMORE) drawRun(text, x + 2, y + 2, shadow, font, scale, false)
-    if (style === TEXTSTYLE.OUTLINED || style === TEXTSTYLE.OUTLINESHADOWED) for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) drawRun(text, x + dx, y + dy, shadow, font, scale, false)
-    drawRun(text, x, y, color, font, scale, true)
-  }
-
-  function drawRun(text, x, y, color, font, scale, codes) {
-    const s = glyphScale(font, scale)
-    const atlas = images[font.image]
-    let current = color
-    for (let i = 0; i < text.length; i++) {
-      if (isColorCode(text, i)) {
-        if (codes) current = [...CODE_COLORS[Number(text[++i])], color[3] ?? 1]
-        else i++
-        continue
-      }
-      const g = font.glyphs[text.charCodeAt(i)] ?? font.glyphs[63]
-      if (!g) continue
-      const [x0, y0, dx, w, h, s0, t0, s1, t1] = g
-      if (w && h) {
-        ctx.globalAlpha = Math.min(1, current[3] ?? 1)
-        ctx.drawImage(tinted(font.image, current), s0 * atlas.width, t0 * atlas.height, (s1 - s0) * atlas.width, (t1 - t0) * atlas.height, x + x0 * s, y + y0 * s, w * s, h * s)
-      }
-      x += dx * s
-    }
-    ctx.globalAlpha = 1
   }
 
   function drawOutlines() {

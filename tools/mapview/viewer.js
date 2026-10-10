@@ -3,6 +3,7 @@ import { createMarkers } from './markers.js'
 import { createPlayers } from './player.js'
 import { createViewmodelPass } from './viewmodel.js'
 import { createEffects } from './effects.js'
+import { createGameHud } from './game-hud.js'
 import { anglesToForward, anglesToMatrix, d2r } from './math.js'
 
 const bundle = JSON.parse(document.getElementById('bundle').textContent)
@@ -37,6 +38,7 @@ const players = map.player && createPlayers(map, world)
 const markers = createMarkers(map, renderer, scene, world.occluders, players)
 const viewmodel = createViewmodelPass(renderer)
 const effects = createEffects(scene)
+const gameHud = createGameHud()
 
 // What add-ons register through window.mapview.
 const addons = { frame: [], draw: [], move: [], waits: [] }
@@ -76,6 +78,8 @@ window.mapview = {
     viewmodel.set(object)
     needRender = true
   },
+  // The game's HUD over the page, as README.md describes.
+  gameHud,
   // Plays `effect` (built by bundle.js buildEffect) at CoD's `origin`, its forward along `forward`, up by default,
   // as playFx does; its particles bounce on the floor below.
   playEffect(effect, origin, forward = [0, 0, 1]) {

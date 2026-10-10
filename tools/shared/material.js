@@ -1,3 +1,6 @@
+import { decodeIwi } from './iwi.js'
+import { pngDataUrl } from './png.js'
+
 // CoD2 material binary: string offsets at fixed header positions, then a texture table:
 // count (u8) at 0x34, table offset at 0x3C, 12 bytes per entry (sampler name, sampler state, image name).
 const cstr = (b, o) => {
@@ -24,4 +27,16 @@ export function parseMaterial(buf) {
     blend: techset.includes('distortion') ? 'distortion' : techset.includes('_add') ? 'add' : techset.includes('multiply') ? 'multiply' : 'blend',
     feather: techset.includes('zfeather'),
   }
+}
+
+// A material's image as a PNG data URL with its blend, or `missing`: why it could not be read.
+export function readMaterialImage(name, search) {
+  const buf = search.read(`materials/${name}`)
+  const mat = buf && parseMaterial(buf)
+  if (!mat) return { missing: '(no material)' }
+  const iwi = search.read(`images/${mat.image}.iwi`)
+  if (!iwi) return { missing: `→ ${mat.image}.iwi` }
+  const img = decodeIwi(iwi)
+  if (!img) return { missing: `→ ${mat.image}.iwi (unsupported format ${iwi[4]})` }
+  return { blend: mat.blend, width: img.width, height: img.height, png: pngDataUrl(img) }
 }
