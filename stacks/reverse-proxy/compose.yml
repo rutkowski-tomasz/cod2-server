@@ -40,7 +40,7 @@ services:
       sleep 30;
       while :; do
         echo \"$$(date): Expanding the certificate to $${LETS_ENCRYPT_DOMAINS}...\";
-        certbot certonly --webroot --webroot-path=/var/www/html --cert-name mynl.pl --expand --keep-until-expiring --non-interactive --agree-tos --email $${LETS_ENCRYPT_EMAIL} -d $${LETS_ENCRYPT_DOMAINS} --deploy-hook 'docker service update --force reverse-proxy_reverse-proxy';
+        certbot certonly --webroot --webroot-path=/var/www/html --cert-name mynl.pl --account 9ddb98b1e83d993aa4a373ef61922027 --expand --keep-until-expiring --non-interactive --agree-tos --email $${LETS_ENCRYPT_EMAIL} -d $${LETS_ENCRYPT_DOMAINS} --deploy-hook 'docker service update --force reverse-proxy_reverse-proxy';
         echo \"$$(date): Starting certificate renewal check...\";
         certbot renew --webroot --webroot-path=/var/www/html --deploy-hook 'docker service update --force reverse-proxy_reverse-proxy';
         echo \"$$(date): Renewal check complete. Next check in 24 hours.\";
