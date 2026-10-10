@@ -32,12 +32,18 @@ const world = createWorld(map, renderer, scene, () => { needRender = true })
 const players = map.player && createPlayers(map, world)
 const markers = createMarkers(map, renderer, scene, world.occluders, players)
 
+// What add-ons register through window.mapview.
+const addons = { frame: [], draw: [], move: [], waits: [] }
+
 readParams(params)
 applyView()
 setupControls()
 $('status').style.display = 'none'
-renderLoop()
-whenIdle().then(() => { window.mapReady = true })
+// Add-ons run right after this script, in the same task, so they are all in before the first frame and the wait.
+queueMicrotask(() => {
+  renderLoop()
+  Promise.all([whenIdle(), ...addons.waits]).then(() => { window.mapReady = true })
+})
 
 window.mapview = {
   // Resets the view to the page defaults plus `p`, waits for the frame, returns the camera.
@@ -48,6 +54,28 @@ window.mapview = {
     applyView()
     await whenIdle()
     return { pos: state.pos.map(round), angles: state.angles.map(round), fov: state.fov, top: state.top }
+  },
+  // For add-ons: the bundle, the view params (defaults plus URL hash), the three.js scene, the bundle's players or
+  // null without them, and the CoD ↔ three.js coordinate converters.
+  map, params, scene, players, toThree, fromThree,
+  // `fn()` runs every frame before the camera is placed; it returns true when it changed what is drawn.
+  onFrame: (fn) => addons.frame.push(fn),
+  // `fn(cam)` runs after every drawn frame, as for placing labels.
+  onDraw: (fn) => addons.draw.push(fn),
+  // `fn()` runs whenever the keys move the camera.
+  onMove: (fn) => addons.move.push(fn),
+  // Moves the camera to `pos` with `angles`, CoD's eye position and view angles.
+  setEye(pos, angles) {
+    if ([...pos, ...angles].every((v, i) => v === [...state.pos, ...state.angles][i])) return
+    state.pos = [...pos]
+    state.angles = [...angles]
+    needRender = true
+  },
+  // `render` waits for `promise` before the first shot.
+  waitFor: (promise) => addons.waits.push(promise),
+  // Adds `text`, such as the add-on's keys, to the key legend.
+  addLegend(text) {
+    $('legend').textContent += ` · ${text}`
   },
 }
 
@@ -173,13 +201,17 @@ function updateCamera() {
 }
 
 function renderLoop() {
+  const moved = move()
+  if (moved) for (const fn of addons.move) fn()
+  const addonChanged = addons.frame.map((fn) => fn()).some(Boolean)
   const cam = updateCamera()
-  const changed = move() || needRender || world.loading()
+  const changed = moved || needRender || world.loading()
   const animated = !!players && players.update(cam, state.cut)
-  // The players' animation alone moves no label, so it leaves label occlusion settled.
-  if (changed || animated) {
+  // The players' animation alone moves no label, so it leaves label occlusion settled; so do add-ons' changes.
+  if (changed || animated || addonChanged) {
     markers.hideNear(cam, state.top)
     renderer.render(scene, cam)
+    for (const fn of addons.draw) fn(cam)
     fps.frames++
   }
   if (changed) {
