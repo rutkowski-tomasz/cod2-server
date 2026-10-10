@@ -34,8 +34,6 @@ services:
       - LETS_ENCRYPT_DOMAINS=${LETS_ENCRYPT_DOMAINS}
       - LETS_ENCRYPT_EMAIL=${LETS_ENCRYPT_EMAIL}
     entrypoint: "/bin/sh"
-    # Adding a name to LETS_ENCRYPT_DOMAINS expands the certificate on the next deploy. The expand runs apart from the
-    # renewal, so a name that fails validation never stops the certificate from renewing.
     command: >
       -c "apk add --no-cache docker-cli &&
       trap exit TERM; 
