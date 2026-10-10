@@ -20,6 +20,7 @@ export function createGameHud() {
   const fonts = {}
   const paint = createPainter(ctx, images)
   let elems = []
+  let textAspect = 1
   addEventListener('resize', draw)
 
   return {
@@ -54,6 +55,9 @@ export function createGameHud() {
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     ctx.setTransform(canvas.width / SCREEN_W, 0, 0, canvas.height / SCREEN_H, 0, 0)
     ctx.imageSmoothingQuality = 'high'
+    // On a screen wider than 4:3 the game stretches the HUD's places and images, but its text keeps its shape: it
+    // scales with the screen's height only.
+    textAspect = (canvas.height / SCREEN_H) / (canvas.width / SCREEN_W)
     for (const e of elems) if ((e.alpha ?? 1) > 0) drawElement(e)
   }
 
@@ -63,7 +67,7 @@ export function createGameHud() {
     const font = fontFor(e.font ?? 'normal', (lineHeight * canvas.height) / SCREEN_H)
     const parts = (e.parts ?? [e]).map((p) => {
       if (p.shader) return images[p.shader] && { ...p, w: p.width, h: p.height }
-      return font && p.text && { text: p.text, w: paint.width(p.text, font, scale), h: lineHeight }
+      return font && p.text && { text: p.text, w: paint.width(p.text, font, scale) * textAspect, h: lineHeight }
     }).filter(Boolean)
     const width = parts.reduce((sum, p) => sum + p.w, 0)
     const height = Math.max(0, ...parts.map((p) => p.h))
@@ -71,7 +75,13 @@ export function createGameHud() {
     const color = [...(e.color ?? [1, 1, 1]), e.alpha ?? 1]
     for (const p of parts) {
       if (p.shader) drawShader(p, x, y + (height - p.h) / 2, color)
-      else paint.text(p.text, x, y + (height + p.h) / 2, color, font, scale, e.shadow ? TEXTSTYLE.SHADOWED : 0)
+      else {
+        ctx.save()
+        ctx.translate(x, y + (height + p.h) / 2)
+        ctx.scale(textAspect, 1)
+        paint.text(p.text, 0, 0, color, font, scale, e.shadow ? TEXTSTYLE.SHADOWED : 0)
+        ctx.restore()
+      }
       x += p.w
     }
   }
