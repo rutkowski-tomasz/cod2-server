@@ -212,7 +212,7 @@ function upperBody(bones) {
   return upper
 }
 
-// Animated rotations replace the bone's own; animated translations are offsets from its own position.
+// Animated rotations replace the bone's own; animated translations are offsets from its position in the model file.
 // Only the bones `keep` takes by name are animated; ones the rig lacks, such as another uniform's coat tails, never are.
 function buildClip(bones, anim, keep) {
   const times = (keys) => keys.frames.map((f) => f / anim.fps)
@@ -220,7 +220,7 @@ function buildClip(bones, anim, keep) {
   for (const b of anim.bones.filter((a) => keep(a.name) && bones.some((r) => r.name === a.name))) {
     if (b.rotations) tracks.push(new THREE.QuaternionKeyframeTrack(`${b.name}.quaternion`, times(b.rotations), b.rotations.values))
     if (b.translations) {
-      const own = bones.find((x) => x.name === b.name).offset
+      const own = bones.find((x) => x.name === b.name).fileOffset
       const values = b.translations.values.map((v, i) => v + own[i % 3])
       tracks.push(new THREE.VectorKeyframeTrack(`${b.name}.position`, times(b.translations), values))
     }
