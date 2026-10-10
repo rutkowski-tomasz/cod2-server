@@ -51,13 +51,17 @@ In the page: click to look around, WASD to move, Shift for speed, E and Q for up
 - `scene`, `players` (the bundle's players, or null without them), `toThree(x, y, z)` and `fromThree(v)` between CoD's Z-up coordinates and three.js's Y-up ones.
 - `onFrame(fn)`: `fn()` runs every frame before the camera is placed and returns true when it changed what is drawn; the page draws only then, or when the view changes.
 - `onDraw(fn)`: `fn(cam)` runs after every drawn frame. `onMove(fn)`: `fn()` runs whenever the keys move the camera.
-- `setEye(pos, angles)` puts the camera at CoD's eye position and view angles. `waitFor(promise)` makes `render` wait for it. `addLegend(text)` adds the add-on's keys to the key legend.
+- `setEye(pos, angles)` puts the camera at CoD's eye position and view angles. `setViewmodel(object)` draws `object`, such as a viewmodel's actor, at the eye in CoD's view frame (X forward, Y left, Z up). It draws over the world, as the game draws the gun, so it never sinks into a wall. Null removes it; the top view leaves it out. Its pass has none of the world's three.js lights, so on a `.map` page, which is lit by them, it draws dark. `waitFor(promise)` makes `render` wait for it. `addLegend(text)` adds the add-on's keys to the key legend.
 
-Players in any skin, weapon and animation, built by the program from the same sources: `buildRig(models, search)` (a body model and what is attached to it, such as head and helmet), `buildWeapon(name, search)` (a weapon file under `weapons/mp/`, drawn as its `worldModel`) and `buildAnim(name, search)` (an xanim) from `bundle.js`, each JSON the page can take as is, or null when missing. `buildBundle(target, search, { withPlayer: true })` bundles the default player even on maps without CTF allied spawns, so `players` is there. On the page:
+Players in any skin, weapon and animation, built by the program from the same sources: `buildRig(models, search)` (a body model and what is attached to it, such as head and helmet), `buildWeapon(name, search)` (a weapon file under `weapons/mp/`, drawn as its `worldModel`), `buildViewmodel(name, hands, search)` (what a player holding that weapon sees in first person) and `buildAnim(name, search)` (an xanim) from `bundle.js`, each JSON the page can take as is, or null when missing. `buildBundle(target, search, { withPlayer: true })` bundles the default player even on maps without CTF allied spawns, so `players` is there.
+
+A viewmodel is a rig of the `hands` xmodel (what the game's `setViewModel` set; empty to use the weapon file's `handModel`) with the weapon file's `gunModel` hanging from the hands' `tag_weapon`, plus `anims`: its `idle` and `reload` xanims from the weapon file, or null. Its root, `tag_view`, is the eye. The game holds the gun at the hip with the last frame of the weapon's `adsDownAnim` over whatever plays; each of these anims has that pose baked in, so the gun is not where the sights line up.
+
+On the page:
 
 - `players.createActor(rig)`: an actor, a copy of `rig`, or of the default player without one, facing +X with its feet at its parent's origin; add it to the scene and move it yourself.
 - `players.hold(actor, weapon)` puts the weapon in its right hand (`tag_weapon_right`), null empties it.
-- `players.pose(actor, legs, torso)` plays the legs animation, with the torso one over the bones from `torso_stabilizer` down when given, blended in over 0.2 s.
+- `players.pose(actor, legs, torso, { once })` plays the legs animation, with the torso one over the bones from `torso_stabilizer` down when given, blended in over 0.2 s. A viewmodel's animation goes in `legs`. `once` plays them from the start, even when already playing, and holds their last frame. An actor's first pose shows at once.
 - `players.remove(actor)` once it is gone.
 
 The page's own keys are taken: WASD, E, Q, L, F, T, G, K, M, N, O, H, 1 and Esc.
