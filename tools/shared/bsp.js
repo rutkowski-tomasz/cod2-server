@@ -25,7 +25,8 @@ const LIGHTMAP_PAGE = 512
 const SUN_PAGE = LIGHTMAP_PAGE * 2
 
 // Model 0 is the world; model n belongs to the entity whose model key is *n.
-// Brushes are their sides { normal, dist, material }, the solid side being normal·p <= dist.
+// Brushes are their sides { normal, dist, material, surface, contents }, the solid side being normal·p <= dist, with
+// the surface and content flags cod2map stored with the side's material; one name can come with several sets.
 // Soup triangles are vertex numbers for `vertex`, counter-clockwise from the front.
 export function readBsp(buf) {
   if (buf.toString('latin1', 0, 4) !== 'IBSP') throw new Error('not an IBSP file')
@@ -35,14 +36,18 @@ export function readBsp(buf) {
 
   const mats = lump(LUMP.MATERIALS)
   const materials = []
-  for (let o = 0; o + MATERIAL_BYTES <= mats.length; o += MATERIAL_BYTES) materials.push(mats.toString('latin1', o, o + MATERIAL_NAME_BYTES).replace(/\0.*$/s, ''))
+  const materialFlags = []
+  for (let o = 0; o + MATERIAL_BYTES <= mats.length; o += MATERIAL_BYTES) {
+    materials.push(mats.toString('latin1', o, o + MATERIAL_NAME_BYTES).replace(/\0.*$/s, ''))
+    materialFlags.push({ surface: mats.readUInt32LE(o + MATERIAL_NAME_BYTES), contents: mats.readUInt32LE(o + MATERIAL_NAME_BYTES + 4) })
+  }
 
   const pl = lump(LUMP.PLANES)
   const plane = (index) => {
     const o = index * PLANE_BYTES
     return { normal: [pl.readFloatLE(o), pl.readFloatLE(o + 4), pl.readFloatLE(o + 8)], dist: pl.readFloatLE(o + 12) }
   }
-  const brushes = readBrushes(lump(LUMP.BRUSHSIDES), lump(LUMP.BRUSHES), plane, materials)
+  const brushes = readBrushes(lump(LUMP.BRUSHSIDES), lump(LUMP.BRUSHES), plane, materials, materialFlags)
   const soups = readSoups(lump(LUMP.TRISOUPS), lump(LUMP.DRAWINDICES), materials)
 
   const ml = lump(LUMP.MODELS)
@@ -82,21 +87,23 @@ function sunPage(grey) {
   return { width: SUN_PAGE, height: SUN_PAGE, rgba }
 }
 
-function readBrushes(bs, br, plane, materials) {
+function readBrushes(bs, br, plane, materials, materialFlags) {
   const brushes = []
   let side = 0
   for (let o = 0; o + BRUSH_BYTES <= br.length; o += BRUSH_BYTES) {
     const sides = []
     for (let k = 0; k < br.readUInt16LE(o); k++, side++) {
       const so = side * BRUSHSIDE_BYTES
-      const material = materials[bs.readUInt32LE(so + 4)]
+      const index = bs.readUInt32LE(so + 4)
+      const material = materials[index]
+      const { surface, contents } = materialFlags[index]
       if (k < AXIAL_SIDES) {
         const sign = k % 2 ? 1 : -1
         const normal = [0, 0, 0]
         normal[k >> 1] = sign
-        sides.push({ normal, dist: sign * bs.readFloatLE(so), material })
+        sides.push({ normal, dist: sign * bs.readFloatLE(so), material, surface, contents })
       } else {
-        sides.push({ ...plane(bs.readUInt32LE(so)), material })
+        sides.push({ ...plane(bs.readUInt32LE(so)), material, surface, contents })
       }
     }
     brushes.push(sides)
