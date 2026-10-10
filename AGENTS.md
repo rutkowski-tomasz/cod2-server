@@ -32,7 +32,7 @@ The tools are tested but can still have bugs or missing parts. If one gets in yo
 
 `tools/mapdecompile/` turns a `.d3dbsp` back into a `.map`: `node tools/mapdecompile/mapdecompile.js <d3dbsp | iwd | mp_name> [-o out.map]`. See `tools/mapdecompile/README.md`.
 
-`tools/shared/` holds what the tools share: the asset search over iwds and folders, the `.d3dbsp` reader, material, xmodel, IWI (with its wavelet formats, GPLv3) and PNG codecs, and the module inliner for their file:// pages.
+`tools/shared/` holds what the tools share: the asset search over iwds and folders, the `.d3dbsp` reader, material, font, xmodel, IWI (with its wavelet formats, GPLv3) and PNG codecs, the module inliner for their file:// pages, and drawing game text and material images on a page's canvas.
 
 fxview, menuview, mapview, mapcompile and mapdecompile write to `out/<tool>/` (git-ignored) unless `-o` is given; that is scratch.
 

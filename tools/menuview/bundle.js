@@ -1,12 +1,10 @@
 // Builds the self-contained menu bundle: parsed menus plus the images, fonts and localized strings they use.
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve, join } from 'node:path'
-import { parseMaterial } from '../shared/material.js'
-import { decodeIwi } from '../shared/iwi.js'
-import { pngDataUrl } from '../shared/png.js'
+import { readMaterialImage } from '../shared/material.js'
 import { preprocess } from './preprocess.js'
 import { parseMenuFile } from './parse.js'
-import { parseFont } from './font.js'
+import { parseFont } from '../shared/font.js'
 
 // textfont values (UI_FONT_*); 0 picks one of normal, small and big by text scale in the viewer.
 const FONTS = { 1: 'normalFont', 2: 'bigFont', 3: 'smallFont', 4: 'boldFont', 5: 'consoleFont' }
@@ -91,7 +89,7 @@ export function buildBundle(target, search, dvars = {}) {
   function loadImage(name) {
     if (tried.has(name)) return
     tried.add(name)
-    const image = readMaterialImage(name)
+    const image = readMaterialImage(name, search)
     if (image.missing) missing.images.push(`${name} ${image.missing}`)
     else images[name] = image
   }
@@ -102,24 +100,13 @@ export function buildBundle(target, search, dvars = {}) {
     const font = parseFont(buf)
     const key = `font:${font.material}`
     if (!images[key]) {
-      const image = readMaterialImage(font.material)
+      const image = readMaterialImage(font.material, search)
       if (image.missing) { missing.fonts.push(`${file} → ${font.material} ${image.missing}`); return }
       images[key] = image
     }
     fonts[id] = { name: file, pixelHeight: font.pixelHeight, image: key, glyphs: font.glyphs }
   }
 
-  // A material's image as a PNG data URL, or `missing`: why it could not be read.
-  function readMaterialImage(name) {
-    const buf = search.read(`materials/${name}`)
-    const mat = buf && parseMaterial(buf)
-    if (!mat) return { missing: '(no material)' }
-    const iwi = search.read(`images/${mat.image}.iwi`)
-    if (!iwi) return { missing: `→ ${mat.image}.iwi` }
-    const img = decodeIwi(iwi)
-    if (!img) return { missing: `→ ${mat.image}.iwi (unsupported format ${iwi[4]})` }
-    return { blend: mat.blend, width: img.width, height: img.height, png: pngDataUrl(img) }
-  }
 
   // "@MENU_BACK" is REFERENCE BACK in localizedstrings/menu.str. File names can hold underscores too
   // (@PC_PATCH_1_1_SD_OBJECTIVES is in pc_patch_1_1.str), so every split is tried, longest file name first.
