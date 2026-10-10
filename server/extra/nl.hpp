@@ -37,6 +37,9 @@ void gsc_player_setweaponidinslotid(scr_entref_t ref);
 void gsc_player_getlegsanimation(scr_entref_t ref);
 void gsc_player_gettorsoanimation(scr_entref_t ref);
 
+void RecordPrintedMessage(client_t *cl, const char *command);
+void gsc_prints_takeprintedmessages();
+
 void gsc_utils_collapsecolors();
 void gsc_utils_stripcolors();
 void gsc_utils_sha256();

@@ -32,6 +32,8 @@ static scr_function_t functions[] =
 	{"getClosestPlayerInRange", gsc_level_getclosestplayerinrange, 0},
 	{"getClosestPlayerByViewOriginInRange", gsc_level_getclosestplayerbyvieworigininrange, 0},
 
+	{"takePrintedMessages", gsc_prints_takeprintedmessages, 0},
+
 	{"collapseColors", gsc_utils_collapsecolors, 0},
 	{"stripColors", gsc_utils_stripcolors, 0},
 	{"sha256", gsc_utils_sha256, 0},
