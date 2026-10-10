@@ -34,6 +34,8 @@ void gsc_player_setslotidclipammo(scr_entref_t ref);
 void gsc_player_setweaponidammo(scr_entref_t ref);
 void gsc_player_setweaponidclipammo(scr_entref_t ref);
 void gsc_player_setweaponidinslotid(scr_entref_t ref);
+void gsc_player_getlegsanimation(scr_entref_t ref);
+void gsc_player_gettorsoanimation(scr_entref_t ref);
 
 void gsc_utils_collapsecolors();
 void gsc_utils_stripcolors();
