@@ -24,15 +24,16 @@ export function createGameHud() {
 
   return {
     // Fonts or material images from bundle.js buildHudFonts or buildHudImages, for the elements to draw with; a font
-    // draws once its atlas is in. Resolves once loaded.
+    // draws once its atlas is in. A font given as { family, weight } instead is a web font, which replaces the game's.
+    // Resolves once loaded.
     add(assets) {
-      return Promise.all(Object.entries(assets.images).filter(([name]) => !images[name]).map(([name, { png, blend }]) => new Promise((resolve) => {
+      return Promise.all(Object.entries(assets.images ?? {}).filter(([name]) => !images[name]).map(([name, { png, blend }]) => new Promise((resolve) => {
         const img = new Image()
         img.onload = () => { images[name] = img; blends[name] = blend; resolve() }
         img.onerror = resolve
         img.src = png
       }))).then(() => {
-        for (const [name, font] of Object.entries(assets.fonts ?? {})) if (images[font.image]) fonts[name] = font
+        for (const [name, font] of Object.entries(assets.fonts ?? {})) if (font.family || images[font.image]) fonts[name] = font
         draw()
       })
     },
@@ -76,9 +77,9 @@ export function createGameHud() {
   }
 
   // The font `name`. The game draws normal text from its normal font; here it comes from the smallest of the small,
-  // normal and big fonts at least `pixels` high on screen, so large text stays sharp.
+  // normal and big fonts at least `pixels` high on screen, so large text stays sharp. A web font is sharp at any size.
   function fontFor(name, pixels) {
-    if (name !== 'normal') return fonts[name]
+    if (name !== 'normal' || fonts.normal?.family) return fonts[name]
     const sizes = NORMAL_SIZES.map((n) => fonts[n]).filter(Boolean)
     return sizes.find((f) => f.pixelHeight >= pixels) ?? sizes.at(-1)
   }
