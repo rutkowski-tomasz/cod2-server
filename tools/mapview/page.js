@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { inlineModules } from '../shared/inline.js'
+import { inlineModules, threeModuleUrl } from '../shared/inline.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 
@@ -12,15 +12,7 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 export function buildPage(bundle, defaults, addons = []) {
   const script = [inlineModules(HERE, 'viewer.js'), ...addons.map((file) => `{\n${inlineModules(dirname(file), basename(file))}\n}`)].join('\n')
   return readFileSync(join(HERE, 'viewer.html'), 'utf8')
-    .replace('__THREE__', threeUrl)
+    .replace('__THREE__', () => threeModuleUrl(join(HERE, 'node_modules')))
     .replace('__SCRIPT__', () => script)
     .replace('__BUNDLE__', () => JSON.stringify({ ...bundle, defaults }).replace(/</g, '\\u003c'))
-}
-
-// three.js ships as two ES modules; the page imports them from data URLs.
-function threeUrl() {
-  const dir = join(HERE, 'node_modules', 'three', 'build')
-  const dataUrl = (source) => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`
-  const core = dataUrl(readFileSync(join(dir, 'three.core.js'), 'utf8'))
-  return dataUrl(readFileSync(join(dir, 'three.module.js'), 'utf8').replaceAll("'./three.core.js'", JSON.stringify(core)))
 }

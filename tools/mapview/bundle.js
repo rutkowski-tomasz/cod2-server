@@ -24,7 +24,7 @@ const HUD_FONTS = { normal: 'normalFont', big: 'bigFont', small: 'smallFont', bo
 const DEFAULT_BOUNDS = { min: [-512, -512, -64], max: [512, 512, 256] }
 // CTF allied spawns draw as a player playing the multiplayer idle: one of the riflemen the game picks from for
 // Americans in Normandy, with the head and helmet his character script attaches.
-const PLAYER = {
+export const PLAYER = {
   classname: 'mp_ctf_spawn_allied',
   models: ['xmodel/playerbody_american_normandy01', 'xmodel/head_us_ranger_braeburn', 'xmodel/helmet_us_ranger_generic'],
   idle: 'xanim/pb_stand_alert',
@@ -225,7 +225,7 @@ export function readWeaponFile(weapon, search) {
 }
 
 // Weapon files name gun and hand models without the folder that world models carry.
-function xmodelPath(name) {
+export function xmodelPath(name) {
   return name.startsWith('xmodel/') ? name : `xmodel/${name}`
 }
 
