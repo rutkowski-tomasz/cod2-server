@@ -114,6 +114,11 @@ export function createGameHud() {
     const corner = cornerOf(e, width, height, frame)
     if (!corner) return
     let [x, y] = corner
+    if (e.background) {
+      const [r, g, b, a = 1] = e.background
+      ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a * (e.alpha ?? 1)})`
+      ctx.fillRect(x, y, width, height)
+    }
     const color = [...(e.color ?? [1, 1, 1]), e.alpha ?? 1]
     for (const p of parts) {
       if (p.shader) drawShader(p, x, y + (height - p.h) / 2, color, imageAspect)
