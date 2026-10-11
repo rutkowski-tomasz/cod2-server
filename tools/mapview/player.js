@@ -92,8 +92,14 @@ export function createPlayers(map, world) {
     },
     // Bends `actor`'s back, neck and head toward `pitch` degrees, positive down, as the game bends a player toward
     // where it looks.
-    aim(actor, pitch) {
-      copies.find((c) => c.outer === actor).pitch = pitch
+    look(actor, pitch) {
+      const copy = copies.find((c) => c.outer === actor)
+      copy.pitch = pitch
+      // A frozen render draws it as it is now, as no frame will.
+      if (frozen) {
+        unbend(copy)
+        bend(copy)
+      }
     },
     remove(actor) {
       const i = copies.findIndex((c) => c.outer === actor)
@@ -111,7 +117,7 @@ export function createPlayers(map, world) {
       if (frozen) return false
       for (const copy of copies) {
         // Bones no animation moves would keep last frame's bend and add this one's.
-        for (const [bone, unbent] of copy.bent) bone.quaternion.copy(unbent)
+        unbend(copy)
         copy.mixer.update(seconds)
         bend(copy)
       }
@@ -129,8 +135,16 @@ export function createPlayers(map, world) {
     // Holds every copy at its starting pose, so a headless render of the same view gives the same image.
     freeze() {
       frozen = true
-      for (const { mixer, start } of copies) mixer.setTime(start)
+      for (const copy of copies) {
+        unbend(copy)
+        copy.mixer.setTime(copy.start)
+        bend(copy)
+      }
     },
+  }
+
+  function unbend(copy) {
+    for (const [bone, unbent] of copy.bent) bone.quaternion.copy(unbent)
   }
 
   function bend(copy) {

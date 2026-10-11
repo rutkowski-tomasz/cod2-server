@@ -73,7 +73,7 @@ On the page:
 - `players.createActor(rig)`: an actor, a copy of `rig`, or of the default player without one, facing +X with its feet at its parent's origin; add it to the scene and move it yourself.
 - `players.hold(actor, weapon)` puts the weapon in its right hand (`tag_weapon_right`), null empties it. The weapon's bones come along as objects named after them, such as `tag_flash`, for `playEffectOn`.
 - `players.pose(actor, legs, torso, { once })` plays the legs animation, with the torso one over the bones from `torso_stabilizer` down when given, blended in over 0.2 s. A viewmodel's animation goes in `legs`. `once` plays them from the start, even when already playing, and holds their last frame. An actor's first pose shows at once.
-- `players.aim(actor, pitch)` bends its back, neck and head toward `pitch` degrees of view pitch, positive down, as the game bends a player toward where it looks.
+- `players.look(actor, pitch)` bends its back, neck and head toward `pitch` degrees of view pitch, positive down, as the game bends a player toward where it looks.
 - `players.remove(actor)` once it is gone.
 
 The page's own keys are taken: WASD, E, Q, L, F, T, G, K, M, N, O, H, 1 and Esc.
