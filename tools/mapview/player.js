@@ -76,6 +76,8 @@ export function createPlayers(map, world) {
       if (!next.length) return
       // A frozen render draws the new pose at once, as no frame will blend it in.
       const atOnce = frozen || !copy.posed
+      // Stopping an action puts back what it moved, so the bend comes off first.
+      if (atOnce) unbend(copy)
       for (const a of copy.actions) if (!next.includes(a)) atOnce ? a.stop() : a.fadeOut(FADE)
       for (const a of next) {
         const playing = copy.actions.includes(a)
@@ -88,7 +90,10 @@ export function createPlayers(map, world) {
       }
       copy.actions = next
       copy.posed = true
-      if (atOnce) copy.mixer.update(0)
+      if (atOnce) {
+        copy.mixer.update(0)
+        bend(copy)
+      }
     },
     // Bends `actor`'s back, neck and head toward `pitch` degrees, positive down, as the game bends a player toward
     // where it looks.
