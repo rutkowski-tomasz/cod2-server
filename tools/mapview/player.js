@@ -18,6 +18,10 @@ const UPPER_BODY = 'torso_stabilizer'
 // A sphere around a standing player, for telling whether it is on view.
 const BODY_CENTER = 36
 const BODY_RADIUS = 50
+// How the game bends a player toward where it looks (BG_Player_DoControllers): the torso takes TORSO_PITCH of the
+// view's pitch over its back bones, and the neck and head the rest, each bone its share.
+const TORSO_PITCH = 0.6
+const PITCH_BONES = [['back_low', 0.2 * TORSO_PITCH], ['back_mid', 0.3 * TORSO_PITCH], ['back_up', 0.5 * TORSO_PITCH], ['neck', 0.3 * (1 - TORSO_PITCH)], ['head', 0.7 * (1 - TORSO_PITCH)]]
 
 // `world` gives the floor the players stand on and the material models draw with.
 export function createPlayers(map, world) {
@@ -72,6 +76,8 @@ export function createPlayers(map, world) {
       if (!next.length) return
       // A frozen render draws the new pose at once, as no frame will blend it in.
       const atOnce = frozen || !copy.posed
+      // Stopping an action puts back what it moved, so the bend comes off first.
+      if (atOnce) unbend(copy)
       for (const a of copy.actions) if (!next.includes(a)) atOnce ? a.stop() : a.fadeOut(FADE)
       for (const a of next) {
         const playing = copy.actions.includes(a)
@@ -84,7 +90,21 @@ export function createPlayers(map, world) {
       }
       copy.actions = next
       copy.posed = true
-      if (atOnce) copy.mixer.update(0)
+      if (atOnce) {
+        copy.mixer.update(0)
+        bend(copy)
+      }
+    },
+    // Bends `actor`'s back, neck and head toward `pitch` degrees, positive down, as the game bends a player toward
+    // where it looks.
+    look(actor, pitch) {
+      const copy = copies.find((c) => c.outer === actor)
+      copy.pitch = pitch
+      // A frozen render draws it as it is now, as no frame will.
+      if (frozen) {
+        unbend(copy)
+        bend(copy)
+      }
     },
     remove(actor) {
       const i = copies.findIndex((c) => c.outer === actor)
@@ -100,7 +120,12 @@ export function createPlayers(map, world) {
       const seconds = (now - lastUpdate) / 1000
       lastUpdate = now
       if (frozen) return false
-      for (const { mixer } of copies) mixer.update(seconds)
+      for (const copy of copies) {
+        // Bones no animation moves would keep last frame's bend and add this one's.
+        unbend(copy)
+        copy.mixer.update(seconds)
+        bend(copy)
+      }
       const frustum = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse))
       const center = new THREE.Vector3()
       return copies.some(({ outer }) => {
@@ -115,8 +140,29 @@ export function createPlayers(map, world) {
     // Holds every copy at its starting pose, so a headless render of the same view gives the same image.
     freeze() {
       frozen = true
-      for (const { mixer, start } of copies) mixer.setTime(start)
+      for (const copy of copies) {
+        unbend(copy)
+        copy.mixer.setTime(copy.start)
+        bend(copy)
+      }
     },
+  }
+
+  function unbend(copy) {
+    for (const [bone, unbent] of copy.bent) bone.quaternion.copy(unbent)
+  }
+
+  function bend(copy) {
+    const turn = new THREE.Quaternion()
+    const axis = new THREE.Vector3(0, -1, 0)
+    copy.bent = []
+    if (!copy.pitch) return
+    for (const [name, share] of PITCH_BONES) {
+      const bone = copy.skeleton.getBoneByName(name)
+      if (!bone) continue
+      copy.bent.push([bone, bone.quaternion.clone()])
+      bone.quaternion.multiply(turn.setFromAxisAngle(axis, share * copy.pitch * d2r))
+    }
   }
 
   // A weapon drawn rigid in its bind pose, sharing geometry and materials with every other hand holding it.
@@ -173,7 +219,7 @@ export function createPlayers(map, world) {
     const outer = new THREE.Group()
     outer.rotation.x = -Math.PI / 2
     outer.add(body)
-    copies.push({ outer, mixer, start, skeleton, parts, actions: [action], posed: false })
+    copies.push({ outer, mixer, start, skeleton, parts, actions: [action], posed: false, pitch: 0, bent: [] })
     return outer
   }
 }
