@@ -19,7 +19,15 @@ const NARROWEST = 480
 
 export function createGameHud() {
   const canvas = document.body.appendChild(document.createElement('canvas'))
-  Object.assign(canvas.style, { position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'none' })
+  // Inside the safe area, clear of a phone's notch and rounded corners.
+  Object.assign(canvas.style, {
+    position: 'absolute',
+    left: 'env(safe-area-inset-left)',
+    top: 'env(safe-area-inset-top)',
+    width: 'calc(100% - env(safe-area-inset-left) - env(safe-area-inset-right))',
+    height: 'calc(100% - env(safe-area-inset-top) - env(safe-area-inset-bottom))',
+    pointerEvents: 'none',
+  })
   const ctx = canvas.getContext('2d')
   const images = {}
   const blends = {}
@@ -53,8 +61,8 @@ export function createGameHud() {
 
   function draw() {
     // Drawn in device pixels, so text stays sharp on high-density screens.
-    const width = Math.round(innerWidth * devicePixelRatio)
-    const height = Math.round(innerHeight * devicePixelRatio)
+    const width = Math.round(canvas.clientWidth * devicePixelRatio)
+    const height = Math.round(canvas.clientHeight * devicePixelRatio)
     if (canvas.width !== width || canvas.height !== height) Object.assign(canvas, { width, height })
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, canvas.width, canvas.height)
