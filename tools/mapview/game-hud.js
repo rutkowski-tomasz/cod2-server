@@ -2,6 +2,7 @@
 // window, placed and aligned like the hud elements a script makes with newHudElem, in the game's fonts and materials.
 // Text and images keep their shape, and a screen narrower than 4:3 gets a HUD of its own shape instead.
 import { createPainter, TEXTSTYLE, FONT_HEIGHT } from '../shared/paint.js'
+import { toThree } from './draw.js'
 
 const SCREEN_W = 640
 const SCREEN_H = 480
@@ -34,6 +35,8 @@ export function createGameHud() {
   const fonts = {}
   const paint = createPainter(ctx, images)
   let elems = []
+  // The camera of the last drawn frame, for elements at a point in the world.
+  let camera = null
   addEventListener('resize', draw)
 
   return {
@@ -56,6 +59,11 @@ export function createGameHud() {
     set(list) {
       elems = [...list].sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0))
       draw()
+    },
+    // The viewer's, after each drawn frame, so elements at a point follow the view.
+    place(cam) {
+      camera = cam
+      if (elems.some((e) => e.point)) draw()
     },
   }
 
@@ -103,7 +111,9 @@ export function createGameHud() {
     }).filter(Boolean)
     const width = parts.reduce((sum, p) => sum + p.w, 0)
     const height = Math.max(0, ...parts.map((p) => p.h))
-    let [x, y] = cornerOf(e, width, height, frame)
+    const corner = cornerOf(e, width, height, frame)
+    if (!corner) return
+    let [x, y] = corner
     const color = [...(e.color ?? [1, 1, 1]), e.alpha ?? 1]
     for (const p of parts) {
       if (p.shader) drawShader(p, x, y + (height - p.h) / 2, color, imageAspect)
@@ -137,13 +147,29 @@ export function createGameHud() {
     ctx.restore()
   }
 
-  // The top left corner of a `w` by `h` element in the virtual pixels of `frame`.
+  // The top left corner of a `w` by `h` element in the virtual pixels of `frame`; null for one at a point out of
+  // view.
   function cornerOf(e, w, h, frame) {
+    if (e.point) {
+      const p = screenOf(e.point, frame)
+      return p && [p[0] + (e.x ?? 0) - w * ALIGN_X[e.alignX ?? 'left'], p[1] + (e.y ?? 0) - h * ALIGN_Y[e.alignY ?? 'top']]
+    }
     const horz = HORZ[e.horzAlign ?? 'left']
     const vert = VERT[e.vertAlign ?? 'top']
     const x = onto(horz + (e.x ?? 0) - w * ALIGN_X[e.alignX ?? 'left'], w, horz / SCREEN_W, SCREEN_W, frame.w)
     const y = onto(vert + (e.y ?? 0) - h * ALIGN_Y[e.alignY ?? 'top'], h, vert / SCREEN_H, SCREEN_H, frame.h)
     return [x, y]
+  }
+
+  // Where CoD's `point` shows in the virtual pixels of `frame`, or null behind the camera or before the first frame.
+  function screenOf(point, frame) {
+    if (!camera) return null
+    const v = toThree(...point).project(camera)
+    if (Math.abs(v.z) > 1) return null
+    const box = canvas.getBoundingClientRect()
+    const x = ((v.x + 1) / 2) * innerWidth - box.left
+    const y = ((1 - v.y) / 2) * innerHeight - box.top
+    return [(x * devicePixelRatio) / frame.sx, (y * devicePixelRatio) / frame.sy]
   }
 }
 
