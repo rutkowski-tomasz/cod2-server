@@ -1,6 +1,6 @@
 // Builds the page bundle: one or more views, each a rig with the animations it can play, packed by mapview's
 // bundle.js. A model target has one view; a weapon has `first` (its viewmodel) and `third` (a player holding it).
-import { buildRig, buildViewmodel, buildWeapon, buildAnim, readWeaponFile, xmodelPath, PLAYER } from '../mapview/bundle.js'
+import { buildRig, buildViewmodel, buildWeapon, buildAnim, readWeaponFile, holding, xmodelPath, PLAYER } from '../mapview/bundle.js'
 
 // The standing idle mp/playeranim.script picks by weapon class; the rest take the two-handed rifle's.
 const THIRD_PERSON_IDLE = { pistol: 'pb_stand_alert_pistol', grenade: 'pb_stand_grenade_pullpin' }
@@ -9,7 +9,8 @@ const RIFLE_IDLE = 'pb_stand_alert'
 // `target` is a weapon file name under weapons/mp/ (mp40_mp) or an xmodel (xmodel/crate01 or crate01).
 // `anims` are xanim names, or in first person the names of the weapon's view animations (idle, reload…). Each xanim
 // goes to the view whose rig has the most of the bones it moves: a player animation shares the fingers with
-// a viewmodel. The first name a view has is the one it starts on.
+// a viewmodel. It holds the view's idle pose on the bones it does not move, as the game plays a torso animation over
+// the legs' idle and a view animation over the hip pose. The first name a view has is the one it starts on.
 export function buildModelBundle(target, search, { anims = [], attach = [], hands = '', body = PLAYER.models } = {}) {
   const missing = []
   const weapon = !target.startsWith('xmodel/') && readWeaponFile(target, search)
@@ -23,7 +24,8 @@ export function buildModelBundle(target, search, { anims = [], attach = [], hand
   }
   const share = (v, anim) => anim.bones.filter((a) => v.rig.bones.some((b) => b.name === a.name)).length
   for (const [name, anim] of Object.entries(loaded)) {
-    Object.values(views).reduce((best, v) => (share(v, anim) > share(best, anim) ? v : best)).anims[name] = anim
+    const view = Object.values(views).reduce((best, v) => (share(v, anim) > share(best, anim) ? v : best))
+    view.anims[name] = holding(anim, view.anims[view.start])
   }
   for (const v of Object.values(views)) v.start = anims.find((n) => v.anims[n]) ?? v.start
   return { name: target, kind: weapon ? 'weapon' : 'model', views, missing }

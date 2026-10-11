@@ -203,7 +203,7 @@ export function buildEffect(path, search) {
 // hip with the last frame of the weapon's adsDownAnim, which moves tag_torso, over the view animation playing; without
 // it the gun sits where the sights line up. And an action, such as a knife's melee, may move only some bones, which
 // keep the idle's pose in game; here they would fall back to their bind pose at the eye.
-function holding(anim, base) {
+export function holding(anim, base) {
   if (!anim || !base) return anim
   const held = lastPose(base).bones.filter((b) => !anim.bones.some((a) => a.name === b.name))
   return { ...anim, bones: [...anim.bones, ...held] }

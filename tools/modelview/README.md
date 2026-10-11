@@ -22,7 +22,7 @@ A target is one of:
 
 Assets are looked up like fxview's, ignoring case, in this order (later wins): stock `~/Dev/cod2-binaries`, then nL's `~/Dev/nl-cod2-zom-iwds/iwds/<iwd>/<feature>/` folders, then `--source`. Models need `iw_13` and `iw_14`, animations `iw_13`, and textures `iw_08`–`iw_12`.
 
-`--anim a,b` adds xanims. Each one goes to the view whose rig has the most of the bones it moves, so `pb_*` animations land in third person and `viewmodel_*` ones in first person. In first person, `--anim reload` picks one of the weapon's own animations. The first name a view has is the one it shows first. The page's picker switches between all of them.
+`--anim a,b` adds xanims. Each one goes to the view whose rig has the most of the bones it moves, so `pb_*` animations land in third person and `viewmodel_*` ones in first person. It holds the view's idle pose on the bones it does not move, as the game plays a torso animation over the legs' idle: `--person third --anim pt_reload_stand_rifle` reloads standing. Third-person reload and fire animations are the `torso` ones in `mp/playeranim.script`, such as `pt_reload_stand_rifle`, `pt_rifle_fire` and `pt_stand_shoot_auto`. In first person, `--anim reload` picks one of the weapon's own animations. The first name a view has is the one it shows first. The page's picker switches between all of them.
 
 Output goes to `out/modelview/` unless `-o` is given. `render` writes the page next to the sheet, so the same frames can be checked interactively.
 
