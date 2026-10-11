@@ -1,4 +1,5 @@
-import { createWorld, toThree, fromThree, decodeGeometry } from './draw.js'
+import { createWorld, toThree, fromThree } from './draw.js'
+import { decodeGeometry } from './packed.js'
 import { createMarkers } from './markers.js'
 import { createPlayers } from './player.js'
 import { createViewmodelPass } from './viewmodel.js'

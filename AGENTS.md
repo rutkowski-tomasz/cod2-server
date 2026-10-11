@@ -28,13 +28,15 @@ The tools are tested but can still have bugs or missing parts. If one gets in yo
 
 `tools/mapview/` draws maps (`.map`, `.d3dbsp`, a map's `.iwd` or a stock name) without the game: `node tools/mapview/mapview.js render <map> --at mp_tdm_spawn` writes a screenshot to look at, `view` an interactive page, `info` the entities and materials. See `tools/mapview/README.md`. It draws effects with fxview's `bundle.js`, `sim.js` and `quads.js`; fxview never imports mapview.
 
+`tools/modelview/` shows xmodels and their animations without the game: `node tools/modelview/modelview.js render <model | weapon>` writes a contact sheet to look at, `view` an interactive page, `info` the bones, materials and animations. A weapon such as `mp40_mp` shows its viewmodel in first person and a player holding it in third (`--person third`). It builds rigs and animations with mapview's `bundle.js`, and draws them with mapview's `skin.js`, `packed.js` and `shader.js`; mapview never imports modelview. See `tools/modelview/README.md`.
+
 `tools/mapcompile/` compiles a `.map` into a map `.iwd` with the Mod Tools under wine in Docker: `tools/mapcompile/mapcompile.sh <file.map> [-o out.iwd] [--fast]`; `--fast` makes lighting about 7× quicker but rougher, for test builds. See `tools/mapcompile/README.md`.
 
 `tools/mapdecompile/` turns a `.d3dbsp` back into a `.map`: `node tools/mapdecompile/mapdecompile.js <d3dbsp | iwd | mp_name> [-o out.map]`. See `tools/mapdecompile/README.md`.
 
-`tools/shared/` holds what the tools share: the asset search over iwds and folders, the `.d3dbsp` reader, brush faces from planes, material, font, xmodel, IWI (with its wavelet formats, GPLv3) and PNG codecs, the module inliner for their file:// pages, and drawing game text and material images on a page's canvas.
+`tools/shared/` holds what the tools share: the asset search over iwds and folders, the `.d3dbsp` reader, brush faces from planes, material, font, xmodel, IWI (with its wavelet formats, GPLv3) and PNG codecs, the module inliner and three.js data URL for their file:// pages, and drawing game text and material images on a page's canvas.
 
-fxview, menuview, mapview, mapcompile and mapdecompile write to `out/<tool>/` (git-ignored) unless `-o` is given; that is scratch.
+fxview, menuview, modelview, mapview, mapcompile and mapdecompile write to `out/<tool>/` (git-ignored) unless `-o` is given; that is scratch.
 
 Before/after screenshots of a change go on the `pr-assets` branch, which PRs embed images from. Check it out once with `git worktree add ~/cod2-server-pr-assets pr-assets`, then follow its `README.md`.
 

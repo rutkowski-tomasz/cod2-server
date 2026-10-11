@@ -21,3 +21,11 @@ export function inlineModules(dir, entry) {
   load(normalize(entry))
   return blocks.join('\n')
 }
+
+// three.js ships as two ES modules; a page imports them from this data URL. `nodeModules` is the tool's own.
+export function threeModuleUrl(nodeModules) {
+  const dir = join(nodeModules, 'three', 'build')
+  const dataUrl = (source) => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`
+  const core = dataUrl(readFileSync(join(dir, 'three.core.js'), 'utf8'))
+  return dataUrl(readFileSync(join(dir, 'three.module.js'), 'utf8').replaceAll("'./three.core.js'", JSON.stringify(core)))
+}
