@@ -231,6 +231,7 @@ function renderLoop() {
     markers.hideNear(cam, state.top)
     renderer.render(scene, cam)
     if (!state.top && viewmodel.shown()) viewmodel.draw(cam)
+    gameHud.place(cam)
     for (const fn of addons.draw) fn(cam)
     fps.frames++
   }
