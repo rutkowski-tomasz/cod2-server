@@ -272,7 +272,7 @@ function updateUi() {
   const anim = state.anim && current.anims[state.anim]
   $('stats').textContent = [
     `${current.boneCount} bones · ${current.triangles} triangles · ${current.materialCount} materials`,
-    anim ? `${state.anim}: frame ${Math.round(state.time * anim.fps)} / ${anim.frames - 1} · ${Math.round(state.time * 1000)} / ${Math.round(d * 1000)} ms · ${anim.fps} fps` : 'bind pose',
+    anim ? `${state.anim}: frame ${Math.round(state.time * anim.fps)} / ${anim.frames - 1} · ${Math.round(state.time * 1000)} / ${Math.round(d * 1000)} ms · ${+anim.fps.toFixed(1)} fps` : 'bind pose',
     state.eye ? `eye view, fov ${EYE_FOV}` : `cam ${Math.round(cam.yaw)},${Math.round(cam.pitch)},${Math.round(cam.dist)} · grid cell ${grid.scale.x} units`,
   ].join('\n')
   $('labels').innerHTML = state.bones ? tagLabels().map((l) => `<div style="left:${l.x}px;top:${l.y}px">${l.name}</div>`).join('') : ''
