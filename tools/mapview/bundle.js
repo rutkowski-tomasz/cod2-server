@@ -18,8 +18,6 @@ const TOOL_MATERIALS = /^(caulk|clip|nodraw|hint|skip|trigger|portal|lightgrid|l
 const TEXTURE_SIZE = 512
 // Normal and specular maps are noisy and compress badly, so they get half the size to keep the page small.
 const NORMAL_MAP_SIZE = 256
-// The weapon file key of each view animation buildGun bundles that plays at the hip, besides the idle.
-const ACTION_ANIMS = { fire: 'fireAnim', rechamber: 'rechamberAnim', reload: 'reloadAnim', melee: 'meleeAnim' }
 // The fonts game-hud.js draws text in, by the name its elements give.
 const HUD_FONTS = { normal: 'normalFont', big: 'bigFont', small: 'smallFont', bold: 'boldFont' }
 const DEFAULT_BOUNDS = { min: [-512, -512, -64], max: [512, 512, 256] }
@@ -148,9 +146,12 @@ export function buildWeapon(weapon, search) {
 
 // The gun a player holding `weapon` sees in first person, built like a rig: the weapon file's gunModel, to hang from
 // the hands' tag_weapon (player.js createActor), with the view animations by what they are for (idle, fire, rechamber
-// working a bolt-action's bolt, reload, melee; adsUp into aiming down the sights, aimed held there, adsFire,
-// adsRechamber, adsDown back), each an xanim or null, which move the hands' bones as well as the gun's, and the muzzle
-// flash seen in first person, an effect or null. Null without a gunModel or when it is missing.
+// working a bolt-action's bolt, reload, reloadEmpty, reloadStart, reloadEnd, melee; adsUp into aiming down the sights,
+// aimed held there, adsFire, adsRechamber, adsDown back), each an xanim or null, which move the hands' bones as well as
+// the gun's, and the muzzle flash seen in first person, an effect or null. Null without a gunModel or when it is
+// missing.
+// The game reloads an empty clip with reloadEmpty. `segmented` says the reload goes one round at a time, as a
+// shotgun's: reloadStart, then reload or reloadEmpty for each round. Any reload ends with reloadEnd.
 export function buildGun(weapon, search) {
   const file = readWeaponFile(weapon, search)
   const rig = file?.gunModel && buildRig([xmodelPath(file.gunModel)], search)
@@ -163,14 +164,34 @@ export function buildGun(weapon, search) {
   // An action holds the idle's pose for the bones it does not move, and averages with `aim`'s last pose on bones
   // both move.
   const action = (key, aim) => blending(holding(xanim(key), idleAnim), aim)
+  // The game stretches a reload animation over its time in the weapon file, and plays none whose time is 0.
+  const stretched = (key, time, over = time) => (+time && +over ? timed(action(key, adsDownAnim), +over) : null)
+  const segmented = file.segmentedReload === '1'
+  const reload = stretched('reloadAnim', file.reloadTime)
+  // The game reloads an empty clip with reload when the weapon fires no bullets; a weapon file without a weaponType
+  // fires bullets.
+  const bullets = (file.weaponType ?? 'bullet').toLowerCase() === 'bullet'
   const idle = blending(idleAnim, adsDownAnim)
-  const actions = Object.fromEntries(Object.entries(ACTION_ANIMS).map(([use, key]) => [use, action(key, adsDownAnim)]))
   const adsUp = blending(adsUpAnim, idleAnim)
   const aimed = adsUp && lastPose(adsUp)
   const adsDown = blending(adsDownAnim, idleAnim)
-  const adsActions = { adsFire: action('adsFireAnim', adsUpAnim), adsRechamber: action('adsRechamberAnim', adsUpAnim) }
-  const anims = { idle, ...actions, adsUp, adsDown, aimed, ...adsActions }
-  return { ...rig, anims, flash: file.viewFlashEffect ? buildEffect(file.viewFlashEffect, search) : null }
+  const anims = {
+    idle,
+    fire: action('fireAnim', adsDownAnim),
+    rechamber: action('rechamberAnim', adsDownAnim),
+    reload,
+    reloadEmpty: bullets ? stretched('reloadEmptyAnim', file.reloadEmptyTime) : reload,
+    reloadStart: segmented ? stretched('reloadStartAnim', file.reloadStartTime) : null,
+    // Stretched over reloadTime, not reloadEndTime, as the game does; reloadEndTime only decides whether it plays.
+    reloadEnd: stretched('reloadEndAnim', file.reloadEndTime, file.reloadTime),
+    melee: action('meleeAnim', adsDownAnim),
+    adsUp,
+    adsDown,
+    aimed,
+    adsFire: action('adsFireAnim', adsUpAnim),
+    adsRechamber: action('adsRechamberAnim', adsUpAnim),
+  }
+  return { ...rig, anims, segmented, flash: file.viewFlashEffect ? buildEffect(file.viewFlashEffect, search) : null }
 }
 
 // The game's fonts for game-hud.js, with their atlases among `images`.
@@ -257,6 +278,11 @@ function halfway(keys, held, size) {
     values.push(...mid.map((x) => x / length))
   }
   return { frames: keys.frames, values }
+}
+
+// `anim` played over `seconds`, or null without it. Uses buildClip's length: (frames - 1) / fps, at least a frame.
+function timed(anim, seconds) {
+  return anim && { ...anim, fps: Math.max(1, anim.frames - 1) / seconds }
 }
 
 // `anim` held at its last frame, as an animation one frame long.
