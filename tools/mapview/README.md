@@ -43,7 +43,7 @@ In the page: click to look around, WASD to move, Shift for speed, E and Q for up
 
 ## Add-ons
 
-`--addon <file.js>` (repeatable) runs a script on the page after the viewer, for what mapview does not draw itself, such as players streamed from a server. Its own `import { … } from './x.js'` lines, and `../` ones, are inlined like the viewer's; `THREE` is in scope. A program can build the page itself with `buildPage(bundle, defaults, addons)` from `page.js` and `buildBundle(target, search)` from `bundle.js`, putting what its add-on needs into the bundle or the defaults; `createSearch(sources)` from `../shared/assets.js` makes the `search`, over the default sources plus `sources` (folders or iwds, later wins).
+`--addon <file.js>` (repeatable) runs a script on the page after the viewer, for what mapview does not draw itself, such as players streamed from a server. Its own `import { … } from './x.js'` lines, and `../` ones, are inlined like the viewer's; `THREE` is in scope. A program can build the page itself with `buildPage(bundle, defaults, addons)` from `page.js` and `buildBundle(target, search)` from `bundle.js`, putting what its add-on needs into the bundle or the defaults; `createSearch(sources)` from `../shared/assets.js` makes the `search`, over the default sources plus `sources` (folders or iwds, later wins). A server can pass `urls` as a fourth argument to send three.js and the bundle apart, so browsers cache them: `urls.three` is the URL of three's `three.module.js` (starting with `./`), and `urls.bundle` the URL it serves `bundleJson(bundle, defaults)` at.
 
 `window.mapview` gives an add-on:
 

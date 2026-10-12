@@ -38,6 +38,17 @@ addEventListener('error', (e) => {
 <script type="module">
 // The modules below use this THREE.
 const THREE = await import(document.getElementById('three').textContent)
+// A server can send the bundle apart, at the URL in its data-src, so browsers can cache it. One gone, as when the
+// server moved on to newer bundles, means the page is out of date, so it loads again.
+const bundleScript = document.getElementById('bundle')
+if (bundleScript.dataset.src) {
+  const response = await fetch(bundleScript.dataset.src)
+  if (!response.ok) {
+    location.reload()
+    await new Promise(() => {})
+  }
+  bundleScript.textContent = await response.text()
+}
 __SCRIPT__
 </script>
 </body>
