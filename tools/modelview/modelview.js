@@ -21,8 +21,8 @@ either; a weapon shows its viewmodel in first person and a player holding it in 
 
 options:
   --source <dir|iwd>   extra asset source, repeatable; mod folders beat stock
-  --anim a,b           xanims to play, or a weapon's view animations (idle, fire, reload, melee, adsUp, aimed,
-                       adsFire, adsDown); the first is shown first
+  --anim a,b           xanims to play, or a weapon's view animations (idle, fire, rechamber, reload, melee, adsUp,
+                       aimed, adsFire, adsRechamber, adsDown); the first is shown first
   --attach a,b         xmodels to hang on the model's bones, such as a head and helmet on a body
   --person first|third the weapon view to show (default first)
   --hands <xmodel>     first-person hands instead of the weapon file's handModel
