@@ -18,7 +18,7 @@ const TOOL_MATERIALS = /^(caulk|clip|nodraw|hint|skip|trigger|portal|lightgrid|l
 const TEXTURE_SIZE = 512
 // Normal and specular maps are noisy and compress badly, so they get half the size to keep the page small.
 const NORMAL_MAP_SIZE = 256
-// The weapon file key of each view animation buildViewmodel bundles that plays at the hip, besides the idle.
+// The weapon file key of each view animation buildGun bundles that plays at the hip, besides the idle.
 const ACTION_ANIMS = { fire: 'fireAnim', reload: 'reloadAnim', melee: 'meleeAnim' }
 // The fonts game-hud.js draws text in, by the name its elements give.
 const HUD_FONTS = { normal: 'normalFont', big: 'bigFont', small: 'smallFont', bold: 'boldFont' }
@@ -121,10 +121,9 @@ export function buildBundle(target, search, options) {
 
 // A player made of `models`, a body and what is attached to it, for an add-on's page: its bones, skinned
 // surfaces, and the materials and images they draw with, packed like a bundle. Null when a model is missing.
-// Its materials keep their normal and specular maps; a page without lightmaps leaves them unused. `attachTo` hangs
-// the later models from that bone, as in readRig.
-export function buildRig(models, search, attachTo) {
-  const rig = readRig(models, search, attachTo)
+// Its materials keep their normal and specular maps; a page without lightmaps leaves them unused.
+export function buildRig(models, search) {
+  const rig = readRig(models, search)
   if (!rig) return null
   const { push, buffer } = createPacker()
   const materials = []
@@ -147,15 +146,14 @@ export function buildWeapon(weapon, search) {
   return { ...rig, flash: file.worldFlashEffect ? buildEffect(file.worldFlashEffect, search) : null }
 }
 
-// What a player holding `weapon` sees of it in first person, built like a rig: the `hands` xmodel (what the game's
-// setViewModel set, else the weapon file's handModel) with the weapon file's gunModel hanging from its tag_weapon,
-// the view animations by what they are for (idle, fire, reload, melee; adsUp into aiming down the sights, aimed held
-// there, adsFire, adsDown back), each an xanim or null, and the muzzle flash seen in first person, an effect or null.
-// Its root, tag_view, is the eye. Null without a gunModel or when a model is missing.
-export function buildViewmodel(weapon, hands, search) {
+// The gun a player holding `weapon` sees in first person, built like a rig: the weapon file's gunModel, to hang from
+// the hands' tag_weapon (player.js createActor), with the view animations by what they are for (idle, fire, reload,
+// melee; adsUp into aiming down the sights, aimed held there, adsFire, adsDown back), each an xanim or null, which move
+// the hands' bones as well as the gun's, and the muzzle flash seen in first person, an effect or null. Null without a
+// gunModel or when it is missing.
+export function buildGun(weapon, search) {
   const file = readWeaponFile(weapon, search)
-  if (!file?.gunModel) return null
-  const rig = buildRig([hands || file.handModel, file.gunModel].map(xmodelPath), search, 'tag_weapon')
+  const rig = file?.gunModel && buildRig([xmodelPath(file.gunModel)], search)
   if (!rig) return null
   const xanim = (key) => file[key] && buildAnim(file[key], search)
   const idleAnim = xanim('idleAnim')

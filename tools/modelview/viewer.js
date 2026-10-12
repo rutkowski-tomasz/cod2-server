@@ -1,7 +1,7 @@
 // The page: each view's rig skinned in three.js, playing one animation at a time, seen from an orbit camera or the eye.
 // Rigs are built in CoD's Z-up frame and turned into three.js's Y-up one by their outer group, as mapview's players.
 import { decodeGeometry } from '../mapview/packed.js'
-import { boneTree, geometryOf, buildClip } from '../mapview/skin.js'
+import { boneTree, attachSkinned, geometryOf, buildClip } from '../mapview/skin.js'
 import { BLEND, LIGHTMAP_SHADER, blendOf, ignoresAlpha, lightmapUniforms } from '../mapview/shader.js'
 
 const bundle = JSON.parse(document.getElementById('bundle').textContent)
@@ -56,35 +56,49 @@ let action = null
 let helper = null
 
 function buildView(v) {
-  const data = decodeGeometry(v.rig.geometry)
   const body = new THREE.Group()
   const bones = boneTree(v.rig.bones, body, THREE.Bone)
   const skeleton = new THREE.Skeleton(bones)
-  const meshes = v.rig.surfaces.map((s) => new THREE.SkinnedMesh(geometryOf(data, s), materialOf(v.rig, s.material)))
+  const skinned = (rig) => {
+    const data = decodeGeometry(rig.geometry)
+    return rig.surfaces.map((s) => new THREE.SkinnedMesh(geometryOf(data, s), materialOf(rig, s.material)))
+  }
+  const meshes = skinned(v.rig)
   body.add(...meshes)
   body.updateMatrixWorld(true)
-  for (const mesh of meshes) {
-    mesh.bind(skeleton)
-    // The bind pose's bounds would cull a pose that leans out of them.
-    mesh.frustumCulled = false
+  for (const mesh of meshes) mesh.bind(skeleton)
+  if (v.gun) {
+    const gunMeshes = skinned(v.gun)
+    body.add(...gunMeshes)
+    attachSkinned(v.gun.bones, bones, 'tag_weapon', gunMeshes)
+    meshes.push(...gunMeshes)
   }
+  // The bind pose's bounds would cull a pose that leans out of them.
+  for (const mesh of meshes) mesh.frustumCulled = false
   // The held weapon is drawn rigid in its bind pose, its bones along as objects for their labels.
-  const tags = bones.filter((b) => b.name.startsWith('tag_'))
-  let triangles = v.rig.surfaces.reduce((n, s) => n + s.indices.count / 3, 0)
   if (v.held) {
     const weapon = new THREE.Group()
     const heldData = decodeGeometry(v.held.geometry)
     for (const s of v.held.surfaces) weapon.add(new THREE.Mesh(geometryOf(heldData, s), materialOf(v.held, s.material)))
-    tags.push(...boneTree(v.held.bones, weapon, THREE.Object3D).filter((b) => b.name.startsWith('tag_')))
+    boneTree(v.held.bones, weapon, THREE.Object3D)
     bones.find((b) => b.name === 'tag_weapon_right')?.add(weapon)
-    triangles += v.held.surfaces.reduce((n, s) => n + s.indices.count / 3, 0)
   }
+  const rigs = [v.rig, v.gun, v.held].filter(Boolean)
+  const tags = []
+  let boneCount = 0
+  body.traverse((o) => {
+    if (o.name.startsWith('tag_')) tags.push(o)
+    if (o.isBone) boneCount++
+  })
+  const triangles = rigs.reduce((n, rig) => n + rig.surfaces.reduce((m, s) => m + s.indices.count / 3, 0), 0)
+  const materialCount = rigs.reduce((n, rig) => n + rig.materials.length, 0)
   const outer = new THREE.Group()
   outer.rotation.x = -Math.PI / 2
   outer.add(body)
   const mixer = new THREE.AnimationMixer(body)
-  const clips = Object.fromEntries(Object.entries(v.anims).map(([name, anim]) => [name, buildClip(v.rig.bones, anim, () => true)]))
-  return { ...v, outer, body, meshes, tags, mixer, clips, triangles }
+  const animated = [...v.rig.bones, ...(v.gun?.bones ?? [])]
+  const clips = Object.fromEntries(Object.entries(v.anims).map(([name, anim]) => [name, buildClip(animated, anim, () => true)]))
+  return { ...v, outer, body, meshes, tags, mixer, clips, triangles, boneCount, materialCount }
 }
 
 function materialOf(rig, index) {
@@ -255,7 +269,7 @@ function updateUi() {
   $('time').value = Math.round(state.time * 1000)
   const anim = state.anim && current.anims[state.anim]
   $('stats').textContent = [
-    `${current.rig.bones.length} bones · ${current.triangles} triangles · ${current.rig.materials.length + (current.held?.materials.length ?? 0)} materials`,
+    `${current.boneCount} bones · ${current.triangles} triangles · ${current.materialCount} materials`,
     anim ? `${state.anim}: frame ${Math.round(state.time * anim.fps)} / ${anim.frames - 1} · ${Math.round(state.time * 1000)} / ${Math.round(d * 1000)} ms · ${anim.fps} fps` : 'bind pose',
     state.eye ? `eye view, fov ${EYE_FOV}` : `cam ${Math.round(cam.yaw)},${Math.round(cam.pitch)},${Math.round(cam.dist)} · grid cell ${grid.scale.x} units`,
   ].join('\n')

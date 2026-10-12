@@ -14,6 +14,29 @@ export function boneTree(bones, root, Make) {
   return made
 }
 
+// Hangs `bones`, another rig's, from the bone `attachTo` of `made` (a rig's bones from boneTree), as a gun hangs from
+// the hands' tag_weapon, and skins that rig's `meshes` to them. A bone named like one of `made` is that one, as readRig
+// merges the models it joins. readRig placed the meshes with their rig alone, so they bind to where its bones sit
+// there. Returns their skeleton.
+export function attachSkinned(bones, made, attachTo, meshes) {
+  const alone = new THREE.Group()
+  const own = boneTree(bones, alone, THREE.Bone)
+  alone.updateMatrixWorld(true)
+  const skeleton = new THREE.Skeleton(own)
+  own.forEach((bone, i) => {
+    const same = made.find((b) => b.name === bone.name)
+    if (!same) return
+    for (const child of [...bone.children]) same.add(child)
+    bone.removeFromParent()
+    skeleton.bones[i] = same
+  })
+  const at = made.find((b) => b.name === attachTo)
+  for (const root of [...alone.children]) at.add(root)
+  // A bind matrix keeps the inverses from the rig alone; without one, bind takes them from where the bones are now.
+  for (const mesh of meshes) mesh.bind(skeleton, new THREE.Matrix4())
+  return skeleton
+}
+
 export function geometryOf(data, s) {
   const geom = new THREE.BufferGeometry()
   geom.setAttribute('position', new THREE.BufferAttribute(data.f32(s.positions), 3))

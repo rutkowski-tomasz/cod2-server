@@ -90,7 +90,7 @@ function load() {
 
 function problems(bundle) {
   const lines = bundle.missing.map((m) => `missing: ${m}`)
-  for (const v of Object.values(bundle.views)) for (const rig of [v.rig, v.held].filter(Boolean)) {
+  for (const v of Object.values(bundle.views)) for (const rig of [v.rig, v.gun, v.held].filter(Boolean)) {
     for (const m of rig.materials) if (m.missing) lines.push(`no image: ${m.name} ${m.missing}`)
   }
   return lines
@@ -151,8 +151,8 @@ function spread(n, around = false) {
 function info() {
   const bundle = load()
   const data = Object.fromEntries(Object.entries(bundle.views).map(([view, v]) => [view, {
-    bones: v.rig.bones.map((b) => b.name),
-    surfaces: [v.rig, v.held].filter(Boolean).flatMap((rig) => rig.surfaces.map((s) => ({ material: rig.materials[s.material].name, image: rig.materials[s.material].image ?? null, vertices: s.positions.count / 3, triangles: s.indices.count / 3 }))),
+    bones: [...new Set([...v.rig.bones, ...(v.gun?.bones ?? [])].map((b) => b.name))],
+    surfaces: [v.rig, v.gun, v.held].filter(Boolean).flatMap((rig) => rig.surfaces.map((s) => ({ material: rig.materials[s.material].name, image: rig.materials[s.material].image ?? null, vertices: s.positions.count / 3, triangles: s.indices.count / 3 }))),
     held: v.held ? v.held.bones.map((b) => b.name) : undefined,
     anims: Object.fromEntries(Object.entries(v.anims).map(([n, a]) => [n, { frames: a.frames, fps: a.fps, ms: Math.round((Math.max(1, a.frames - 1) / a.fps) * 1000), bones: a.bones.length }])),
     start: v.start,
