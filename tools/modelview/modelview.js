@@ -35,9 +35,10 @@ options:
   --cam yaw,pitch,dist orbit camera, also in first person; default fits the model; yaw 0 looks at its front
   --eye on|off         view from the eye with cg_fov 80 (first person; default on)
   --bones on           draw the skeleton and tag names
+  --normals off        draw without normal and specular maps
   --tex off  --wire on  --grid off  --bg dark|mid|light|black`
 
-const VIEW_KEYS = ['person', 'cam', 'eye', 'bones', 'tex', 'wire', 'grid', 'bg']
+const VIEW_KEYS = ['person', 'cam', 'eye', 'bones', 'tex', 'normals', 'wire', 'grid', 'bg']
 
 const args = process.argv.slice(2)
 const cmd = args.shift()

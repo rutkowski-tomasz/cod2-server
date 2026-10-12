@@ -2,7 +2,7 @@
 // THREE comes from the page script, which imports it before this module runs.
 import { anglesToForward, parseVec } from './math.js'
 import { buildModels } from './models.js'
-import { BLEND, LIGHTMAP_SHADER, blendOf, ignoresAlpha, replaceFogChunks } from './shader.js'
+import { BLEND, LIGHTMAP_SHADER, blendOf, ignoresAlpha, lightmapUniforms, replaceFogChunks } from './shader.js'
 
 // CoD2 is Z-up; three.js is Y-up. World coordinates convert as (x, y, z) -> (x, z, -y).
 export const toThree = (x, y, z) => new THREE.Vector3(x, z, -y)
@@ -187,14 +187,7 @@ export function createWorld(map, renderer, scene, onChange) {
   function lightmapMaterial(baseColor, blend) {
     return new THREE.ShaderMaterial({
       ...LIGHTMAP_SHADER,
-      uniforms: {
-        map: { value: null }, hasMap: { value: 0 }, color: { value: baseColor }, alphaTest: { value: 0 },
-        ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
-        lmR: { value: null }, lmG: { value: null }, lmB: { value: null }, lmSun: { value: null },
-        useLm: { value: 0 }, sunShade: { value: 0 }, sunDir: { value: sunDir }, sunColor: { value: sunColor.clone().multiplyScalar(sunlight) },
-        blend: { value: blend },
-        normalMap: { value: null }, hasNormalMap: { value: 0 }, specularMap: { value: null }, hasSpecularMap: { value: 0 },
-      },
+      uniforms: lightmapUniforms({ color: baseColor, blend, sunDir, sunColor: sunColor.clone().multiplyScalar(sunlight) }),
     })
   }
 

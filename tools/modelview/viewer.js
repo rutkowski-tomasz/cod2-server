@@ -2,7 +2,7 @@
 // Rigs are built in CoD's Z-up frame and turned into three.js's Y-up one by their outer group, as mapview's players.
 import { decodeGeometry } from '../mapview/packed.js'
 import { boneTree, geometryOf, buildClip } from '../mapview/skin.js'
-import { BLEND, blendOf, ignoresAlpha } from '../mapview/shader.js'
+import { BLEND, LIGHTMAP_SHADER, blendOf, ignoresAlpha, lightmapUniforms } from '../mapview/shader.js'
 
 const bundle = JSON.parse(document.getElementById('bundle').textContent)
 const params = { ...(bundle.defaults ?? {}), ...Object.fromEntries(new URLSearchParams(location.hash.slice(1))) }
@@ -23,12 +23,11 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDraw
 renderer.outputColorSpace = THREE.SRGBColorSpace
 const scene = new THREE.Scene()
 const camera = new THREE.PerspectiveCamera()
-// The key light follows the camera, so every side of a model is lit as it turns.
-const key = new THREE.DirectionalLight(0xffffff, 2.5)
-key.position.set(-0.6, 1, 0.8)
-key.target.position.set(0, 0, -1)
-camera.add(key, key.target)
-scene.add(camera, new THREE.HemisphereLight(0xffffff, 0x5a5048, 2.5))
+// Models are lit as mapview lights them in a compiled map, by a sun, which here follows the camera so every side
+// of a model is lit as it turns.
+const SUN_FROM_CAMERA = new THREE.Vector3(-0.6, 1, 1.8).normalize()
+const SUN_COLOR = new THREE.Color(0.8, 0.8, 0.8)
+const sunDir = new THREE.Vector3()
 const grid = new THREE.GridHelper(GRID_CELLS, GRID_CELLS, 0x8090a0, 0x4a525c)
 scene.add(grid)
 
@@ -45,6 +44,7 @@ const state = {
   speed: 1,
   bg: params.bg ?? 'dark',
   tex: params.tex !== 'off',
+  normals: params.normals !== 'off',
   wire: params.wire === 'on',
   bones: params.bones === 'on',
   grid: params.grid !== 'off',
@@ -91,37 +91,44 @@ function materialOf(rig, index) {
   const info = rig.materials[index]
   const blend = blendOf(info.techset)
   const image = info.width && rig.images[info.image]
-  const mat = new THREE.MeshLambertMaterial({ side: THREE.DoubleSide, color: image ? 0xffffff : hashColor(info.name) })
+  const color = image ? new THREE.Color(0.6, 0.6, 0.6) : hashColor(info.name)
+  const mat = new THREE.ShaderMaterial({ ...LIGHTMAP_SHADER, side: THREE.DoubleSide, uniforms: lightmapUniforms({ color, blend, sunDir, sunColor: SUN_COLOR }) })
+  mat.uniforms.sunShade.value = 1
   if (blend !== BLEND.opaque) {
     Object.assign(mat, { transparent: true, depthWrite: false })
     if (blend === BLEND.add) mat.blending = THREE.AdditiveBlending
     if (blend === BLEND.multiply) Object.assign(mat, { blending: THREE.CustomBlending, blendSrc: THREE.DstColorFactor, blendDst: THREE.ZeroFactor })
   }
-  if (image) {
+  mat.userData = { name: info.name }
+  if (image) mat.userData.alphaTest = image.alpha && blend === BLEND.opaque && !ignoresAlpha(info.techset) ? ALPHA_TEST : 0
+  // Textures load raw: the shader lights them in gamma space, as the game does.
+  for (const [key, name] of [['texture', image && info.image], ['normalMap', info.normalMap], ['specularMap', info.specularMap]]) {
+    if (!name) continue
     pending++
-    new THREE.TextureLoader().loadAsync(image.png).then((tex) => {
+    new THREE.TextureLoader().loadAsync(rig.images[name].png).then((tex) => {
       tex.flipY = false
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping
-      tex.colorSpace = THREE.SRGBColorSpace
-      mat.userData.texture = tex
-      mat.userData.alphaTest = image.alpha && blend === BLEND.opaque && !ignoresAlpha(info.techset) ? ALPHA_TEST : 0
+      mat.userData[key] = tex
       refreshMaterial(mat)
       pending--
     })
   }
-  mat.userData.color = mat.color.clone()
-  mat.userData.name = info.name
   materials.push(mat)
   return mat
 }
 
 function refreshMaterial(mat) {
-  const tex = state.tex ? mat.userData.texture ?? null : null
-  mat.map = tex
-  mat.color.copy(tex ? new THREE.Color(0xffffff) : mat.userData.texture ? new THREE.Color(0x9a9a9a) : mat.userData.color)
-  mat.alphaTest = tex ? mat.userData.alphaTest : 0
+  const { texture, normalMap, specularMap, alphaTest } = mat.userData
+  const u = mat.uniforms
+  const tex = state.tex ? texture ?? null : null
+  u.map.value = tex
+  u.hasMap.value = tex ? 1 : 0
+  u.alphaTest.value = tex ? alphaTest : 0
+  u.normalMap.value = normalMap ?? null
+  u.hasNormalMap.value = state.normals && normalMap ? 1 : 0
+  u.specularMap.value = specularMap ?? null
+  u.hasSpecularMap.value = state.normals && specularMap ? 1 : 0
   mat.wireframe = state.wire
-  mat.needsUpdate = true
 }
 
 function hashColor(name) {
@@ -236,6 +243,8 @@ function render() {
   grid.visible = state.grid && !state.eye
   helper.visible = state.bones
   updateCamera()
+  camera.updateMatrixWorld()
+  sunDir.copy(SUN_FROM_CAMERA).transformDirection(camera.matrixWorld)
   renderer.render(scene, camera)
 }
 
@@ -264,7 +273,7 @@ $('time').oninput = (e) => { state.playing = false; $('play').textContent = 'Pla
 $('speed').onchange = (e) => { state.speed = Number(e.target.value) }
 $('bg').value = state.bg
 $('bg').onchange = (e) => { state.bg = e.target.value }
-for (const k of ['tex', 'wire']) {
+for (const k of ['tex', 'normals', 'wire']) {
   $(k).checked = state[k]
   $(k).onchange = (e) => { state[k] = e.target.checked; materials.forEach(refreshMaterial) }
 }

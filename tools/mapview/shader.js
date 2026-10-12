@@ -119,6 +119,17 @@ void main() {
 }`,
 }
 
+// The uniforms LIGHTMAP_SHADER reads, with no images or lightmap and sun shading off.
+export function lightmapUniforms({ color, blend, sunDir, sunColor }) {
+  return {
+    map: { value: null }, hasMap: { value: 0 }, color: { value: color }, alphaTest: { value: 0 },
+    ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+    lmR: { value: null }, lmG: { value: null }, lmB: { value: null }, lmSun: { value: null },
+    useLm: { value: 0 }, sunShade: { value: 0 }, sunDir: { value: sunDir }, sunColor: { value: sunColor }, blend: { value: blend },
+    normalMap: { value: null }, hasNormalMap: { value: 0 }, specularMap: { value: null }, hasSpecularMap: { value: 0 },
+  }
+}
+
 export function blendOf(techset = '') {
   if (techset.includes('multiply')) return BLEND.multiply
   if (/(^|_)add(_|$)/.test(techset)) return BLEND.add
