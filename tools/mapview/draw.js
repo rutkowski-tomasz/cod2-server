@@ -19,8 +19,6 @@ const MAX_POINT_LIGHTS = 64
 const GRID_STEP = 256
 // Decals and blended layers lie on another surface, so they are drawn pulled toward the camera.
 const PULL_FORWARD = { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }
-// Seconds a texture that failed to load waits before each next try; after the last it is given up.
-const RETRY_DELAYS_S = [2, 4, 8, 16, 32]
 
 // `onChange` is called when a texture arrives, so the page draws again.
 export function createWorld(map, renderer, scene, onChange) {
@@ -79,8 +77,8 @@ export function createWorld(map, renderer, scene, onChange) {
   return {
     occluders,
     modelMaterial,
-    // Resolves once the textures of `asset`'s materials are in, its images added to the map's; rejects once one is
-    // given up.
+    // Resolves once the textures of `asset`'s materials are in, its images added to the map's; rejects when one fails
+    // to load.
     loadModelTextures(asset) {
       Object.assign(map.images, asset.images)
       return Promise.all(Object.values(asset.materials).map((info) => modelMaterial(info).userData.texturesIn))
@@ -184,8 +182,8 @@ export function createWorld(map, renderer, scene, onChange) {
         if (info[key]) loads.push(loadImage(info[key], THREE.NoColorSpace).then((tex) => { mat.userData[key] = tex; refresh(mat) }))
       }
     }
-    // Resolves once its images are in; a material whose image is given up keeps its flat colour. Most materials are
-    // never waited on, so a given-up image must not end up as an unhandled rejection.
+    // Resolves once its images are in; a material whose image fails to load keeps its flat colour. Most materials are
+    // never waited on, so a failed image must not end up as an unhandled rejection.
     mat.userData.texturesIn = Promise.all(loads)
     mat.userData.texturesIn.catch(() => {})
     if (lit && lightmap >= 0) {
@@ -246,26 +244,15 @@ export function createWorld(map, renderer, scene, onChange) {
   function loadTexture(key, src, setup) {
     if (!textures.has(key)) {
       pending++
-      textures.set(key, loadRetrying(src).then((tex) => {
+      // The loader rejects with the image's error event, which names nothing.
+      const loaded = new THREE.TextureLoader().loadAsync(src).catch(() => Promise.reject(new Error(`texture failed to load: ${src}`)))
+      textures.set(key, loaded.then((tex) => {
         tex.flipY = false
         setup(tex)
         return tex
       }).finally(() => pending--))
     }
     return textures.get(key)
-  }
-
-  // A texture served apart from the page can fail for a while, such as when its server restarts.
-  async function loadRetrying(src) {
-    for (const delay of RETRY_DELAYS_S) {
-      try {
-        return await new THREE.TextureLoader().loadAsync(src)
-      } catch {
-        await new Promise((resolve) => setTimeout(resolve, delay * 1000))
-      }
-    }
-    // The loader rejects with the image's error event, which names nothing.
-    return new THREE.TextureLoader().loadAsync(src).catch(() => Promise.reject(new Error(`texture given up: ${src}`)))
   }
 
   // Lights for a .map, from worldspawn, with sun shadows over the whole map.
