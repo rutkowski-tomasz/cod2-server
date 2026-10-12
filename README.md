@@ -79,6 +79,7 @@ git repository
 ├── 1_0
 │   ├── iw_00.iwd … iw_14.iwd
 │   ├── localized_english_iw99.iwd
+│   ├── localized_<language>_iw05.iwd (optional)
 │   └── localized_<language>_iw10.iwd (optional)
 └── 1_3
     └── iw_15.iwd
@@ -86,7 +87,7 @@ git repository
 
 `localized_english_iw99.iwd` comes from [IzNoGoD's post](https://killtube.org/showthread.php?2873-CoD2-Install-CoD2-on-your-VDS-much-faster!&p=16261&viewfull=1#post16261).
 
-A client's `localized_<language>_iw10.iwd` holds the textures of localized content, such as German uniforms, flags and posters. Servers don't need it, so it goes to `cod2/localized`, outside `main`, for what draws the game from the server's files, such as a mapview page.
+A client's `localized_<language>_iw10.iwd` holds the textures of localized content, such as German uniforms, flags and posters. A client's `localized_<language>_iw05.iwd` holds the multiplayer voice lines, such as `US_mp_stm_enemyspotted`. Servers don't need them, so they go to `cod2/localized`, outside `main`, for pages that draw the game or play its sounds from the server's files, such as mapview.
 
 ### Setup
 
@@ -112,6 +113,7 @@ Layout on the server after setup:
 ├── cod2
 │   ├── library
 │   ├── localized
+│   │   ├── localized_<language>_iw05.iwd
 │   │   └── localized_<language>_iw10.iwd
 │   ├── main
 │   │   ├── 1_0
