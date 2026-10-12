@@ -145,10 +145,11 @@ export function buildWeapon(weapon, search) {
 }
 
 // The gun a player holding `weapon` sees in first person, built like a rig: the weapon file's gunModel, to hang from
-// the hands' tag_weapon (player.js createActor), with the view animations by what they are for (idle, fire, reload,
-// reloadEmpty, reloadStart, reloadEnd, melee; adsUp into aiming down the sights, aimed held there, adsFire, adsDown
-// back), each an xanim or null, which move the hands' bones as well as the gun's, and the muzzle flash seen in first
-// person, an effect or null. Null without a gunModel or when it is missing.
+// the hands' tag_weapon (player.js createActor), with the view animations by what they are for (idle, fire, rechamber
+// working a bolt-action's bolt, reload, reloadEmpty, reloadStart, reloadEnd, melee; adsUp into aiming down the sights,
+// aimed held there, adsFire, adsRechamber, adsDown back), each an xanim or null, which move the hands' bones as well as
+// the gun's, and the muzzle flash seen in first person, an effect or null. Null without a gunModel or when it is
+// missing.
 // The game reloads an empty clip with reloadEmpty. `segmented` says the reload goes one round at a time, as a
 // shotgun's: reloadStart, then reload or reloadEmpty for each round. Any reload ends with reloadEnd.
 export function buildGun(weapon, search) {
@@ -177,6 +178,7 @@ export function buildGun(weapon, search) {
   const anims = {
     idle,
     fire: action('fireAnim', adsDownAnim),
+    rechamber: action('rechamberAnim', adsDownAnim),
     reload,
     reloadEmpty: bullets ? stretched('reloadEmptyAnim', file.reloadEmptyTime) : reload,
     reloadStart: segmented ? stretched('reloadStartAnim', file.reloadStartTime) : null,
@@ -187,6 +189,7 @@ export function buildGun(weapon, search) {
     adsDown,
     aimed,
     adsFire: action('adsFireAnim', adsUpAnim),
+    adsRechamber: action('adsRechamberAnim', adsUpAnim),
   }
   return { ...rig, anims, segmented, flash: file.viewFlashEffect ? buildEffect(file.viewFlashEffect, search) : null }
 }

@@ -55,10 +55,10 @@ runcmd:
     if [ -n "${cod2_binaries_git_url}" ]; then
       GIT_LFS_SKIP_SMUDGE=1 git clone --depth 1 "${cod2_binaries_git_url}" /tmp/cod2-binaries
       cd /tmp/cod2-binaries
-      git lfs pull --include "1_0/iw_*,1_0/localized_english_*,1_0/localized_*_iw10.iwd,1_3/iw_*"
+      git lfs pull --include "1_0/iw_*,1_0/localized_english_*,1_0/localized_*_iw05.iwd,1_0/localized_*_iw10.iwd,1_3/iw_*"
       cp 1_0/iw_*.iwd 1_0/localized_english_*.iwd /home/ubuntu/cod2/main/1_0/
       cp 1_3/iw_*.iwd /home/ubuntu/cod2/main/1_3/
-      for f in 1_0/localized_*_iw10.iwd; do [ -f "$f" ] && cp "$f" /home/ubuntu/cod2/localized/; done
+      for f in 1_0/localized_*_iw05.iwd 1_0/localized_*_iw10.iwd; do [ -f "$f" ] && cp "$f" /home/ubuntu/cod2/localized/; done
       cd /
       rm -rf /tmp/cod2-binaries
     fi

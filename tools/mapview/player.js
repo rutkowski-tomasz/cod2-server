@@ -20,9 +20,16 @@ const UPPER_BODY = 'torso_stabilizer'
 const BODY_CENTER = 36
 const BODY_RADIUS = 50
 // How the game bends a player toward where it looks (BG_Player_DoControllers): the torso takes TORSO_PITCH of the
-// view's pitch over its back bones, and the neck and head the rest, each bone its share.
+// view's pitch, over its back bones, and the neck and head the rest, each bone its share. A prone torso takes a
+// half of that looking down and a quarter looking up, all on back_up.
 const TORSO_PITCH = 0.6
-const PITCH_BONES = [['back_low', 0.2 * TORSO_PITCH], ['back_mid', 0.3 * TORSO_PITCH], ['back_up', 0.5 * TORSO_PITCH], ['neck', 0.3 * (1 - TORSO_PITCH)], ['head', 0.7 * (1 - TORSO_PITCH)]]
+const PRONE_TORSO_DOWN = 0.5
+const PRONE_TORSO_UP = 0.25
+const BACK_SHARES = [['back_low', 0.2], ['back_mid', 0.3], ['back_up', 0.5]]
+const PRONE_BACK_SHARES = [['back_up', 1]]
+const HEAD_SHARES = [['neck', 0.3], ['head', 0.7]]
+// The bones run x up the spine and z to the player's left, so a pitch down turns them about +z.
+const PITCH_AXIS = new THREE.Vector3(0, 0, 1)
 
 // `world` gives the floor the players stand on and the material models draw with.
 export function createPlayers(map, world) {
@@ -105,10 +112,11 @@ export function createPlayers(map, world) {
       }
     },
     // Bends `actor`'s back, neck and head toward `pitch` degrees, positive down, as the game bends a player toward
-    // where it looks.
-    look(actor, pitch) {
+    // where it looks; `prone` bends it as a prone player.
+    look(actor, pitch, { prone = false } = {}) {
       const copy = copies.find((c) => c.outer === actor)
       copy.pitch = pitch
+      copy.prone = prone
       // A frozen render draws it as it is now, as no frame will.
       if (frozen) {
         unbend(copy)
@@ -175,15 +183,21 @@ export function createPlayers(map, world) {
   }
 
   function bend(copy) {
-    const turn = new THREE.Quaternion()
-    const axis = new THREE.Vector3(0, -1, 0)
     copy.bent = []
     if (!copy.pitch) return
-    for (const [name, share] of PITCH_BONES) {
+    const proneShare = copy.pitch > 0 ? PRONE_TORSO_DOWN : PRONE_TORSO_UP
+    const torso = copy.pitch * TORSO_PITCH * (copy.prone ? proneShare : 1)
+    turn(copy, copy.prone ? PRONE_BACK_SHARES : BACK_SHARES, torso)
+    turn(copy, HEAD_SHARES, copy.pitch - torso)
+  }
+
+  function turn(copy, shares, pitch) {
+    const by = new THREE.Quaternion()
+    for (const [name, share] of shares) {
       const bone = copy.skeleton.getBoneByName(name)
       if (!bone) continue
       copy.bent.push([bone, bone.quaternion.clone()])
-      bone.quaternion.multiply(turn.setFromAxisAngle(axis, share * copy.pitch * d2r))
+      bone.quaternion.multiply(by.setFromAxisAngle(PITCH_AXIS, share * pitch * d2r))
     }
   }
 
@@ -252,7 +266,7 @@ export function createPlayers(map, world) {
     const outer = new THREE.Group()
     outer.rotation.x = -Math.PI / 2
     outer.add(body)
-    copies.push({ outer, mixer, start, skeleton, gunSkeleton, parts, actions: [action], posed: false, pitch: 0, bent: [] })
+    copies.push({ outer, mixer, start, skeleton, gunSkeleton, parts, actions: [action], posed: false, pitch: 0, prone: false, bent: [] })
     return outer
   }
 }
