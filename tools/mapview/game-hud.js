@@ -101,13 +101,15 @@ export function createGameHud() {
   function drawElement(e, frame) {
     const textAspect = frame.sy / frame.sx
     const imageAspect = e.stretch || fullscreen(e) ? 1 : textAspect
-    const scale = FONT_SCALE * (e.fontScale ?? 1)
-    const lineHeight = LINE_HEIGHT * (e.fontScale ?? 1)
-    const font = fontFor(e.font ?? 'normal', lineHeight * frame.sy)
     const parts = (e.parts ?? [e]).map((p) => {
       // An image alone keeps the place of its box and is drawn in its middle; images in a line take their own width.
       if (p.shader) return images[p.shader] && { ...p, w: e.parts ? p.width * imageAspect : p.width, h: p.height }
-      return font && p.text && { text: p.text, w: paint.width(p.text, font, scale) * textAspect, h: lineHeight }
+      // A text in a line can have a font and size of its own.
+      const fontScale = p.fontScale ?? e.fontScale ?? 1
+      const scale = FONT_SCALE * fontScale
+      const lineHeight = LINE_HEIGHT * fontScale
+      const font = fontFor(p.font ?? e.font ?? 'normal', lineHeight * frame.sy)
+      return font && p.text && { text: p.text, font, scale, w: paint.width(p.text, font, scale) * textAspect, h: lineHeight }
     }).filter(Boolean)
     const width = parts.reduce((sum, p) => sum + p.w, 0)
     const height = Math.max(0, ...parts.map((p) => p.h))
@@ -126,7 +128,7 @@ export function createGameHud() {
         ctx.save()
         ctx.translate(x, y + (height + p.h) / 2)
         ctx.scale(textAspect, 1)
-        paint.text(p.text, 0, 0, color, font, scale, e.shadow ? TEXTSTYLE.SHADOWED : 0)
+        paint.text(p.text, 0, 0, color, p.font, p.scale, e.shadow ? TEXTSTYLE.SHADOWED : 0)
         ctx.restore()
       }
       x += p.w
