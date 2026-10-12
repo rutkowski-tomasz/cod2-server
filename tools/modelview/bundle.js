@@ -1,6 +1,7 @@
 // Builds the page bundle: one or more views, each a rig with the animations it can play, packed by mapview's
-// bundle.js. A model target has one view; a weapon has `first` (its viewmodel) and `third` (a player holding it).
-import { buildRig, buildViewmodel, buildWeapon, buildAnim, readWeaponFile, holding, xmodelPath, PLAYER } from '../mapview/bundle.js'
+// bundle.js. A model target has one view; a weapon has `first` (hands with the gun hanging from them, as mapview's
+// player.js hangs them) and `third` (a player holding it).
+import { buildRig, buildGun, buildWeapon, buildAnim, readWeaponFile, holding, xmodelPath, PLAYER } from '../mapview/bundle.js'
 
 // The standing idle mp/playeranim.script picks by weapon class; the rest take the two-handed rifle's.
 const THIRD_PERSON_IDLE = { pistol: 'pb_stand_alert_pistol', grenade: 'pb_stand_grenade_pullpin' }
@@ -22,7 +23,7 @@ export function buildModelBundle(target, search, { anims = [], attach = [], hand
     if (anim) loaded[name] = anim
     else missing.push(`xanim/${name.replace(/^xanim\//, '')}`)
   }
-  const share = (v, anim) => anim.bones.filter((a) => v.rig.bones.some((b) => b.name === a.name)).length
+  const share = (v, anim) => anim.bones.filter((a) => [...v.rig.bones, ...(v.gun?.bones ?? [])].some((b) => b.name === a.name)).length
   for (const [name, anim] of Object.entries(loaded)) {
     const view = Object.values(views).reduce((best, v) => (share(v, anim) > share(best, anim) ? v : best))
     view.anims[name] = holding(anim, view.anims[view.start])
@@ -39,11 +40,13 @@ export function buildModelBundle(target, search, { anims = [], attach = [], hand
 
   function weaponViews() {
     const out = {}
-    const viewmodel = buildViewmodel(target, hands, search)
-    if (viewmodel) {
-      const { anims: own, flash, ...rig } = viewmodel
-      out.first = { rig, anims: Object.fromEntries(Object.entries(own).filter(([, a]) => a)), start: 'idle', eye: true }
-    } else missing.push(`first person: ${[hands || weapon.handModel, weapon.gunModel].filter(Boolean).map(xmodelPath).join(' or ') || 'no handModel or gunModel'}`)
+    const gun = buildGun(target, search)
+    const handModel = hands || weapon.handModel
+    const handsRig = handModel && buildRig([xmodelPath(handModel)], search)
+    if (gun && handsRig) {
+      const { anims: own, flash, ...gunRig } = gun
+      out.first = { rig: handsRig, gun: gunRig, anims: Object.fromEntries(Object.entries(own).filter(([, a]) => a)), start: 'idle', eye: true }
+    } else missing.push(`first person: ${[handModel, weapon.gunModel].filter(Boolean).map(xmodelPath).join(' or ') || 'no handModel or gunModel'}`)
     const player = buildRig(body.map(xmodelPath), search)
     if (player) {
       const { flash, ...held } = buildWeapon(target, search) ?? {}

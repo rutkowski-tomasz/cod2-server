@@ -73,7 +73,7 @@ window.mapview = {
   onDraw: (fn) => addons.draw.push(fn),
   // `fn()` runs whenever the keys move the camera.
   onMove: (fn) => addons.move.push(fn),
-  // Draws `object`, such as an actor of a viewmodel rig, at the eye in CoD's view frame and over the world; null
+  // Draws `object`, such as the actor of a player's hands and gun, at the eye in CoD's view frame and over the world; null
   // removes it. The top view leaves it out.
   setViewmodel(object) {
     viewmodel.set(object)

@@ -4,7 +4,7 @@
 // and turned into three.js's Y-up one by its outer group.
 import { decodeGeometry } from './packed.js'
 import { d2r } from './math.js'
-import { boneTree, geometryOf, buildClip } from './skin.js'
+import { boneTree, attachSkinned, geometryOf, buildClip } from './skin.js'
 
 // Seconds between the points of the loop that consecutive copies start at, so they do not move in step.
 const PHASE_STEP = 0.37
@@ -27,8 +27,10 @@ const PITCH_BONES = [['back_low', 0.2 * TORSO_PITCH], ['back_mid', 0.3 * TORSO_P
 // `world` gives the floor the players stand on and the material models draw with.
 export function createPlayers(map, world) {
   const { idle } = map.player
-  const base = partsOf(map.player, map, map.materials)
-  const rigParts = new Map()
+  const base = partsOf(map.player, meshesOf(map.player, map, map.materials))
+  // Each add-on rig's meshes, and the parts of each rig and gun its actors were made of.
+  const rigMeshes = new Map()
+  const actorParts = new Map()
   const weaponParts = new Map()
   const copies = []
   let lastUpdate = performance.now()
@@ -46,14 +48,17 @@ export function createPlayers(map, world) {
       return outer
     },
     // An actor, a copy for an add-on to place, facing +X with its feet at its parent's origin: of `rig`, a player
-    // built by bundle.js buildRig, else of the bundle's player. `remove` it once it is no longer needed.
-    createActor(rig) {
+    // built by bundle.js buildRig, else of the bundle's player. With `gun`, built by bundle.js buildGun, `rig` is the
+    // hands, the gun hangs from their tag_weapon, and an animation moves both. `remove` it once it is no longer needed.
+    createActor(rig, gun = null) {
       if (!rig) return createCopy(0, base)
-      if (!rigParts.has(rig)) {
-        Object.assign(map.images, rig.images)
-        rigParts.set(rig, partsOf(rig, decodeGeometry(rig.geometry), rig.materials))
+      if (!actorParts.has(rig)) actorParts.set(rig, new Map())
+      const byGun = actorParts.get(rig)
+      if (!byGun.has(gun)) {
+        const gunParts = gun && { bones: gun.bones, meshes: addOnMeshesOf(gun) }
+        byGun.set(gun, partsOf(rig, addOnMeshesOf(rig), gunParts))
       }
-      return createCopy(0, rigParts.get(rig))
+      return createCopy(0, byGun.get(gun))
     },
     // Puts `weapon` (built like a rig by bundle.js buildWeapon), or nothing for null, in `actor`'s right hand, so it
     // follows the hand's animation. The weapon's bones come along as objects named after them, such as tag_flash,
@@ -110,6 +115,7 @@ export function createPlayers(map, world) {
     remove(actor) {
       const i = copies.findIndex((c) => c.outer === actor)
       copies[i].skeleton.dispose()
+      copies[i].gunSkeleton?.dispose()
       copies.splice(i, 1)
       actor.removeFromParent()
     },
@@ -179,15 +185,24 @@ export function createPlayers(map, world) {
     return group
   }
 
-  // The geometry, materials and clips one rig's copies share; `data` reads the rig's packed arrays.
-  function partsOf(rig, data, materials) {
-    return {
-      bones: rig.bones,
-      geometries: rig.surfaces.map((s) => [geometryOf(data, s), world.modelMaterial(materials[s.material])]),
-      clip: buildClip(rig.bones, idle, () => true),
-      upper: upperBody(rig.bones),
-      clips: new Map(),
+  // Each surface's geometry and material, which every copy of the rig shares; `data` reads the rig's packed arrays.
+  function meshesOf(rig, data, materials) {
+    return rig.surfaces.map((s) => [geometryOf(data, s), world.modelMaterial(materials[s.material])])
+  }
+
+  // An add-on's rig's meshes, made once, as hands and a gun each show with many others.
+  function addOnMeshesOf(rig) {
+    if (!rigMeshes.has(rig)) {
+      Object.assign(map.images, rig.images)
+      rigMeshes.set(rig, meshesOf(rig, decodeGeometry(rig.geometry), rig.materials))
     }
+    return rigMeshes.get(rig)
+  }
+
+  // The meshes and clips the copies of one rig, and of the gun hanging from it if any, share.
+  function partsOf(rig, meshes, gunParts = null) {
+    const clipBones = gunParts ? [...rig.bones, ...gunParts.bones] : rig.bones
+    return { bones: rig.bones, meshes, gunParts, clipBones, clip: buildClip(clipBones, idle, () => true), upper: upperBody(rig.bones), clips: new Map() }
   }
 
   // The clip of `anim` for one rig over all its bones, or only the `upper` or `lower` body.
@@ -195,23 +210,25 @@ export function createPlayers(map, world) {
     if (!parts.clips.has(anim)) parts.clips.set(anim, {})
     const clips = parts.clips.get(anim)
     const keep = { all: () => true, upper: (name) => parts.upper.has(name), lower: (name) => !parts.upper.has(name) }[part]
-    clips[part] ??= buildClip(parts.bones, anim, keep)
+    clips[part] ??= buildClip(parts.clipBones, anim, keep)
     return clips[part]
   }
 
   function createCopy(yaw, parts) {
-    const { bones, geometries, clip } = parts
+    const { bones, gunParts, clip } = parts
     const body = new THREE.Group()
-    const skeleton = new THREE.Skeleton(boneTree(bones, body, THREE.Bone))
-    const meshes = geometries.map(([geometry, material]) => new THREE.SkinnedMesh(geometry, material))
-    body.add(...meshes)
+    const made = boneTree(bones, body, THREE.Bone)
+    const skeleton = new THREE.Skeleton(made)
+    const skinned = (meshes) => meshes.map(([geometry, material]) => new THREE.SkinnedMesh(geometry, material))
+    const meshes = skinned(parts.meshes)
+    const gunMeshes = gunParts ? skinned(gunParts.meshes) : []
+    body.add(...meshes, ...gunMeshes)
     // Bound before the copy is turned, so the bind pose is in the body's own frame.
     body.updateMatrixWorld(true)
-    for (const mesh of meshes) {
-      mesh.bind(skeleton)
-      // The bind pose's bounds would cull a copy whose animation leans out of them.
-      mesh.frustumCulled = false
-    }
+    for (const mesh of meshes) mesh.bind(skeleton)
+    const gunSkeleton = gunParts && attachSkinned(gunParts.bones, made, 'tag_weapon', gunMeshes)
+    // The bind pose's bounds would cull a copy whose animation leans out of them.
+    for (const mesh of [...meshes, ...gunMeshes]) mesh.frustumCulled = false
     body.rotation.z = yaw
     const mixer = new THREE.AnimationMixer(body)
     const start = (copies.length * PHASE_STEP) % clip.duration
@@ -220,7 +237,7 @@ export function createPlayers(map, world) {
     const outer = new THREE.Group()
     outer.rotation.x = -Math.PI / 2
     outer.add(body)
-    copies.push({ outer, mixer, start, skeleton, parts, actions: [action], posed: false, pitch: 0, bent: [] })
+    copies.push({ outer, mixer, start, skeleton, gunSkeleton, parts, actions: [action], posed: false, pitch: 0, bent: [] })
     return outer
   }
 }
