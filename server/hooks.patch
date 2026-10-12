@@ -28,6 +28,36 @@ index 4de1da3..07f6246 100755
  
  # Integrate MySQL? Which variant?
  mysql_variant=0
+diff --git a/code/gsc.cpp b/code/gsc.cpp
+index 44b8dc2..a8db34c 100644
+--- a/code/gsc.cpp
++++ b/code/gsc.cpp
+@@ -582,6 +582,15 @@ scr_method_t scriptMethods[] =
+ 
+ xmethod_t Scr_GetCustomMethod(const char **fname, qboolean *fdev)
+ {
++	/* New code start: Extra methods can stand in for the game's own */
++	if ( Scr_GetExtraMethod )
++	{
++		xmethod_t extra = Scr_GetExtraMethod(fname, fdev);
++		if ( extra )
++			return extra;
++	}
++	/* New code end */
++
+ 	xmethod_t m = Scr_GetMethod(fname, fdev);
+ 
+ 	if ( m )
+@@ -600,9 +609,6 @@ xmethod_t Scr_GetCustomMethod(const char **fname, qboolean *fdev)
+ 		return func.call;
+ 	}
+ 
+-	if ( Scr_GetExtraMethod )
+-		return Scr_GetExtraMethod(fname, fdev);
+-
+ 	return NULL;
+ }
+ 
 diff --git a/code/libcod.cpp b/code/libcod.cpp
 index ac43214..d582e57 100644
 --- a/code/libcod.cpp

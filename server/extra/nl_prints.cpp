@@ -30,13 +30,6 @@ void RecordPrintedMessage(client_t *cl, const char *command)
 	printedMessages.push_back({ cl ? (int)(cl - svs.clients) : -1, command[0] == 'g', std::string(command + 3, length - 4) });
 }
 
-static void addArrayKey(const char *key)
-{
-	unsigned int k = SL_GetString(key, 0);
-	Scr_AddArrayStringIndexed(k);
-	SL_RemoveRefToString(k);
-}
-
 void gsc_prints_takeprintedmessages()
 {
 	stackPushArray();

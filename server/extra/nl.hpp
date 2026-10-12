@@ -13,6 +13,7 @@ float Get3DDistanceSquared(float *a, float *b);
 void ProjectPointOnLine(float *a, float *b, float *p, float *o);
 
 size_t HashCombine(size_t seed, float v);
+void addArrayKey(const char *key);
 
 void Sha256Bytes(const uint8_t *data, size_t len, uint8_t digest[32]);
 void Sha256Hex(const uint8_t *data, size_t len, char hex[65]);
@@ -39,6 +40,13 @@ void gsc_player_gettorsoanimation(scr_entref_t ref);
 
 void RecordPrintedMessage(client_t *cl, const char *command);
 void gsc_prints_takeprintedmessages();
+
+void gsc_sounds_playsound(scr_entref_t ref);
+void gsc_sounds_playsoundasmaster(scr_entref_t ref);
+void gsc_sounds_playlocalsound(scr_entref_t ref);
+void gsc_sounds_takeplayedsounds();
+void gsc_sounds_getloopsounds();
+void gsc_sounds_getambientsound();
 
 void gsc_utils_collapsecolors();
 void gsc_utils_stripcolors();

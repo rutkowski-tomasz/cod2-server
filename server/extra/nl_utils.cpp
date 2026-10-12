@@ -352,3 +352,11 @@ void Sha256Hex(const uint8_t *data, size_t len, char hex[65])
 
 	hex[64] = '\0';
 }
+
+// Sets the key `key` of the array under the value on top of the stack to that value.
+void addArrayKey(const char *key)
+{
+	unsigned int k = SL_GetString(key, 0);
+	Scr_AddArrayStringIndexed(k);
+	SL_RemoveRefToString(k);
+}
