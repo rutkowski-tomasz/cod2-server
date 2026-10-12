@@ -34,6 +34,10 @@ static scr_function_t functions[] =
 
 	{"takePrintedMessages", gsc_prints_takeprintedmessages, 0},
 
+	{"takePlayedSounds", gsc_sounds_takeplayedsounds, 0},
+	{"getLoopSounds", gsc_sounds_getloopsounds, 0},
+	{"getAmbientSound", gsc_sounds_getambientsound, 0},
+
 	{"collapseColors", gsc_utils_collapsecolors, 0},
 	{"stripColors", gsc_utils_stripcolors, 0},
 	{"sha256", gsc_utils_sha256, 0},
@@ -61,6 +65,11 @@ static scr_method_t methods[] =
 	{"setWeaponIdInSlotId", gsc_player_setweaponidinslotid, 0},
 	{"getLegsAnimation", gsc_player_getlegsanimation, 0},
 	{"getTorsoAnimation", gsc_player_gettorsoanimation, 0},
+
+	// Stand in for the game's own, to keep the sounds for takePlayedSounds.
+	{"playSound", gsc_sounds_playsound, 0},
+	{"playSoundAsMaster", gsc_sounds_playsoundasmaster, 0},
+	{"playLocalSound", gsc_sounds_playlocalsound, 0},
 	{NULL, NULL, 0}
 };
 

@@ -5,6 +5,12 @@
 - `result = stripColors(string)`
 - `messages = takePrintedMessages()` - Returns the `iPrintln` and `iPrintlnBold` messages sent since the last call, oldest first, and forgets them; only the latest 256 are kept. Each is an array with `client` (the receiving player's entity number; undefined when sent to everyone), `bold` (`1` for `iPrintlnBold`) and `text`, as the game sends it: a run of plain text starts with `\x15`, a localized string is its key, and `\x14` and `\x16` mark its other parts. Messages to bots are kept too.
 
+# Sounds
+
+- `sounds = takePlayedSounds()` - Returns the sounds `playSound`, `playSoundAsMaster` and `playLocalSound` played since the last call, oldest first, and forgets them; only the latest 256 are kept. Each is an array with `alias` and either `origin` (where the entity was, for `playSound` and `playSoundAsMaster`) or `client` (the receiving player's entity number, for `playLocalSound`). `playSound`, `playSoundAsMaster` and `playLocalSound` are wrapped to keep them.
+- `sounds = getLoopSounds()` - Returns the looping sounds entities play now, set by `playLoopSound`: an array with `entity` (its number), `alias` and `origin` for each.
+- `alias = getAmbientSound()` - Returns the alias `ambientPlay` plays now; `""` when none does.
+
 # Animations
 
 - `name = player getLegsAnimation()` - Returns the name of the player animation the legs play, such as `pb_stand_alert`; returns `""` for an index outside the animation list, and `undefined` if the entity is not a player.
