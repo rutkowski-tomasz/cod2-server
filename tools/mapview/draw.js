@@ -77,6 +77,12 @@ export function createWorld(map, renderer, scene, onChange) {
   return {
     occluders,
     modelMaterial,
+    // Resolves once the textures of `asset`'s materials are in, its images added to the map's; rejects when one fails
+    // to load.
+    loadModelTextures(asset) {
+      Object.assign(map.images, asset.images)
+      return Promise.all(Object.values(asset.materials).map((info) => modelMaterial(info).userData.texturesIn))
+    },
     // How far below CoD's point `[x, y, z]` the first map surface is (not models, tool brushes or triggers); 0 when
     // none is within MAX_DROP.
     floorDrop([x, y, z]) {
@@ -146,7 +152,8 @@ export function createWorld(map, renderer, scene, onChange) {
 
   function makeMaterial(info, lightmap, tool, sunShade) {
     if (/water/.test(info.techset ?? '') || /^water/.test(info.name)) return new THREE.MeshBasicMaterial({ color: WATER_COLOR, transparent: true, opacity: 0.55, depthWrite: false })
-    const baseColor = hashColor(info.name)
+    // A model's surface can name no material, as one of viewmodel_hands_yellow's does.
+    const baseColor = hashColor(info.name ?? '')
     // Tool brushes have their own fixed opacity.
     const blend = tool ? BLEND.opaque : blendOf(info.techset)
     let mat
@@ -167,13 +174,18 @@ export function createWorld(map, renderer, scene, onChange) {
     if (tool) Object.assign(mat, { transparent: true, opacity: 0.35, depthWrite: false })
     if (/decal/.test(info.name) || /decal/.test(info.techset ?? '')) Object.assign(mat, PULL_FORWARD)
     // The game multiplies in gamma space; only the three.js-lit .map path uses its linear pipeline.
-    if (map.images[info.image]) loadImage(info.image, lit ? THREE.NoColorSpace : THREE.SRGBColorSpace).then((tex) => { mat.userData.texture = tex; refresh(mat) })
+    const loads = []
+    if (map.images[info.image]) loads.push(loadImage(info.image, lit ? THREE.NoColorSpace : THREE.SRGBColorSpace).then((tex) => { mat.userData.texture = tex; refresh(mat) }))
     // Only the lightmap shader uses normal and specular maps; collision faces draw as tool brushes and skip them.
     if (mat.isShaderMaterial) {
       for (const key of ['normalMap', 'specularMap']) {
-        if (info[key]) loadImage(info[key], THREE.NoColorSpace).then((tex) => { mat.userData[key] = tex; refresh(mat) })
+        if (info[key]) loads.push(loadImage(info[key], THREE.NoColorSpace).then((tex) => { mat.userData[key] = tex; refresh(mat) }))
       }
     }
+    // Resolves once its images are in; a material whose image fails to load keeps its flat colour. Most materials are
+    // never waited on, so a failed image must not end up as an unhandled rejection.
+    mat.userData.texturesIn = Promise.all(loads)
+    mat.userData.texturesIn.catch(() => {})
     if (lit && lightmap >= 0) {
       Promise.all(map.lightmaps[lightmap].map((src, page) => loadTexture(`lightmap ${lightmap}/${page}`, src, (tex) => {
         tex.colorSpace = THREE.NoColorSpace
@@ -232,12 +244,13 @@ export function createWorld(map, renderer, scene, onChange) {
   function loadTexture(key, src, setup) {
     if (!textures.has(key)) {
       pending++
-      textures.set(key, new THREE.TextureLoader().loadAsync(src).then((tex) => {
+      // The loader rejects with the image's error event, which names nothing.
+      const loaded = new THREE.TextureLoader().loadAsync(src).catch(() => Promise.reject(new Error(`texture failed to load: ${src}`)))
+      textures.set(key, loaded.then((tex) => {
         tex.flipY = false
         setup(tex)
-        pending--
         return tex
-      }))
+      }).finally(() => pending--))
     }
     return textures.get(key)
   }

@@ -12,7 +12,7 @@ export function inlineModules(dir, entry) {
     const source = readFileSync(join(dir, file), 'utf8')
     const body = source.replace(/^import \{([^}]+)\} from '(\.\.?\/[\w/.-]+\.js)'$/gm, (_, imported, dep) => `const {${imported}} = ${load(normalize(join(dirname(file), dep)))}`)
     if (/^import /m.test(body)) throw new Error(`${file}: only single-line named imports of local files can be inlined`)
-    const exported = [...body.matchAll(/^export (?:const|function) (\w+)/gm)].map((m) => m[1])
+    const exported = [...body.matchAll(/^export (?:const|(?:async )?function) (\w+)/gm)].map((m) => m[1])
     const name = `module_${file.replace(/\.js$/, '').replace(/\W/g, '_')}`
     names.set(file, name)
     blocks.push(`const ${name} = (() => {\n${body.replace(/^export /gm, '')}\nreturn { ${exported.join(', ')} }\n})()`)

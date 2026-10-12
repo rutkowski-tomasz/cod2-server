@@ -51,7 +51,12 @@ $('status').style.display = 'none'
 // Add-ons run right after this script, in the same task, so they are all in before the first frame and the wait.
 queueMicrotask(() => {
   renderLoop()
-  Promise.all([whenIdle(), ...addons.waits]).then(() => { window.mapReady = true })
+  // A wait that fails, such as an add-on's players.load whose texture did not load, ends a render with its error and
+  // shows it, as an uncaught error does (viewer.html).
+  Promise.all([whenIdle(), ...addons.waits]).then(() => { window.mapReady = true }, (e) => {
+    window.mapError = e.message
+    Object.assign($('status'), { textContent: e.message }).style.display = 'block'
+  })
 })
 
 window.mapview = {

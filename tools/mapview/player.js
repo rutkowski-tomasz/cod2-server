@@ -67,6 +67,9 @@ export function createPlayers(map, world) {
       }
       return createCopy(0, byGun.get(gun))
     },
+    // Resolves once the textures of `asset`, a rig, weapon or gun built by bundle.js, are in, so what is made of it
+    // draws textured from its first frame rather than in flat colours; rejects when one fails to load.
+    load: (asset) => world.loadModelTextures(asset),
     // Puts `weapon` (built like a rig by bundle.js buildWeapon), or nothing for null, in `actor`'s right hand, so it
     // follows the hand's animation. The weapon's bones come along as objects named after them, such as tag_flash,
     // for effects to play on.
