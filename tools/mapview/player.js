@@ -70,15 +70,17 @@ export function createPlayers(map, world) {
       if (copy.weapon) copy.skeleton.getBoneByName('tag_weapon_right')?.add(copy.weapon)
     },
     // Plays the parsed xanim `legs` on `actor`, with `torso` over its upper body when given, blending from what it
-    // played. With neither it keeps what it plays. `once` plays them from the start, even when already playing, and
-    // holds their last frame. An actor's first pose plays at once: blending from the default idle would pull bones
-    // the idle does not move, such as a viewmodel's, toward their bind pose.
+    // played. With neither it keeps what it plays. An animation the game does not loop, such as a reload, plays once
+    // and holds its last frame. `once` plays them from the start, even when already playing, and holds their last
+    // frame. An actor's first pose plays at once: blending from the default idle would pull bones the idle does not
+    // move, such as a viewmodel's, toward their bind pose.
     pose(actor, legs, torso, { once = false } = {}) {
       const copy = copies.find((c) => c.outer === actor)
-      const next = [
-        legs && copy.mixer.clipAction(clipOf(copy.parts, legs, torso ? 'lower' : 'all')),
-        torso && copy.mixer.clipAction(clipOf(copy.parts, torso, 'upper')),
-      ].filter(Boolean)
+      const animOf = new Map([
+        legs && [copy.mixer.clipAction(clipOf(copy.parts, legs, torso ? 'lower' : 'all')), legs],
+        torso && [copy.mixer.clipAction(clipOf(copy.parts, torso, 'upper')), torso],
+      ].filter(Boolean))
+      const next = [...animOf.keys()]
       if (!next.length) return
       // A frozen render draws the new pose at once, as no frame will blend it in.
       const atOnce = frozen || !copy.posed
@@ -88,8 +90,9 @@ export function createPlayers(map, world) {
       for (const a of next) {
         const playing = copy.actions.includes(a)
         if (playing && !once) continue
-        a.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, Infinity)
-        a.clampWhenFinished = once
+        const holds = once || !animOf.get(a).looping
+        a.setLoop(holds ? THREE.LoopOnce : THREE.LoopRepeat, Infinity)
+        a.clampWhenFinished = holds
         a.reset().play()
         // A restart keeps its full weight: fading in from none would pull the bones toward their bind pose.
         if (!atOnce && !playing) a.fadeIn(FADE)
@@ -110,6 +113,18 @@ export function createPlayers(map, world) {
       if (frozen) {
         unbend(copy)
         bend(copy)
+      }
+    },
+    // Plays `anim` from its start again where `actor` plays it, as the game does when it starts the same animation
+    // again, such as a fire animation on each shot.
+    restart(actor, anim) {
+      const copy = copies.find((c) => c.outer === actor)
+      const clips = Object.values(copy.parts.clips.get(anim) ?? {})
+      for (const a of copy.actions) {
+        if (!clips.includes(a.getClip())) continue
+        // Unlike reset(), this keeps a fade in going, as the game keeps blending.
+        a.time = 0
+        a.paused = false
       }
     },
     remove(actor) {

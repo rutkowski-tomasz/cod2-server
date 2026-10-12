@@ -21,8 +21,8 @@ either; a weapon shows its viewmodel in first person and a player holding it in 
 
 options:
   --source <dir|iwd>   extra asset source, repeatable; mod folders beat stock
-  --anim a,b           xanims to play, or a weapon's view animations (idle, fire, reload, melee, adsUp, aimed,
-                       adsFire, adsDown); the first is shown first
+  --anim a,b           xanims to play, or a weapon's view animations (idle, fire, reload, reloadEmpty,
+                       reloadStart, reloadEnd, melee, adsUp, aimed, adsFire, adsDown); the first is shown first
   --attach a,b         xmodels to hang on the model's bones, such as a head and helmet on a body
   --person first|third the weapon view to show (default first)
   --hands <xmodel>     first-person hands instead of the weapon file's handModel
@@ -162,7 +162,7 @@ function info() {
     console.log(`${bundle.name} (${view}): ${d.bones.length} bones, ${d.surfaces.length} surfaces, ${d.surfaces.reduce((n, s) => n + s.triangles, 0)} triangles`)
     for (const s of d.surfaces) console.log(`  ${s.material.padEnd(36)} ${String(s.triangles).padStart(6)} tris  ${s.image ?? '(no image)'}`)
     console.log(`  tags: ${[...d.bones, ...(d.held ?? [])].filter((b) => b.startsWith('tag_')).join(' ') || '-'}`)
-    for (const [n, a] of Object.entries(d.anims)) console.log(`  anim ${n.padEnd(30)} ${String(a.frames).padStart(4)} frames  ${a.fps} fps  ${a.ms} ms  ${a.bones} bones${n === d.start ? '  (shown first)' : ''}`)
+    for (const [n, a] of Object.entries(d.anims)) console.log(`  anim ${n.padEnd(30)} ${String(a.frames).padStart(4)} frames  ${+a.fps.toFixed(1)} fps  ${a.ms} ms  ${a.bones} bones${n === d.start ? '  (shown first)' : ''}`)
   }
 }
 

@@ -9,7 +9,8 @@ const DELTA = 2
 // Header: version, frame count, bone count, flags u8, frames per second. A looping animation has one more frame,
 // which returns to the first. Then two bit sets over the bones: one of unknown meaning, and rotations about z alone.
 // Then the bone names, then each bone's rotation and translation keys. Returns null for another version.
-// Rotations take the parent's frame; translations are offsets from the bone's position in the model.
+// Rotations take the parent's frame; translations are offsets from the bone's position in the model. `looping` says
+// whether the game loops it.
 export function parseXAnim(buf) {
   if (buf.readUInt16LE(0) !== VERSION) return null
   let frames = buf.readUInt16LE(2)
@@ -48,5 +49,5 @@ export function parseXAnim(buf) {
   }
   const bit = (set, i) => (set[i >> 3] >> (i & 7)) & 1
   const bones = names.map((name, i) => ({ name, rotations: rotations(bit(zOnly, i)), translations: translations() }))
-  return { fps, frames, bones }
+  return { fps, frames, looping: !!(flags & LOOPING), bones }
 }
