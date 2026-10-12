@@ -19,7 +19,7 @@ const TEXTURE_SIZE = 512
 // Normal and specular maps are noisy and compress badly, so they get half the size to keep the page small.
 const NORMAL_MAP_SIZE = 256
 // The weapon file key of each view animation buildGun bundles that plays at the hip, besides the idle.
-const ACTION_ANIMS = { fire: 'fireAnim', reload: 'reloadAnim', melee: 'meleeAnim' }
+const ACTION_ANIMS = { fire: 'fireAnim', rechamber: 'rechamberAnim', reload: 'reloadAnim', melee: 'meleeAnim' }
 // The fonts game-hud.js draws text in, by the name its elements give.
 const HUD_FONTS = { normal: 'normalFont', big: 'bigFont', small: 'smallFont', bold: 'boldFont' }
 const DEFAULT_BOUNDS = { min: [-512, -512, -64], max: [512, 512, 256] }
@@ -147,10 +147,10 @@ export function buildWeapon(weapon, search) {
 }
 
 // The gun a player holding `weapon` sees in first person, built like a rig: the weapon file's gunModel, to hang from
-// the hands' tag_weapon (player.js createActor), with the view animations by what they are for (idle, fire, reload,
-// melee; adsUp into aiming down the sights, aimed held there, adsFire, adsDown back), each an xanim or null, which move
-// the hands' bones as well as the gun's, and the muzzle flash seen in first person, an effect or null. Null without a
-// gunModel or when it is missing.
+// the hands' tag_weapon (player.js createActor), with the view animations by what they are for (idle, fire, rechamber
+// working a bolt-action's bolt, reload, melee; adsUp into aiming down the sights, aimed held there, adsFire,
+// adsRechamber, adsDown back), each an xanim or null, which move the hands' bones as well as the gun's, and the muzzle
+// flash seen in first person, an effect or null. Null without a gunModel or when it is missing.
 export function buildGun(weapon, search) {
   const file = readWeaponFile(weapon, search)
   const rig = file?.gunModel && buildRig([xmodelPath(file.gunModel)], search)
@@ -168,7 +168,8 @@ export function buildGun(weapon, search) {
   const adsUp = blending(adsUpAnim, idleAnim)
   const aimed = adsUp && lastPose(adsUp)
   const adsDown = blending(adsDownAnim, idleAnim)
-  const anims = { idle, ...actions, adsUp, adsDown, aimed, adsFire: action('adsFireAnim', adsUpAnim) }
+  const adsActions = { adsFire: action('adsFireAnim', adsUpAnim), adsRechamber: action('adsRechamberAnim', adsUpAnim) }
+  const anims = { idle, ...actions, adsUp, adsDown, aimed, ...adsActions }
   return { ...rig, anims, flash: file.viewFlashEffect ? buildEffect(file.viewFlashEffect, search) : null }
 }
 

@@ -15,7 +15,7 @@ node tools/modelview/modelview.js list   xanim/pb_stand
 
 A target is one of:
 - **A weapon file name** under `weapons/mp/`, such as `mp40_mp`. It has two views:
-  - `first`: the viewmodel. This is the weapon file's `handModel` (or `--hands`) with its `gunModel` hanging from `tag_weapon`, seen from the eye with cg_fov 80. It comes with every view animation the weapon file names: `idle`, `fire`, `reload`, `melee`, `adsUp`, `adsFire` and `adsDown`, plus `aimed`, which is the last frame of `adsUp` held.
+  - `first`: the viewmodel. This is the weapon file's `handModel` (or `--hands`) with its `gunModel` hanging from `tag_weapon`, seen from the eye with cg_fov 80. It comes with every view animation the weapon file names: `idle`, `fire`, `rechamber`, `reload`, `melee`, `adsUp`, `adsFire`, `adsRechamber` and `adsDown`, plus `aimed`, which is the last frame of `adsUp` held.
   - `third`: mapview's rifleman (or `--body`) holding the weapon's `worldModel` on `tag_weapon_right`. He plays the standing idle that `mp/playeranim.script` picks for the weapon class: `pb_stand_alert_pistol` for pistols, `pb_stand_grenade_pullpin` for grenades, `pb_stand_alert` for everything else.
 - **An xmodel**, such as `xmodel/crate01` or `crate01`. `--attach` hangs more models on the bones they share by name, such as a head and helmet on a body.
 - **A file path** to either one, such as `~/Dev/nl-cod2-zom-iwds/iwds/zz.iwd/all/weapons/mp/ak47_mp`. The folder above `xmodel/` or `weapons/mp/` becomes an extra source.
