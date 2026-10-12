@@ -9,6 +9,7 @@ import { readXModel, readRig } from '../shared/xmodel.js'
 import { readBsp } from './bsp.js'
 import { readMap } from './map.js'
 import { parseXAnim } from './xanim.js'
+import { readSoundAliases, loadsOn } from './sound-aliases.js'
 import { parseVec } from './math.js'
 import { buildBundle as buildEffectBundle } from '../fxview/bundle.js'
 
@@ -203,6 +204,20 @@ export function buildHudImages(shaders, search) {
 export function buildEffect(path, search) {
   const fx = path.replace(/\.efx$/, '')
   return search.read(`${fx}.efx`) ? buildEffectBundle(fx, search) : null
+}
+
+// What the sound alias `alias` plays on `map`: the entries the game loads there whose files the sources have, of which
+// the game picks one each time, each with `file` (under sound/), its volume, pitch and distance ranges, whether it
+// plays without a position (`flat`), its start delay and the entries of its secondary alias, which plays along with
+// it; null when none has a file.
+export function buildSound(alias, map, search) {
+  const entries = soundEntries(alias, map, search)
+  return entries && entries.map((e) => ({ ...e, secondary: e.secondary && soundEntries(e.secondary, map, search) }))
+}
+
+function soundEntries(alias, map, search) {
+  const entries = readSoundAliases(search).get(alias.toLowerCase())?.filter((e) => loadsOn(e, map) && search.read(e.file))
+  return entries?.length ? entries.map(({ loadspec, ...e }) => e) : null
 }
 
 // `anim` with every bone `base` moves and `anim` does not held at `base`'s last pose. An action, such as a knife's
