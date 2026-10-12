@@ -36,7 +36,7 @@ Output goes to `out/modelview/` unless `-o` is given. `render` writes the page n
 ## What is drawn
 
 - Skinned and rigid xmodels at their first LOD, posed by `readRig` in `tools/shared/xmodel.js`, so hands stay whole where vertices follow several bones.
-- Animations as mapview plays them: rotations replace a bone's own, and translations are offsets from its position in the model file. Each weapon view animation has the hip pose of the weapon's `adsDownAnim` baked in, as the game holds it.
+- Animations as mapview plays them: rotations replace a bone's own, and translations are offsets from its position in the model file. Each weapon view animation has the last frame of an aiming animation baked in, as the game plays them side by side: the weapon's `adsDownAnim` at the hip, its `adsUpAnim` while aiming, and `adsUp` and `adsDown` the idle's; a bone both move takes the average of the two.
 - Materials: the colour map, with alpha test or blend mode from the techset, lit by a light that follows the camera plus a sky light.
 
 Not drawn: normal and specular maps, vertex colours, other LODs, collision, effects (muzzle flash, brass), notetracks and sounds, the movement of `tag_origin` in walking animations, the controllers that turn a third-person player's torso toward where it aims, and two animations blended at once (legs and torso).
