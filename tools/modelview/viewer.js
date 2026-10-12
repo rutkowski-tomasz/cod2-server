@@ -109,7 +109,9 @@ function materialOf(rig, index) {
   const mat = new THREE.ShaderMaterial({ ...LIGHTMAP_SHADER, side: THREE.DoubleSide, uniforms: lightmapUniforms({ color, blend, sunDir, sunColor: SUN_COLOR }) })
   mat.uniforms.sunShade.value = 1
   if (blend !== BLEND.opaque) {
-    Object.assign(mat, { transparent: true, depthWrite: false })
+    // Only the outside, as the game culls: xmodels wind it clockwise, which three.js calls the back. Drawn from both
+    // sides, three.js would draw a solid's far inside over its near outside.
+    Object.assign(mat, { transparent: true, depthWrite: false, side: THREE.BackSide })
     if (blend === BLEND.add) mat.blending = THREE.AdditiveBlending
     if (blend === BLEND.multiply) Object.assign(mat, { blending: THREE.CustomBlending, blendSrc: THREE.DstColorFactor, blendDst: THREE.ZeroFactor })
   }
