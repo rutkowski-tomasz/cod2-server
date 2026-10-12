@@ -19,6 +19,8 @@ const MAX_POINT_LIGHTS = 64
 const GRID_STEP = 256
 // Decals and blended layers lie on another surface, so they are drawn pulled toward the camera.
 const PULL_FORWARD = { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }
+// Seconds a texture that failed to load waits before each next try; after the last it is given up.
+const RETRY_DELAYS_S = [2, 4, 8, 16, 32]
 
 // `onChange` is called when a texture arrives, so the page draws again.
 export function createWorld(map, renderer, scene, onChange) {
@@ -77,6 +79,12 @@ export function createWorld(map, renderer, scene, onChange) {
   return {
     occluders,
     modelMaterial,
+    // Resolves once the textures of `asset`'s materials are in, its images added to the map's; rejects once one is
+    // given up.
+    loadModelTextures(asset) {
+      Object.assign(map.images, asset.images)
+      return Promise.all(Object.values(asset.materials).map((info) => modelMaterial(info).userData.texturesIn))
+    },
     // How far below CoD's point `[x, y, z]` the first map surface is (not models, tool brushes or triggers); 0 when
     // none is within MAX_DROP.
     floorDrop([x, y, z]) {
@@ -146,7 +154,8 @@ export function createWorld(map, renderer, scene, onChange) {
 
   function makeMaterial(info, lightmap, tool, sunShade) {
     if (/water/.test(info.techset ?? '') || /^water/.test(info.name)) return new THREE.MeshBasicMaterial({ color: WATER_COLOR, transparent: true, opacity: 0.55, depthWrite: false })
-    const baseColor = hashColor(info.name)
+    // A model's surface can name no material, as one of viewmodel_hands_yellow's does.
+    const baseColor = hashColor(info.name ?? '')
     // Tool brushes have their own fixed opacity.
     const blend = tool ? BLEND.opaque : blendOf(info.techset)
     let mat
@@ -167,13 +176,18 @@ export function createWorld(map, renderer, scene, onChange) {
     if (tool) Object.assign(mat, { transparent: true, opacity: 0.35, depthWrite: false })
     if (/decal/.test(info.name) || /decal/.test(info.techset ?? '')) Object.assign(mat, PULL_FORWARD)
     // The game multiplies in gamma space; only the three.js-lit .map path uses its linear pipeline.
-    if (map.images[info.image]) loadImage(info.image, lit ? THREE.NoColorSpace : THREE.SRGBColorSpace).then((tex) => { mat.userData.texture = tex; refresh(mat) })
+    const loads = []
+    if (map.images[info.image]) loads.push(loadImage(info.image, lit ? THREE.NoColorSpace : THREE.SRGBColorSpace).then((tex) => { mat.userData.texture = tex; refresh(mat) }))
     // Only the lightmap shader uses normal and specular maps; collision faces draw as tool brushes and skip them.
     if (mat.isShaderMaterial) {
       for (const key of ['normalMap', 'specularMap']) {
-        if (info[key]) loadImage(info[key], THREE.NoColorSpace).then((tex) => { mat.userData[key] = tex; refresh(mat) })
+        if (info[key]) loads.push(loadImage(info[key], THREE.NoColorSpace).then((tex) => { mat.userData[key] = tex; refresh(mat) }))
       }
     }
+    // Resolves once its images are in; a material whose image is given up keeps its flat colour. Most materials are
+    // never waited on, so a given-up image must not end up as an unhandled rejection.
+    mat.userData.texturesIn = Promise.all(loads)
+    mat.userData.texturesIn.catch(() => {})
     if (lit && lightmap >= 0) {
       Promise.all(map.lightmaps[lightmap].map((src, page) => loadTexture(`lightmap ${lightmap}/${page}`, src, (tex) => {
         tex.colorSpace = THREE.NoColorSpace
@@ -232,14 +246,26 @@ export function createWorld(map, renderer, scene, onChange) {
   function loadTexture(key, src, setup) {
     if (!textures.has(key)) {
       pending++
-      textures.set(key, new THREE.TextureLoader().loadAsync(src).then((tex) => {
+      textures.set(key, loadRetrying(src).then((tex) => {
         tex.flipY = false
         setup(tex)
-        pending--
         return tex
-      }))
+      }).finally(() => pending--))
     }
     return textures.get(key)
+  }
+
+  // A texture served apart from the page can fail for a while, such as when its server restarts.
+  async function loadRetrying(src) {
+    for (const delay of RETRY_DELAYS_S) {
+      try {
+        return await new THREE.TextureLoader().loadAsync(src)
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, delay * 1000))
+      }
+    }
+    // The loader rejects with the image's error event, which names nothing.
+    return new THREE.TextureLoader().loadAsync(src).catch(() => Promise.reject(new Error(`texture given up: ${src}`)))
   }
 
   // Lights for a .map, from worldspawn, with sun shadows over the whole map.
