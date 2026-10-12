@@ -17,8 +17,8 @@ const TOOL_MATERIALS = /^(caulk|clip|nodraw|hint|skip|trigger|portal|lightgrid|l
 const TEXTURE_SIZE = 512
 // Normal and specular maps are noisy and compress badly, so they get half the size to keep the page small.
 const NORMAL_MAP_SIZE = 256
-// The weapon file key of each view animation buildViewmodel bundles besides the idle.
-const ACTION_ANIMS = { fire: 'fireAnim', reload: 'reloadAnim', melee: 'meleeAnim', adsUp: 'adsUpAnim', adsDown: 'adsDownAnim' }
+// The weapon file key of each view animation buildViewmodel bundles that plays at the hip, besides the idle.
+const ACTION_ANIMS = { fire: 'fireAnim', reload: 'reloadAnim', melee: 'meleeAnim' }
 // The fonts game-hud.js draws text in, by the name its elements give.
 const HUD_FONTS = { normal: 'normalFont', big: 'bigFont', small: 'smallFont', bold: 'boldFont' }
 const DEFAULT_BOUNDS = { min: [-512, -512, -64], max: [512, 512, 256] }
@@ -156,14 +156,20 @@ export function buildViewmodel(weapon, hands, search) {
   if (!file?.gunModel) return null
   const rig = buildRig([hands || file.handModel, file.gunModel].map(xmodelPath), search, 'tag_weapon')
   if (!rig) return null
-  const hip = file.adsDownAnim && buildAnim(file.adsDownAnim, search)
-  const idle = holding(file.idleAnim && buildAnim(file.idleAnim, search), hip)
-  // The pose an action holds for the bones it does not move.
-  const rest = idle ?? hip
-  const anim = (key, base) => holding(file[key] && buildAnim(file[key], search), base)
-  const actions = Object.fromEntries(Object.entries(ACTION_ANIMS).map(([use, key]) => [use, anim(key, rest)]))
-  const aimed = actions.adsUp && lastPose(actions.adsUp)
-  const anims = { idle, ...actions, aimed, adsFire: anim('adsFireAnim', aimed) }
+  const xanim = (key) => file[key] && buildAnim(file[key], search)
+  const idleAnim = xanim('idleAnim')
+  const adsUpAnim = xanim('adsUpAnim')
+  // Its last frame holds the gun at the hip.
+  const adsDownAnim = xanim('adsDownAnim')
+  // An action holds the idle's pose for the bones it does not move, and averages with `aim`'s last pose on bones
+  // both move.
+  const action = (key, aim) => blending(holding(xanim(key), idleAnim), aim)
+  const idle = blending(idleAnim, adsDownAnim)
+  const actions = Object.fromEntries(Object.entries(ACTION_ANIMS).map(([use, key]) => [use, action(key, adsDownAnim)]))
+  const adsUp = blending(adsUpAnim, idleAnim)
+  const aimed = adsUp && lastPose(adsUp)
+  const adsDown = blending(adsDownAnim, idleAnim)
+  const anims = { idle, ...actions, adsUp, adsDown, aimed, adsFire: action('adsFireAnim', adsUpAnim) }
   return { ...rig, anims, flash: file.viewFlashEffect ? buildEffect(file.viewFlashEffect, search) : null }
 }
 
@@ -199,14 +205,44 @@ export function buildEffect(path, search) {
   return search.read(`${fx}.efx`) ? buildEffectBundle(fx, search) : null
 }
 
-// `anim` with every bone `base` moves and `anim` does not held at `base`'s last pose. The game holds the gun at the
-// hip with the last frame of the weapon's adsDownAnim, which moves tag_torso, over the view animation playing; without
-// it the gun sits where the sights line up. And an action, such as a knife's melee, may move only some bones, which
-// keep the idle's pose in game; here they would fall back to their bind pose at the eye.
+// `anim` with every bone `base` moves and `anim` does not held at `base`'s last pose. An action, such as a knife's
+// melee, may move only some bones, which keep the idle's pose in game; here they would fall back to their bind pose
+// at the eye.
 export function holding(anim, base) {
   if (!anim || !base) return anim
   const held = lastPose(base).bones.filter((b) => !anim.bones.some((a) => a.name === b.name))
   return { ...anim, bones: [...anim.bones, ...held] }
+}
+
+// `anim` played side by side with `base`'s last pose, as the game plays a view animation and an aiming one
+// (adsUpAnim or adsDownAnim, which move tag_torso) together. A bone both move takes the average of the two. A bone only `base`
+// moves keeps `base`'s pose. Weapons ported from CoD4 need the average: their idle and fire move tag_torso too, and
+// without it their sights miss the middle of the screen.
+function blending(anim, base) {
+  if (!anim || !base) return anim
+  const pose = new Map(lastPose(base).bones.map((b) => [b.name, b]))
+  const bones = anim.bones.map((b) => {
+    const p = pose.get(b.name)
+    return p ? { name: b.name, rotations: halfway(b.rotations, p.rotations, 4), translations: halfway(b.translations, p.translations, 3) } : b
+  })
+  return holding({ ...anim, bones }, base)
+}
+
+// Each value of `keys` (`size` numbers) moved halfway to `held`'s single value; a track only one side has comes back
+// as is. Rotations (size 4) turn `held` into the same hemisphere first and stay unit quaternions.
+function halfway(keys, held, size) {
+  if (!keys || !held) return keys ?? held
+  const rotation = size === 4
+  const h = held.values
+  const values = []
+  for (let i = 0; i < keys.values.length; i += size) {
+    const v = keys.values.slice(i, i + size)
+    const sign = rotation && v.reduce((dot, x, k) => dot + x * h[k], 0) < 0 ? -1 : 1
+    const mid = v.map((x, k) => (x + sign * h[k]) / 2)
+    const length = rotation ? Math.hypot(...mid) : 1
+    values.push(...mid.map((x) => x / length))
+  }
+  return { frames: keys.frames, values }
 }
 
 // `anim` held at its last frame, as an animation one frame long.
