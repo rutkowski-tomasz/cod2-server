@@ -1,4 +1,4 @@
-// Runs in the browser: loads a glTF, GLB or FBX with three.js and returns its meshes and materials as plain data,
+// Runs in the browser: loads a glTF, GLB or FBX with three.js and returns its meshes, bones and materials as plain data,
 // in three.js axes (Y up) and the file's units.
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
@@ -23,22 +23,43 @@ window.loadModel = async (url, dracoPath, textureSize, keep) => {
   await MeshoptSimplifier.ready
   const root = fbx ? loaded : loaded.scene
   root.updateMatrixWorld(true)
+  const bones = skeletonBones(root)
   const materials = []
   const meshes = []
   root.traverseVisible((o) => {
     if (o.isInstancedMesh) throw new Error(`instanced mesh ${o.name} is not supported`)
-    if (o.isMesh) meshes.push(readMesh(o, materials, keep))
+    if (o.isMesh) meshes.push(readMesh(o, materials, bones, keep))
   })
-  return { meshes, materials: materials.map((m) => readMaterial(m, textureSize)), metresPerUnit: fbx ? (root.userData.unitScaleFactor ?? 1) / 100 : 1 }
+  return { meshes, bones: [...bones.keys()].map((b) => readBone(b, bones)), materials: materials.map((m) => readMaterial(m, textureSize)), metresPerUnit: fbx ? (root.userData.unitScaleFactor ?? 1) / 100 : 1 }
+}
+
+// Every bone a skinned mesh follows, to its index, parents before their children.
+function skeletonBones(root) {
+  const bones = new Set()
+  root.traverseVisible((o) => o.isSkinnedMesh && o.skeleton.bones.forEach((b) => bones.add(b)))
+  const depth = (o) => (o.parent ? depth(o.parent) + 1 : 0)
+  return new Map([...bones].sort((a, b) => depth(a) - depth(b)).map((b, i) => [b, i]))
+}
+
+// A bone's parent is its nearest ancestor among the bones, or -1; `matrix` places it in world space.
+function readBone(bone, bones) {
+  return { name: bone.name, parent: boneAbove(bone.parent, bones), matrix: bone.matrixWorld.toArray() }
+}
+
+// The index of `o` or its nearest ancestor among the bones, or -1.
+function boneAbove(o, bones) {
+  while (o && !bones.has(o)) o = o.parent
+  return o ? bones.get(o) : -1
 }
 
 function gltfLoader(manager, dracoPath) {
   return new GLTFLoader(manager).setDRACOLoader(new DRACOLoader(manager).setDecoderPath(dracoPath)).setMeshoptDecoder(MeshoptDecoder)
 }
 
-// Positions and normals in world space. Each triangle is three vertex indices and a material index, wound
-// counter-clockwise seen from outside; `uvs` has each corner's, in its material's image with v growing down.
-function readMesh(mesh, materials, keep) {
+// Positions and normals in world space, and per vertex its [bone, weight] pairs, bones by their index from `bones` and
+// -1 for the model's root. Each triangle is three vertex indices and a material index, wound counter-clockwise seen
+// from outside; `uvs` has each corner's, in its material's image with v growing down.
+function readMesh(mesh, materials, bones, keep) {
   let source = mesh.geometry.clone()
   deinterleaveGeometry(source)
   // Without normals, glTF wants flat ones.
@@ -81,7 +102,7 @@ function readMesh(mesh, materials, keep) {
       for (const v of corners) uvs.push(...uvOf(v))
     }
   }
-  return { name: mesh.name, positions, normals, uvs, colors, triangles }
+  return { name: mesh.name, positions, normals, weights: readWeights(mesh, g, bones), uvs, colors, triangles }
 }
 
 // Collapses edges until `keep` of each group's triangles are left, at least one, however far the shape moves; the
@@ -131,6 +152,28 @@ function imageUv(g, material) {
     v.applyMatrix3(texture.matrix)
     return [v.x, texture.flipY ? 1 - v.y : v.y]
   }
+}
+
+// A skinned mesh's vertices follow its bones; any other mesh moves with the bone it hangs under.
+function readWeights(mesh, g, bones) {
+  const count = g.attributes.position.count
+  if (!mesh.isSkinnedMesh) {
+    const bone = boneAbove(mesh, bones)
+    return Array.from({ length: count }, () => [[bone, 1]])
+  }
+  const { skinIndex, skinWeight } = g.attributes
+  const weights = []
+  for (let i = 0; i < count; i++) {
+    // A joint listed twice gets its weights added up.
+    const byBone = new Map()
+    for (let k = 0; k < 4; k++) {
+      const w = skinWeight.getComponent(i, k)
+      const bone = bones.get(mesh.skeleton.bones[skinIndex.getComponent(i, k)])
+      if (w > 0) byBone.set(bone, (byBone.get(bone) ?? 0) + w)
+    }
+    weights.push([...byBone])
+  }
+  return weights
 }
 
 // From the vertex to world space, posed as three.js draws it: a skinned vertex follows its bones.

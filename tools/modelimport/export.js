@@ -10,13 +10,13 @@ const num = (x) => (Math.abs(x) < 5e-7 ? 0 : x).toFixed(6)
 const commaList = (v) => v.map(num).join(', ')
 const spacedList = (v) => v.map(num).join(' ')
 
-// Writes the converter's input for one rigid model into `work`, laid out as the Mod Tools' folders.
+// Writes the converter's input for one model into `work`, laid out as the Mod Tools' folders.
 export function writeConverterInput(work, name, model) {
   for (const dir of [`model_export/${FOLDER}`, `texture/${FOLDER}`, 'source_data']) mkdirSync(join(work, dir), { recursive: true })
   writeFileSync(join(work, 'model_export', FOLDER, `${name}.XMODEL_EXPORT`), xmodelExport(model))
   for (const m of model.materials) writeFileSync(join(work, 'texture', FOLDER, m.image), tga(m.pixels))
   writeFileSync(join(work, 'source_data', `${name}.gdt`), gdt([
-    { name, gdf: 'xmodel.gdf', fields: { type: 'rigid', filename: `${FOLDER}\\${name}.XMODEL_EXPORT`, calculateBounds: 1, collisionLOD: 'None' } },
+    { name, gdf: 'xmodel.gdf', fields: { type: model.bones.length > 1 ? 'animated' : 'rigid', filename: `${FOLDER}\\${name}.XMODEL_EXPORT`, calculateBounds: 1, collisionLOD: 'None' } },
     ...model.materials.map((m) => ({ name: m.name, gdf: 'material.gdf', fields: modelMaterial(m, `texture\\${FOLDER}\\${m.image}`) })),
   ]))
 }
