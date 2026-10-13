@@ -18,8 +18,11 @@ export function buildModel({ meshes, bones, animations, materials }, { name, pla
   const vertices = []
   const faces = []
   const objects = []
+  // Each mesh's name and the range of its vertices.
+  const meshVertices = []
   for (const mesh of meshes) {
     const first = vertices.length
+    meshVertices.push({ name: mesh.name, first, count: mesh.positions.length / 3 })
     // Bone 0 is tag_origin, so the file's bones move up one and its root (-1) becomes 0.
     for (let i = 0; i < mesh.positions.length / 3; i++) vertices.push({ position: place.point(at(mesh.positions, i, 3)), weights: mesh.weights[i].map(([b, w]) => [b + 1, w]) })
     const prefix = (mesh.name || 'mesh').replace(/\W+/g, '_')
@@ -52,6 +55,7 @@ export function buildModel({ meshes, bones, animations, materials }, { name, pla
     vertices,
     faces,
     objects,
+    meshVertices,
     materials: materials.map((m, i) => ({ name: materialNames[i], image: `${materialNames[i]}.tga`, pixels: m.pixels, alpha: m.alpha, doubleSided: m.doubleSided })),
   }
 }

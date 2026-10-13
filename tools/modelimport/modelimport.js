@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 // Imports glTF, GLB and FBX models into CoD2: loads them with three.js in headless Chrome, writes the Mod Tools'
 // source formats, and runs their converter for the game files.
-import { mkdirSync, rmSync, existsSync, readFileSync } from 'node:fs'
+import { mkdirSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, basename, extname, resolve, relative } from 'node:path'
 import { loadModel } from './load.js'
 import { buildModel, placement, nameAnimations } from './model.js'
-import { writeConverterInput, writeAnimationsInput } from './export.js'
+import { writeConverterInput, writeAnimationsInput, writeWeaponInput } from './export.js'
 import { convert } from './convert.js'
 import { retarget, playerSkeleton } from './retarget.js'
+import { readStockWeapon, buildWeapon, weaponFile, takenName } from './viewmodel.js'
+import { parseXModel } from '../shared/xmodel.js'
 
 const OUT = join(import.meta.dirname, '..', '..', 'out', 'modelimport')
 const INCHES_PER_METRE = 39.37
@@ -25,7 +27,11 @@ options:
   --simplify <share>     keep this share of each mesh's triangles, such as 0.25 for a quarter (default 1)
   --fps <n>              frames per second to sample animations at (default 30)
   --loop <a,b | all>     animations that loop, by their name in the file (default none)
-  --retarget player      write only the animations, moved onto CoD2's multiplayer player skeleton`
+  --retarget player      write only the animations, moved onto CoD2's multiplayer player skeleton
+  --viewmodel <weapon>   write a gun that a stock weapon's animations play, such as kar98k_mp: viewmodel_<name>,
+                         weapon_<name> and weapons/mp/<name>_mp; always centred on the stock gun, scaled to its
+                         length unless --scale is given, then moved by --offset
+  --parts <mesh=bone,…>  meshes that move on the stock gun's bones, such as bolt=j_bolt (with --viewmodel)`
 
 const args = process.argv.slice(2)
 const opts = {}
@@ -57,23 +63,47 @@ if (!(Number.isInteger(fps) && fps > 0)) { console.error('--fps takes a whole nu
 
 if (opts.retarget !== undefined && opts.retarget !== 'player') { console.error('--retarget takes player'); process.exit(1) }
 const loop = opts.loop?.split(',').map((l) => l.trim()) ?? []
+if (opts.retarget && opts.viewmodel) { console.error('--retarget and --viewmodel make different things: give one'); process.exit(1) }
+if (opts.parts && !opts.viewmodel) { console.error('--parts needs --viewmodel'); process.exit(1) }
+const parts = readParts()
 const player = opts.retarget && playerSkeleton()
+const stockWeapon = opts.viewmodel && readStockWeapon(opts.viewmodel)
+const taken = stockWeapon && takenName(name)
+if (taken) { console.error(`${taken} is a stock asset; give another --name`); process.exit(1) }
 
 const loaded = await loadModel(src, textureSize, keep, fps)
+const scale = Number(opts.scale ?? loaded.metresPerUnit * INCHES_PER_METRE)
 if (player) {
   await importRetargeted()
   process.exit(0)
 }
-const scale = Number(opts.scale ?? loaded.metresPerUnit * INCHES_PER_METRE)
+if (stockWeapon) {
+  await importWeapon()
+  process.exit(0)
+}
 const model = buildModel(loaded, { name, place: placement({ scale, rotate, offset }), loop })
 const oldAnimations = previousAnimations()
 rmSync(work, { recursive: true, force: true })
 writeConverterInput(work, name, model, fps)
 mkdirSync(out, { recursive: true })
-removeOldOutput()
+removeOldOutput([name], oldAnimations)
 await convert(work, out)
 console.log(`${relative(process.cwd(), join(out, 'xmodel', name))}  ${model.faces.length} triangles, ${model.materials.length} materials, ${model.bones.length - 1} bones`)
 for (const a of model.animations) console.log(`${relative(process.cwd(), join(out, 'xanim', a.name))}  ${a.frames.length} frames${a.looping ? ', looping' : ''}`)
+
+// The file as a gun for a stock weapon's animations: its viewmodel, world model and weapon file.
+async function importWeapon() {
+  // A gun's own bones and animations have no use here: it moves on the stock gun's.
+  const model = buildModel({ ...loaded, bones: [], animations: [] }, { name, place: placement({ scale, rotate }), loop: [] })
+  const { view, world } = buildWeapon(model, stockWeapon, parts, opts.scale !== undefined, offset)
+  rmSync(work, { recursive: true, force: true })
+  writeWeaponInput(work, name, view, world)
+  mkdirSync(join(out, 'weapons', 'mp'), { recursive: true })
+  removeOldOutput([`viewmodel_${name}`, `weapon_${name}`], [])
+  await convert(work, out)
+  writeFileSync(join(out, 'weapons', 'mp', `${name}_mp`), weaponFile(stockWeapon.file, `viewmodel_${name}`, `weapon_${name}`), 'latin1')
+  console.log(`${relative(process.cwd(), join(out, 'weapons', 'mp', `${name}_mp`))}  ${opts.viewmodel}'s animations; viewmodel_${name}, weapon_${name}, ${model.faces.length} triangles`)
+}
 
 // The file's animations on the multiplayer player skeleton, as xanims built against an XMODEL_EXPORT of it.
 async function importRetargeted() {
@@ -83,18 +113,22 @@ async function importRetargeted() {
   rmSync(work, { recursive: true, force: true })
   writeAnimationsInput(work, name, player, named, fps)
   mkdirSync(out, { recursive: true })
-  for (const a of oldAnimations) rmSync(join(out, 'xanim', a), { force: true })
+  removeOldOutput([], oldAnimations)
   await convert(work, out)
   if (unmatched.length) console.log(`not matched, left out: ${unmatched.join(', ')}`)
   for (const a of named) console.log(`${relative(process.cwd(), join(out, 'xanim', a.name))}  ${a.frames.length} frames${a.looping ? ', looping' : ''}`)
 }
 
-// The files an earlier import of this model wrote, which one with fewer materials would leave behind.
-function removeOldOutput() {
-  rmSync(join(out, 'xmodel', name), { force: true })
-  rmSync(join(out, 'xmodelparts', `${name}0`), { force: true })
-  rmSync(join(out, 'xmodelsurfs', `${name}0`), { force: true })
-  for (const a of oldAnimations) rmSync(join(out, 'xanim', a), { force: true })
+// The files an earlier import wrote, which one with fewer materials or animations would leave behind: the xmodels
+// named, with the LOD files they name, the animations, and the materials named after the import.
+function removeOldOutput(models, animations) {
+  for (const model of models) {
+    const file = join(out, 'xmodel', model)
+    const lod = existsSync(file) && parseXModel(readFileSync(file))?.surfaces
+    if (lod) for (const dir of ['xmodelparts', 'xmodelsurfs']) rmSync(join(out, dir, lod), { force: true })
+    rmSync(file, { force: true })
+  }
+  for (const a of animations) rmSync(join(out, 'xanim', a), { force: true })
   for (const [dir, ext] of [['materials', ''], ['images', '.iwi']]) {
     for (let i = 0; existsSync(join(out, dir, `${name}_${i}${ext}`)); i++) rmSync(join(out, dir, `${name}_${i}${ext}`))
   }
@@ -105,6 +139,18 @@ function previousAnimations() {
   const gdt = join(work, 'source_data', `${name}.gdt`)
   if (!existsSync(gdt)) return []
   return [...readFileSync(gdt, 'utf8').matchAll(/"([^"]+)" \( "xanim\.gdf" \)/g)].map((m) => m[1])
+}
+
+// `--parts mesh=bone,…` as mesh name to bone.
+function readParts() {
+  const parts = {}
+  for (const entry of (opts.parts ?? '').split(',').map((p) => p.trim()).filter(Boolean)) {
+    const pair = entry.split('=').map((x) => x.trim())
+    if (pair.length !== 2 || !pair[0] || !pair[1]) { console.error(`--parts takes mesh=bone pairs, such as bolt=j_bolt, not ${entry}`); process.exit(1) }
+    if (pair[0] in parts) { console.error(`--parts names ${pair[0]} twice`); process.exit(1) }
+    parts[pair[0]] = pair[1]
+  }
+  return parts
 }
 
 // Three numbers given as x,y,z, or undefined when the option is not given.
