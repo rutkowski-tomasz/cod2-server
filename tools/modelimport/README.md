@@ -9,7 +9,7 @@ node tools/modelimport/modelimport.js crate.fbx --name nl_crate --rotate 0,90,0 
 node tools/modelview/modelview.js render out/modelimport/barrel/xmodel/barrel
 ```
 
-The output folder is laid out as in an iwd: `xmodel/<name>`, `xmodelparts/`, `xmodelsurfs/`, `materials/<name>_<n>` and `images/<name>_<n>.iwi`. It goes to `out/modelimport/<name>/` unless `-o` is given. The converter's input is kept in `out/modelimport/.work/<name>/`.
+The output folder is laid out as in an iwd: `xmodel/<name>`, `xmodelparts/`, `xmodelsurfs/`, `xanim/<name>_<animation>`, `materials/<name>_<n>` and `images/<name>_<n>.iwi`. It goes to `out/modelimport/<name>/` unless `-o` is given. The converter's input is kept in `out/modelimport/.work/<name>/`.
 
 The converter runs in the `cod2-mapcompile` Docker image, built from mapcompile's Dockerfile on the `desktop-linux` context on first use. It is emulated: a model of a few thousand triangles takes seconds, one of 50,000 several minutes.
 
@@ -26,4 +26,6 @@ The game's front is +X and up is +Z, in inches. glTF and FBX models face +Z with
 - One `model phong` material per source material. Its colour map is the source's, times the material's colour, scaled to power-of-two sides of at most `--texture-size` (default 1024). Without a colour map, it is the material's colour.
 - Alpha, from the colour map, the material's opacity and an FBX alpha map: a glTF `MASK` material cuts out at half alpha (`GE128`); a glTF `BLEND` material, or a transparent FBX one, blends. Double-sided materials draw both sides.
 
-Not imported yet: normal and specular maps, animations, LODs and collision. FBXLoader reads an FBX colour map only when it is linked as `DiffuseColor`, as Blender and most exporters write it. 3ds Max's Physical material links it as `base_color_texture`, which is lost: import such a model's glTF instead. Not supported: instanced meshes and KTX2 textures. Draco and meshopt compressed files load.
+- Every animation of a model with bones, as `xanim/<name>_<animation>`, sampled `--fps` times a second (default 30). Animations named in `--loop` (or all, with `--loop all`) loop; the rest play once. Play one with modelview: `--anim <name>_<animation>`.
+
+Not imported yet: normal and specular maps, LODs and collision. An animation drives the model's own bones only: it does not yet play on CoD2's player bodies. FBXLoader reads an FBX colour map only when it is linked as `DiffuseColor`, as Blender and most exporters write it. 3ds Max's Physical material links it as `base_color_texture`, which is lost: import such a model's glTF instead. Not supported: instanced meshes and KTX2 textures. Draco and meshopt compressed files load.

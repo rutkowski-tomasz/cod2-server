@@ -10,14 +10,19 @@ const num = (x) => (Math.abs(x) < 5e-7 ? 0 : x).toFixed(6)
 const commaList = (v) => v.map(num).join(', ')
 const spacedList = (v) => v.map(num).join(' ')
 
-// Writes the converter's input for one model into `work`, laid out as the Mod Tools' folders.
-export function writeConverterInput(work, name, model) {
-  for (const dir of [`model_export/${FOLDER}`, `texture/${FOLDER}`, 'source_data']) mkdirSync(join(work, dir), { recursive: true })
+// Writes the converter's input for one model and its animations into `work`, laid out as the Mod Tools' folders.
+export function writeConverterInput(work, name, model, fps) {
+  for (const dir of [`model_export/${FOLDER}`, `xanim_export/${FOLDER}`, `texture/${FOLDER}`, 'source_data']) mkdirSync(join(work, dir), { recursive: true })
+  const modelFile = `${FOLDER}\\${name}.XMODEL_EXPORT`
   writeFileSync(join(work, 'model_export', FOLDER, `${name}.XMODEL_EXPORT`), xmodelExport(model))
   for (const m of model.materials) writeFileSync(join(work, 'texture', FOLDER, m.image), tga(m.pixels))
+  const parts = model.bones.map((b) => b.name)
+  for (const a of model.animations) writeFileSync(join(work, 'xanim_export', FOLDER, `${a.name}.XANIM_EXPORT`), xanimExport(parts, fps, a.frames))
   writeFileSync(join(work, 'source_data', `${name}.gdt`), gdt([
-    { name, gdf: 'xmodel.gdf', fields: { type: model.bones.length > 1 ? 'animated' : 'rigid', filename: `${FOLDER}\\${name}.XMODEL_EXPORT`, calculateBounds: 1, collisionLOD: 'None' } },
+    { name, gdf: 'xmodel.gdf', fields: { type: model.bones.length > 1 ? 'animated' : 'rigid', filename: modelFile, calculateBounds: 1, collisionLOD: 'None' } },
     ...model.materials.map((m) => ({ name: m.name, gdf: 'material.gdf', fields: modelMaterial(m, `texture\\${FOLDER}\\${m.image}`) })),
+    // `absolute` moves the bones about the scene's origin, where tag_origin stays; `model` gives the bind pose.
+    ...model.animations.map((a) => ({ name: a.name, gdf: 'xanim.gdf', fields: { filename: `${FOLDER}\\${a.name}.XANIM_EXPORT`, model: modelFile, looping: a.looping ? 1 : 0, type: 'absolute', useBones: 1 } })),
   ]))
 }
 
@@ -71,6 +76,20 @@ function xmodelExport({ bones, vertices, faces, objects, materials }) {
     'BLINN -1.000000 -1.000000',
     'PHONG -1.000000',
   ))
+  return out.join('\n') + '\n'
+}
+
+// XANIM_EXPORT, as the Maya plugin writes it: per frame, every part's position and X, Y, Z axes in model space.
+function xanimExport(parts, fps, frames) {
+  const out = ['ANIMATION', 'VERSION 3', '', `NUMPARTS ${parts.length}`]
+  parts.forEach((name, i) => out.push(`PART ${i} "${name}"`))
+  out.push('', `FRAMERATE ${fps}`, `NUMFRAMES ${frames.length}`, '')
+  frames.forEach((bones, f) => {
+    out.push(`FRAME ${f}`)
+    bones.forEach((b, i) => out.push(`PART ${i}`, `OFFSET ${spacedList(b.position)}`, 'SCALE 1 1 1', `X ${spacedList(b.axes[0])}`, `Y ${spacedList(b.axes[1])}`, `Z ${spacedList(b.axes[2])}`, ''))
+  })
+  out.push('NOTETRACKS', '')
+  parts.forEach((_, i) => out.push(`PART ${i}`, 'NUMTRACKS 0', ''))
   return out.join('\n') + '\n'
 }
 
