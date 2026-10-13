@@ -21,6 +21,7 @@ The game's front is +X and up is +Z, in inches. glTF and FBX models face +Z with
 
 - Every visible mesh, in the pose three.js draws it: skinned meshes as their bones place them.
 - One rigid xmodel: all vertices on the root bone `tag_origin`, one surface per mesh and material. A surface with more than 4000 vertices is split. The converter takes at most 5450 per surface, and it adds vertices of its own at UV seams.
+- With `--simplify <share>`, each mesh keeps that share of its triangles in each material, such as 0.25 for a quarter. Edges collapse where they change the shape and shading least. UV seams and open borders keep their outline. Downloads often have far more triangles than a CoD2 model needs.
 - Normals, UVs (through a map's texture transform and from the UV set it reads) and vertex colours.
 - One `model phong` material per source material. Its colour map is the source's, times the material's colour, scaled to power-of-two sides of at most `--texture-size` (default 1024). Without a colour map, it is the material's colour.
 - Alpha, from the colour map, the material's opacity and an FBX alpha map: a glTF `MASK` material cuts out at half alpha (`GE128`); a glTF `BLEND` material, or a transparent FBX one, blends. Double-sided materials draw both sides.

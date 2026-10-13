@@ -6,11 +6,13 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js'
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js'
 import { TGALoader } from 'three/addons/loaders/TGALoader.js'
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
+import { MeshoptSimplifier } from 'three/addons/libs/meshopt_simplifier.module.js'
 import { mergeVertices, deinterleaveGeometry } from 'three/addons/utils/BufferGeometryUtils.js'
 import { bakeMaterial, loadedMap } from './bake.js'
 
 // `metresPerUnit` is 1 for glTF; an FBX file gives its unit in centimetres.
-window.loadModel = async (url, dracoPath, textureSize) => {
+// `keep`: the share of each mesh's triangles to keep, simplifying it; 1 keeps the mesh as it is.
+window.loadModel = async (url, dracoPath, textureSize, keep) => {
   const fbx = /\.fbx$/i.test(url)
   // FBXLoader returns before its textures have loaded; the manager tells when every file has.
   const manager = new THREE.LoadingManager()
@@ -18,13 +20,14 @@ window.loadModel = async (url, dracoPath, textureSize) => {
   const allLoaded = new Promise((resolve) => (manager.onLoad = resolve))
   const loaded = fbx ? await new FBXLoader(manager).loadAsync(url) : await gltfLoader(manager, dracoPath).loadAsync(url)
   await allLoaded
+  await MeshoptSimplifier.ready
   const root = fbx ? loaded : loaded.scene
   root.updateMatrixWorld(true)
   const materials = []
   const meshes = []
   root.traverseVisible((o) => {
     if (o.isInstancedMesh) throw new Error(`instanced mesh ${o.name} is not supported`)
-    if (o.isMesh) meshes.push(readMesh(o, materials))
+    if (o.isMesh) meshes.push(readMesh(o, materials, keep))
   })
   return { meshes, materials: materials.map((m) => readMaterial(m, textureSize)), metresPerUnit: fbx ? (root.userData.unitScaleFactor ?? 1) / 100 : 1 }
 }
@@ -35,7 +38,7 @@ function gltfLoader(manager, dracoPath) {
 
 // Positions and normals in world space. Each triangle is three vertex indices and a material index, wound
 // counter-clockwise seen from outside; `uvs` has each corner's, in its material's image with v growing down.
-function readMesh(mesh, materials) {
+function readMesh(mesh, materials, keep) {
   let source = mesh.geometry.clone()
   deinterleaveGeometry(source)
   // Without normals, glTF wants flat ones.
@@ -45,6 +48,10 @@ function readMesh(mesh, materials) {
   }
   // FBXLoader gives each triangle its own vertices, which would split a mesh into many small surfaces.
   const g = mergeVertices(source)
+  const meshMaterials = [mesh.material].flat()
+  // three.js draws groups only for a mesh with several materials, and skips those without one.
+  let groups = Array.isArray(mesh.material) && g.groups.length ? g.groups.filter((group) => meshMaterials[group.materialIndex]) : [{ start: 0, count: g.index.count, materialIndex: 0 }]
+  if (keep < 1) groups = simplify(g, groups, keep)
   const { position, normal, color } = g.attributes
   const v = new THREE.Vector3()
   const normalMatrix = new THREE.Matrix3()
@@ -59,10 +66,7 @@ function readMesh(mesh, materials) {
   const c = new THREE.Color()
   for (let i = 0; color && i < color.count; i++) colors.push(...c.fromBufferAttribute(color, i).convertLinearToSRGB().toArray(), color.itemSize === 4 ? color.getW(i) : 1)
 
-  const meshMaterials = [mesh.material].flat()
   const slot = (m) => (materials.includes(m) ? materials.indexOf(m) : materials.push(m) - 1)
-  // three.js draws groups only for a mesh with several materials, and skips those without one.
-  const groups = Array.isArray(mesh.material) && g.groups.length ? g.groups.filter((group) => meshMaterials[group.materialIndex]) : [{ start: 0, count: g.index.count, materialIndex: 0 }]
   // A mirroring transform turns the winding around.
   const mirrored = mesh.matrixWorld.determinant() < 0
   const triangles = []
@@ -78,6 +82,40 @@ function readMesh(mesh, materials) {
     }
   }
   return { name: mesh.name, positions, normals, uvs, colors, triangles }
+}
+
+// Collapses edges until `keep` of each group's triangles are left, at least one, however far the shape moves; the
+// normals weigh in. UV seams, hard edges and open borders keep their outline, and vertices that groups share stay
+// put, so materials do not crack apart. Returns the groups over the new index.
+function simplify(g, groups, keep) {
+  const read = (attribute) => {
+    const out = new Float32Array(attribute.count * 3)
+    const v = new THREE.Vector3()
+    for (let i = 0; i < attribute.count; i++) v.fromBufferAttribute(attribute, i).toArray(out, i * 3)
+    return out
+  }
+  const positions = read(g.attributes.position)
+  const normals = read(g.attributes.normal)
+  const owner = new Int32Array(g.attributes.position.count).fill(-1)
+  const locked = new Uint8Array(g.attributes.position.count)
+  groups.forEach((group, k) => {
+    for (let i = group.start; i < group.start + group.count; i++) {
+      const v = g.index.getX(i)
+      if (owner[v] >= 0 && owner[v] !== k) locked[v] = 1
+      owner[v] = k
+    }
+  })
+  const index = []
+  const kept = []
+  for (const group of groups) {
+    const indices = new Uint32Array(g.index.array.slice(group.start, group.start + group.count - (group.count % 3)))
+    const target = Math.min(indices.length, Math.max(3, Math.floor((indices.length * keep) / 3) * 3))
+    const [simplified] = MeshoptSimplifier.simplifyWithAttributes(indices, positions, 3, normals, 3, [1, 1, 1], locked, target, 1)
+    kept.push({ start: index.length, count: simplified.length, materialIndex: group.materialIndex })
+    for (const i of simplified) index.push(i)
+  }
+  g.setIndex(index)
+  return kept
 }
 
 // A vertex's place in the material's image: from the UV set its map reads, through the map's transform.
