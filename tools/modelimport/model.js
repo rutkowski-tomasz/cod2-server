@@ -2,8 +2,11 @@
 // game winds them.
 import { Matrix3, Matrix4, Euler, Vector3 } from 'three'
 
-// The converter takes at most 5450 vertices per object and material.
-const OBJECT_VERTICES = 5000
+const CLOCKWISE = [0, 2, 1]
+
+// The converter takes at most 5450 vertices per object and material, counted after it splits vertices whose
+// tangents differ, as at mirrored UV seams: about a tenth more on a character.
+const OBJECT_VERTICES = 4000
 
 // `place`: from three.js axes and the file's units to the game's (see placement).
 export function buildModel({ meshes, materials }, { name, place }) {
@@ -16,21 +19,21 @@ export function buildModel({ meshes, materials }, { name, place }) {
     const prefix = (mesh.name || 'mesh').replace(/\W+/g, '_')
     // Per material, the object its triangles go to until it is full.
     const open = new Map()
-    for (let t = 0; t < mesh.triangles.length; t += 4) {
-      const material = mesh.triangles[t + 3]
-      const triangle = [0, 2, 1].map((k) => mesh.triangles[t + k])
+    for (let t = 0; t < mesh.triangles.length / 4; t++) {
+      const material = mesh.triangles[t * 4 + 3]
+      const triangle = CLOCKWISE.map((k) => mesh.triangles[t * 4 + k])
       let object = open.get(material)
       if (!object || object.vertices.size + triangle.filter((i) => !object.vertices.has(i)).length > OBJECT_VERTICES) {
         object = { index: objects.push(`${prefix}_${objects.length}`) - 1, vertices: new Set() }
         open.set(material, object)
       }
       triangle.forEach((i) => object.vertices.add(i))
-      const corners = triangle.map((i) => ({
+      const corners = triangle.map((i, k) => ({
         vertex: first + i,
         normal: place.direction(at(mesh.normals, i, 3)),
         color: mesh.colors.length ? at(mesh.colors, i, 4) : [1, 1, 1, 1],
-        // XMODEL_EXPORT's v grows up the image, as Maya's does.
-        uv: mesh.uvs.length ? [mesh.uvs[i * 2], 1 - mesh.uvs[i * 2 + 1]] : [0, 0],
+        // The converter keeps UVs as written, and the game's v grows down the image.
+        uv: at(mesh.uvs, t * 3 + CLOCKWISE[k], 2),
       }))
       faces.push({ object: object.index, material, corners })
     }
@@ -40,7 +43,7 @@ export function buildModel({ meshes, materials }, { name, place }) {
     vertices,
     faces,
     objects,
-    materials: materials.map((m, i) => ({ name: `${name}_${i}`, image: `${name}_${i}.tga`, pixels: solid(m.color) })),
+    materials: materials.map((m, i) => ({ name: `${name}_${i}`, image: `${name}_${i}.tga`, pixels: m.pixels, alpha: m.alpha, doubleSided: m.doubleSided })),
   }
 }
 
@@ -58,13 +61,6 @@ export function placement({ scale, rotate = [0, 0, 0], offset = [0, 0, 0] }) {
     point: (p) => v.fromArray(p).applyMatrix4(matrix).toArray(),
     direction: (d) => v.fromArray(d).applyMatrix3(normalMatrix).toArray(),
   }
-}
-
-// An 8×8 image of one colour.
-function solid(color) {
-  const rgba = Buffer.alloc(8 * 8 * 4)
-  for (let p = 0; p < 64; p++) rgba.set([...color.map((c) => Math.round(c * 255)), 255], p * 4)
-  return { width: 8, height: 8, rgba }
 }
 
 function at(array, i, size) {

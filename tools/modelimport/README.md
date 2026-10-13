@@ -20,8 +20,9 @@ The game's front is +X and up is +Z, in inches. glTF and FBX models face +Z with
 ## What is imported
 
 - Every visible mesh, in the pose three.js draws it: skinned meshes as their bones place them.
-- One rigid xmodel: all vertices on the root bone `tag_origin`, one surface per mesh and material. A surface with more than 5000 vertices is split, since the converter takes at most 5450 per surface.
-- Normals, UVs and vertex colours.
-- One `model phong` material per source material, coloured with the material's colour.
+- One rigid xmodel: all vertices on the root bone `tag_origin`, one surface per mesh and material. A surface with more than 4000 vertices is split. The converter takes at most 5450 per surface, and it adds vertices of its own at UV seams.
+- Normals, UVs (through a map's texture transform and from the UV set it reads) and vertex colours.
+- One `model phong` material per source material. Its colour map is the source's, times the material's colour, scaled to power-of-two sides of at most `--texture-size` (default 1024). Without a colour map, it is the material's colour.
+- Alpha, from the colour map, the material's opacity and an FBX alpha map: a glTF `MASK` material cuts out at half alpha (`GE128`); a glTF `BLEND` material, or a transparent FBX one, blends. Double-sided materials draw both sides.
 
-Not imported yet: textures, skeletons and animations, LODs and collision. Not supported: instanced meshes and KTX2 textures. Draco and meshopt compressed files load.
+Not imported yet: normal and specular maps, skeletons and animations, LODs and collision. FBXLoader reads an FBX colour map only when it is linked as `DiffuseColor`, as Blender and most exporters write it. 3ds Max's Physical material links it as `base_color_texture`, which is lost: import such a model's glTF instead. Not supported: instanced meshes and KTX2 textures. Draco and meshopt compressed files load.
