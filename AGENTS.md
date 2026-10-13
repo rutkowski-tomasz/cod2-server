@@ -34,9 +34,11 @@ The tools are tested but can still have bugs or missing parts. If one gets in yo
 
 `tools/mapdecompile/` turns a `.d3dbsp` back into a `.map`: `node tools/mapdecompile/mapdecompile.js <d3dbsp | iwd | mp_name> [-o out.map]`. See `tools/mapdecompile/README.md`.
 
+`tools/modelimport/` imports glTF, GLB and FBX models into CoD2 xmodels with the Mod Tools' converter: `node tools/modelimport/modelimport.js <model> [-o out-dir]`. Check the result with modelview. It runs the converter in the image built from mapcompile's Dockerfile; mapcompile never uses modelimport. See `tools/modelimport/README.md`.
+
 `tools/shared/` holds what the tools share: the asset search over iwds and folders, the `.d3dbsp` reader, brush faces from planes, material, font, xmodel, IWI (with its wavelet formats, GPLv3) and PNG codecs, the module inliner and three.js data URL for their file:// pages, and drawing game text and material images on a page's canvas.
 
-fxview, menuview, modelview, mapview, mapcompile and mapdecompile write to `out/<tool>/` (git-ignored) unless `-o` is given; that is scratch.
+fxview, menuview, modelview, mapview, mapcompile, mapdecompile and modelimport write to `out/<tool>/` (git-ignored) unless `-o` is given; that is scratch.
 
 Before/after screenshots of a change go on the `pr-assets` branch, which PRs embed images from. Check it out once with `git worktree add ~/cod2-server-pr-assets pr-assets`, then follow its `README.md`.
 
