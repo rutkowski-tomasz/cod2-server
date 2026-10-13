@@ -17,13 +17,21 @@ export function writeConverterInput(work, name, model) {
   for (const m of model.materials) writeFileSync(join(work, 'texture', FOLDER, m.image), tga(m.pixels))
   writeFileSync(join(work, 'source_data', `${name}.gdt`), gdt([
     { name, gdf: 'xmodel.gdf', fields: { type: 'rigid', filename: `${FOLDER}\\${name}.XMODEL_EXPORT`, calculateBounds: 1, collisionLOD: 'None' } },
-    ...model.materials.map((m) => ({ name: m.name, gdf: 'material.gdf', fields: modelMaterial(`texture\\${FOLDER}\\${m.image}`) })),
+    ...model.materials.map((m) => ({ name: m.name, gdf: 'material.gdf', fields: modelMaterial(m, `texture\\${FOLDER}\\${m.image}`) })),
   ]))
 }
 
 // A lit model material. The converter wants a surface type, which sets impact effects and sounds.
-function modelMaterial(colorMap) {
-  return { template: 'material.template', materialType: 'model phong', surfaceType: '<none>', colorMap }
+function modelMaterial({ alpha, doubleSided }, colorMap) {
+  return {
+    template: 'material.template',
+    materialType: 'model phong',
+    surfaceType: '<none>',
+    colorMap,
+    ...(alpha === 'mask' && { alphaTest: 'GE128' }),
+    ...(alpha === 'blend' && { blendFunc: 'Blend' }),
+    ...(doubleSided && { cullFace: 'None' }),
+  }
 }
 
 // `bones`: name, parent index (-1 for the root), position and X, Y, Z axes in model space.

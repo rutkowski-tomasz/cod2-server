@@ -10,12 +10,22 @@ const fsUrl = (path) => `${ORIGIN}/fs${path.split('/').map(encodeURIComponent).j
 const PAGE = `<script type="importmap">{"imports":{"three":"${fsUrl(join(THREE, 'build/three.module.js'))}","three/addons/":"${fsUrl(join(THREE, 'examples/jsm'))}/"}}</script>
 <script type="module" src="${fsUrl(join(HERE, 'page.js'))}"></script>`
 
-export async function loadModel(file) {
+// Colour maps are scaled to power-of-two sides of at most `textureSize`.
+export async function loadModel(file, textureSize) {
   const { chromium } = await import('playwright-core')
-  const browser = await chromium.launch({ channel: 'chrome', headless: true })
+  const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
   try {
     const page = await browser.newPage()
     page.on('pageerror', (e) => console.error('page error:', e.message))
+    // three.js's warnings and errors, once each, such as a texture that did not load; not the GPU driver's, nor
+    // Chrome's for a missing file, which does not name it.
+    const warnings = new Set()
+    page.on('console', (m) => {
+      const text = m.text()
+      if (!['warning', 'error'].includes(m.type()) || /^(\[\.WebGL|Failed to load resource)/.test(text) || warnings.has(text)) return
+      warnings.add(text)
+      console.warn(text)
+    })
     await page.route('**', (route) => route.abort())
     await page.route(`${ORIGIN}/**`, (route) => {
       const path = decodePath(route.request().url())
@@ -27,7 +37,9 @@ export async function loadModel(file) {
     })
     await page.goto(`${ORIGIN}/`)
     await page.waitForFunction('window.loadModel')
-    return await page.evaluate(([model, draco]) => window.loadModel(model, draco), [fsUrl(file), `${fsUrl(join(THREE, 'examples/jsm/libs/draco/gltf'))}/`])
+    const loaded = await page.evaluate((a) => window.loadModel(...a), [fsUrl(file), `${fsUrl(join(THREE, 'examples/jsm/libs/draco/gltf'))}/`, textureSize])
+    for (const m of loaded.materials) m.pixels.rgba = Buffer.from(m.pixels.rgba, 'base64')
+    return loaded
   } finally {
     await browser.close()
   }

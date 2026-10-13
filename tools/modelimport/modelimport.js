@@ -19,7 +19,8 @@ options:
   --name <name>          xmodel name (default: the file's name)
   --scale <n>            inches per unit of the file (default: from metres for glTF, from the file's unit for FBX)
   --rotate p,y,r         degrees to turn the model by after facing it to +X: pitch, yaw, roll
-  --offset x,y,z         inches to move the model by after turning it`
+  --offset x,y,z         inches to move the model by after turning it
+  --texture-size <n>     longest side of a colour map, a power of two (default 1024)`
 
 const args = process.argv.slice(2)
 const opts = {}
@@ -39,7 +40,10 @@ const work = join(OUT, '.work', name)
 const rotate = vector('rotate')
 const offset = vector('offset')
 
-const loaded = await loadModel(src)
+const textureSize = Number(opts['texture-size'] ?? 1024)
+if (!(textureSize >= 1 && Number.isInteger(Math.log2(textureSize)))) { console.error('--texture-size takes a power of two, such as 512'); process.exit(1) }
+
+const loaded = await loadModel(src, textureSize)
 const scale = Number(opts.scale ?? loaded.metresPerUnit * INCHES_PER_METRE)
 const model = buildModel(loaded, { name, place: placement({ scale, rotate, offset }) })
 rmSync(work, { recursive: true, force: true })
