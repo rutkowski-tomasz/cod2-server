@@ -20,7 +20,8 @@ options:
   --scale <n>            inches per unit of the file (default: from metres for glTF, from the file's unit for FBX)
   --rotate p,y,r         degrees to turn the model by after facing it to +X: pitch, yaw, roll
   --offset x,y,z         inches to move the model by after turning it
-  --texture-size <n>     longest side of a colour map, a power of two (default 1024)`
+  --texture-size <n>     longest side of a colour map, a power of two (default 1024)
+  --simplify <share>     keep this share of each mesh's triangles, such as 0.25 for a quarter (default 1)`
 
 const args = process.argv.slice(2)
 const opts = {}
@@ -43,7 +44,10 @@ const offset = vector('offset')
 const textureSize = Number(opts['texture-size'] ?? 1024)
 if (!(textureSize >= 1 && Number.isInteger(Math.log2(textureSize)))) { console.error('--texture-size takes a power of two, such as 512'); process.exit(1) }
 
-const loaded = await loadModel(src, textureSize)
+const keep = Number(opts.simplify ?? 1)
+if (!(keep > 0 && keep <= 1)) { console.error('--simplify takes a share above 0 and up to 1, such as 0.25'); process.exit(1) }
+
+const loaded = await loadModel(src, textureSize, keep)
 const scale = Number(opts.scale ?? loaded.metresPerUnit * INCHES_PER_METRE)
 const model = buildModel(loaded, { name, place: placement({ scale, rotate, offset }) })
 rmSync(work, { recursive: true, force: true })
