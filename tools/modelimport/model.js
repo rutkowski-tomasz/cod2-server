@@ -69,10 +69,15 @@ function placeBones(bones, place) {
   })
 }
 
-// Every frame's bones placed as placeBones places them, tag_origin first and still, named `<model>_<animation>`
-// apart from `taken`, the model's other entries. A looping animation's last frame is its first again, which the
-// converter drops.
+// Every frame's bones placed as placeBones places them, tag_origin first and still.
 function placeAnimations(animations, modelName, taken, place, loop) {
+  return nameAnimations(animations, modelName, taken, loop).map((a) => ({ ...a, frames: a.frames.map((bones) => [ORIGIN, ...bones.map((m) => placeMatrix(m, place))]) }))
+}
+
+// Names each animation `<model>_<animation>`, apart from `taken`, the other entries of its GDT, and marks the ones
+// `loop` names (by their name in the file, or `all`) as looping: their last frame is their first again, which the
+// converter drops.
+export function nameAnimations(animations, modelName, taken, loop) {
   const unknown = loop.filter((l) => l !== 'all' && !animations.some((a) => a.name === l))
   if (unknown.length) throw new Error(`--loop: no animation ${unknown.join(', ')}; the file has ${animations.map((a) => a.name).join(', ') || 'none'}`)
   const names = new Set(taken)
@@ -80,8 +85,7 @@ function placeAnimations(animations, modelName, taken, place, loop) {
     let name = `${modelName}_${(a.name || 'anim').replace(/\W+/g, '_')}`.toLowerCase()
     while (names.has(name)) name += '_'
     names.add(name)
-    const frames = a.frames.map((bones) => [ORIGIN, ...bones.map((m) => placeMatrix(m, place))])
-    return { name, frames, looping: loop.includes('all') || loop.includes(a.name) }
+    return { name, frames: a.frames, looping: loop.includes('all') || loop.includes(a.name) }
   })
 }
 

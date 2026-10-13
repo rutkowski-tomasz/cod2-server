@@ -19,7 +19,7 @@ export async function convert(work, out) {
     set -e
     rm -f /cod2/source_data/*.gdt /cod2/aitype/*.gdt
     : > /cod2/source_data/modelmatch.csv
-    for d in source_data model_export xanim_export texture; do cp -r /w/$d /cod2/; done
+    for d in source_data model_export xanim_export texture; do if [ -d /w/$d ]; then cp -r /w/$d /cod2/; fi; done
     cd /cod2/bin && xvfb-run -a wine converter.exe -nopause -nocachedownload
     cd /cod2/main && rm -f 'images/$identitynormalmap.iwi'
     for d in ${OUTPUTS.join(' ')}; do if [ -d $d ]; then cp -r $d /out/; fi; done`
