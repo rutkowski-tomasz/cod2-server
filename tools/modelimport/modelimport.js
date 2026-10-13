@@ -4,9 +4,10 @@
 import { mkdirSync, rmSync, existsSync, readFileSync } from 'node:fs'
 import { join, basename, extname, resolve, relative } from 'node:path'
 import { loadModel } from './load.js'
-import { buildModel, placement } from './model.js'
-import { writeConverterInput } from './export.js'
+import { buildModel, placement, nameAnimations } from './model.js'
+import { writeConverterInput, writeAnimationsInput } from './export.js'
 import { convert } from './convert.js'
+import { retarget, playerSkeleton } from './retarget.js'
 
 const OUT = join(import.meta.dirname, '..', '..', 'out', 'modelimport')
 const INCHES_PER_METRE = 39.37
@@ -23,7 +24,8 @@ options:
   --texture-size <n>     longest side of a colour map, a power of two (default 1024)
   --simplify <share>     keep this share of each mesh's triangles, such as 0.25 for a quarter (default 1)
   --fps <n>              frames per second to sample animations at (default 30)
-  --loop <a,b | all>     animations that loop, by their name in the file (default none)`
+  --loop <a,b | all>     animations that loop, by their name in the file (default none)
+  --retarget player      write only the animations, moved onto CoD2's multiplayer player skeleton`
 
 const args = process.argv.slice(2)
 const opts = {}
@@ -37,7 +39,8 @@ while (args.length) {
 const src = positional[0] && resolve(positional[0])
 if (!src || !existsSync(src)) { console.error(USAGE); process.exit(1) }
 
-const name = (opts.name ?? basename(src, extname(src))).toLowerCase().replace(/\W+/g, '_')
+// A retarget gets a name of its own, so it does not write over the model's import.
+const name = (opts.name ?? `${basename(src, extname(src))}${opts.retarget ? '_player' : ''}`).toLowerCase().replace(/\W+/g, '_')
 const out = resolve(opts.out ?? join(OUT, name))
 const work = join(OUT, '.work', name)
 const rotate = vector('rotate')
@@ -52,9 +55,17 @@ if (!(keep > 0 && keep <= 1)) { console.error('--simplify takes a share above 0 
 const fps = Number(opts.fps ?? 30)
 if (!(Number.isInteger(fps) && fps > 0)) { console.error('--fps takes a whole number above 0, such as 30'); process.exit(1) }
 
+if (opts.retarget !== undefined && opts.retarget !== 'player') { console.error('--retarget takes player'); process.exit(1) }
+const loop = opts.loop?.split(',').map((l) => l.trim()) ?? []
+const player = opts.retarget && playerSkeleton()
+
 const loaded = await loadModel(src, textureSize, keep, fps)
+if (player) {
+  await importRetargeted()
+  process.exit(0)
+}
 const scale = Number(opts.scale ?? loaded.metresPerUnit * INCHES_PER_METRE)
-const model = buildModel(loaded, { name, place: placement({ scale, rotate, offset }), loop: opts.loop?.split(',').map((l) => l.trim()) ?? [] })
+const model = buildModel(loaded, { name, place: placement({ scale, rotate, offset }), loop })
 const oldAnimations = previousAnimations()
 rmSync(work, { recursive: true, force: true })
 writeConverterInput(work, name, model, fps)
@@ -63,6 +74,20 @@ removeOldOutput()
 await convert(work, out)
 console.log(`${relative(process.cwd(), join(out, 'xmodel', name))}  ${model.faces.length} triangles, ${model.materials.length} materials, ${model.bones.length - 1} bones`)
 for (const a of model.animations) console.log(`${relative(process.cwd(), join(out, 'xanim', a.name))}  ${a.frames.length} frames${a.looping ? ', looping' : ''}`)
+
+// The file's animations on the multiplayer player skeleton, as xanims built against an XMODEL_EXPORT of it.
+async function importRetargeted() {
+  const { animations, unmatched } = retarget(loaded, player)
+  const named = nameAnimations(animations, name, [], loop)
+  const oldAnimations = previousAnimations()
+  rmSync(work, { recursive: true, force: true })
+  writeAnimationsInput(work, name, player, named, fps)
+  mkdirSync(out, { recursive: true })
+  for (const a of oldAnimations) rmSync(join(out, 'xanim', a), { force: true })
+  await convert(work, out)
+  if (unmatched.length) console.log(`not matched, left out: ${unmatched.join(', ')}`)
+  for (const a of named) console.log(`${relative(process.cwd(), join(out, 'xanim', a.name))}  ${a.frames.length} frames${a.looping ? ', looping' : ''}`)
+}
 
 // The files an earlier import of this model wrote, which one with fewer materials would leave behind.
 function removeOldOutput() {

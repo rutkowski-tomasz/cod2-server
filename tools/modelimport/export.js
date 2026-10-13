@@ -16,14 +16,40 @@ export function writeConverterInput(work, name, model, fps) {
   const modelFile = `${FOLDER}\\${name}.XMODEL_EXPORT`
   writeFileSync(join(work, 'model_export', FOLDER, `${name}.XMODEL_EXPORT`), xmodelExport(model))
   for (const m of model.materials) writeFileSync(join(work, 'texture', FOLDER, m.image), tga(m.pixels))
-  const parts = model.bones.map((b) => b.name)
-  for (const a of model.animations) writeFileSync(join(work, 'xanim_export', FOLDER, `${a.name}.XANIM_EXPORT`), xanimExport(parts, fps, a.frames))
+  writeAnimations(work, model.bones.map((b) => b.name), model.animations, fps)
   writeFileSync(join(work, 'source_data', `${name}.gdt`), gdt([
     { name, gdf: 'xmodel.gdf', fields: { type: model.bones.length > 1 ? 'animated' : 'rigid', filename: modelFile, calculateBounds: 1, collisionLOD: 'None' } },
     ...model.materials.map((m) => ({ name: m.name, gdf: 'material.gdf', fields: modelMaterial(m, `texture\\${FOLDER}\\${m.image}`) })),
-    // `absolute` moves the bones about the scene's origin, where tag_origin stays; `model` gives the bind pose.
-    ...model.animations.map((a) => ({ name: a.name, gdf: 'xanim.gdf', fields: { filename: `${FOLDER}\\${a.name}.XANIM_EXPORT`, model: modelFile, looping: a.looping ? 1 : 0, type: 'absolute', useBones: 1 } })),
+    ...model.animations.map((a) => animationEntry(a, modelFile)),
   ]))
+}
+
+// Writes the converter's input for animations of another skeleton: `skeleton` gives its bones' names, parents and
+// rest poses (position, axes). The converter builds them against an XMODEL_EXPORT of it, which needs a mesh: one
+// triangle on the root bone.
+export function writeAnimationsInput(work, name, skeleton, animations, fps) {
+  for (const dir of [`model_export/${FOLDER}`, 'source_data']) mkdirSync(join(work, dir), { recursive: true })
+  const rig = `${name}_rig`
+  const corner = (vertex) => ({ vertex, normal: [0, 0, 1], color: [1, 1, 1, 1], uv: [0, 0] })
+  writeFileSync(join(work, 'model_export', FOLDER, `${rig}.XMODEL_EXPORT`), xmodelExport({
+    bones: skeleton.map((b) => ({ name: b.name, parent: b.parent, position: b.position.toArray(), axes: b.axes })),
+    vertices: [[0, 0, 0], [1, 0, 0], [0, 1, 0]].map((position) => ({ position, weights: [[0, 1]] })),
+    faces: [{ object: 0, material: 0, corners: [corner(0), corner(2), corner(1)] }],
+    objects: [rig],
+    materials: [{ name: rig, image: `${rig}.tga` }],
+  }))
+  writeAnimations(work, skeleton.map((b) => b.name), animations, fps)
+  writeFileSync(join(work, 'source_data', `${name}.gdt`), gdt(animations.map((a) => animationEntry(a, `${FOLDER}\\${rig}.XMODEL_EXPORT`))))
+}
+
+function writeAnimations(work, parts, animations, fps) {
+  mkdirSync(join(work, 'xanim_export', FOLDER), { recursive: true })
+  for (const a of animations) writeFileSync(join(work, 'xanim_export', FOLDER, `${a.name}.XANIM_EXPORT`), xanimExport(parts, fps, a.frames))
+}
+
+// `absolute` moves the bones about the scene's origin, where tag_origin stays; `model` gives the bind pose.
+function animationEntry(a, modelFile) {
+  return { name: a.name, gdf: 'xanim.gdf', fields: { filename: `${FOLDER}\\${a.name}.XANIM_EXPORT`, model: modelFile, looping: a.looping ? 1 : 0, type: 'absolute', useBones: 1 } }
 }
 
 // A lit model material. The converter wants a surface type, which sets impact effects and sounds.

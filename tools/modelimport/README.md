@@ -28,4 +28,18 @@ The game's front is +X and up is +Z, in inches. glTF and FBX models face +Z with
 
 - Every animation of a model with bones, as `xanim/<name>_<animation>`, sampled `--fps` times a second (default 30). Animations named in `--loop` (or all, with `--loop all`) loop; the rest play once. Play one with modelview: `--anim <name>_<animation>`.
 
-Not imported yet: normal and specular maps, LODs and collision. An animation drives the model's own bones only: it does not yet play on CoD2's player bodies. FBXLoader reads an FBX colour map only when it is linked as `DiffuseColor`, as Blender and most exporters write it. 3ds Max's Physical material links it as `base_color_texture`, which is lost: import such a model's glTF instead. Not supported: instanced meshes and KTX2 textures. Draco and meshopt compressed files load.
+## Animations for the player
+
+`--retarget player` writes only the file's animations, moved onto CoD2's multiplayer player skeleton, so they play on the stock player bodies:
+
+```bash
+node tools/modelimport/modelimport.js Soldier.glb --retarget player --loop Run
+node tools/modelview/modelview.js render playerbody_american_normandy01 --attach head_us_ranger_braeburn,helmet_us_ranger_generic --anim soldier_player_run --source out/modelimport/soldier_player
+```
+
+- The skeleton is the stock `playerbody_american_normandy01`'s, read from the stock iwds as modelview reads them. The xanims are built against an `XMODEL_EXPORT` of it.
+- Bones are matched by name for Mixamo, 3ds Max Biped and Unreal Engine 4 mannequin rigs: hips, spine, neck, head, clavicles, arms, legs, feet and fingers. Bones that match nothing are listed and left out. The source needs left and right hips, or clavicles, to tell which way it faces.
+- The player's skeleton is first posed as the source rests: its arms and legs point where the source's point, since most rigs rest in a T-pose and the player in an A-pose. Each frame, a matched bone turns from there as its source bone turns from its rest. The hips also move as the source's, scaled so they rest as high above the ankles. Every other bone follows its parent, and the player keeps its own proportions.
+- The animations are named `<name>_<animation>`, with `<name>` the file's name and `_player` by default. `--scale`, `--rotate`, `--offset`, `--simplify` and `--texture-size` do not apply.
+
+Not imported yet: normal and specular maps, LODs and collision. FBXLoader reads an FBX colour map only when it is linked as `DiffuseColor`, as Blender and most exporters write it. 3ds Max's Physical material links it as `base_color_texture`, which is lost: import such a model's glTF instead. Not supported: instanced meshes and KTX2 textures. Draco and meshopt compressed files load.
