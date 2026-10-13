@@ -5,19 +5,21 @@ import { join } from 'node:path'
 const MAPCOMPILE = join(import.meta.dirname, '..', 'mapcompile')
 // Folders the converter writes to under main/; images/$identitynormalmap.iwi, which it adds for every lit
 // material, is stock.
-const OUTPUTS = ['xmodel', 'xmodelparts', 'xmodelsurfs', 'materials', 'images']
+const OUTPUTS = ['xmodel', 'xmodelparts', 'xmodelsurfs', 'xanim', 'materials', 'images']
 
 const CONTEXT = ['--context', 'desktop-linux']
 
-// `work` holds source_data/<name>.gdt and what it names under model_export/ and texture/; the converted files go
-// to `out`. The stock GDTs are removed first, so only ours is converted.
+// `work` holds source_data/<name>.gdt and what it names under model_export/, xanim_export/ and texture/; the converted files go
+// to `out`. The stock GDTs are removed first, so only ours is converted, and modelmatch.csv emptied: animations
+// read it, and it names a stock rig the Mod Tools lack.
 export async function convert(work, out) {
   execFileSync('docker', [...CONTEXT, 'build', '--platform', 'linux/amd64', '-q', '-t', 'cod2-mapcompile', MAPCOMPILE], { stdio: ['ignore', 'ignore', 'inherit'] })
   const container = `modelimport-${process.pid}`
   const script = `
     set -e
     rm -f /cod2/source_data/*.gdt /cod2/aitype/*.gdt
-    for d in source_data model_export texture; do cp -r /w/$d /cod2/; done
+    : > /cod2/source_data/modelmatch.csv
+    for d in source_data model_export xanim_export texture; do cp -r /w/$d /cod2/; done
     cd /cod2/bin && xvfb-run -a wine converter.exe -nopause -nocachedownload
     cd /cod2/main && rm -f 'images/$identitynormalmap.iwi'
     for d in ${OUTPUTS.join(' ')}; do if [ -d $d ]; then cp -r $d /out/; fi; done`

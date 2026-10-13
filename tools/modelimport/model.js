@@ -12,7 +12,8 @@ const MAX_BONES = 128
 const OBJECT_VERTICES = 4000
 
 // `place`: from three.js axes and the file's units to the game's (see placement).
-export function buildModel({ meshes, bones, materials }, { name, place }) {
+// `loop`: the animations, by their name in the file, that loop.
+export function buildModel({ meshes, bones, animations, materials }, { name, place, loop }) {
   if (bones.length + 1 > MAX_BONES) throw new Error(`${bones.length} bones and tag_origin: the game takes at most ${MAX_BONES}`)
   const vertices = []
   const faces = []
@@ -43,30 +44,55 @@ export function buildModel({ meshes, bones, materials }, { name, place }) {
       faces.push({ object: object.index, material, corners })
     }
   }
+  const materialNames = materials.map((m, i) => `${name}_${i}`)
   return {
-    bones: [{ name: 'tag_origin', parent: -1, position: [0, 0, 0], axes: [[1, 0, 0], [0, 1, 0], [0, 0, 1]] }, ...placeBones(bones, place)],
+    bones: [ORIGIN, ...placeBones(bones, place)],
+    // Only bones can be animated: a model without them is rigid.
+    animations: bones.length ? placeAnimations(animations, name, [name, ...materialNames], place, loop) : [],
     vertices,
     faces,
     objects,
-    materials: materials.map((m, i) => ({ name: `${name}_${i}`, image: `${name}_${i}.tga`, pixels: m.pixels, alpha: m.alpha, doubleSided: m.doubleSided })),
+    materials: materials.map((m, i) => ({ name: materialNames[i], image: `${materialNames[i]}.tga`, pixels: m.pixels, alpha: m.alpha, doubleSided: m.doubleSided })),
   }
 }
 
-// Each bone's position and X, Y, Z axes in the game's space, its scale left out; names made unique and safe.
+const ORIGIN = { name: 'tag_origin', parent: -1, position: [0, 0, 0], axes: [[1, 0, 0], [0, 1, 0], [0, 0, 1]] }
+
+// Each bone's place in the game's space (see placeMatrix) and parent below tag_origin; names made unique and safe.
 function placeBones(bones, place) {
   const names = new Set(['tag_origin'])
-  const position = new Vector3()
-  const rotation = new Quaternion()
-  const rotationMatrix = new Matrix4()
   return bones.map((b) => {
-    new Matrix4().fromArray(b.matrix).decompose(position, rotation, new Vector3())
-    rotationMatrix.makeRotationFromQuaternion(rotation)
-    const axes = [0, 1, 2].map((k) => place.direction(new Vector3().setFromMatrixColumn(rotationMatrix, k).toArray()))
     let name = (b.name || 'bone').replace(/\W+/g, '_')
     while (names.has(name.toLowerCase())) name += '_'
     names.add(name.toLowerCase())
-    return { name, parent: b.parent + 1, position: place.point(position.toArray()), axes }
+    return { name, parent: b.parent + 1, ...placeMatrix(b.matrix, place) }
   })
+}
+
+// Every frame's bones placed as placeBones places them, tag_origin first and still, named `<model>_<animation>`
+// apart from `taken`, the model's other entries. A looping animation's last frame is its first again, which the
+// converter drops.
+function placeAnimations(animations, modelName, taken, place, loop) {
+  const unknown = loop.filter((l) => l !== 'all' && !animations.some((a) => a.name === l))
+  if (unknown.length) throw new Error(`--loop: no animation ${unknown.join(', ')}; the file has ${animations.map((a) => a.name).join(', ') || 'none'}`)
+  const names = new Set(taken)
+  return animations.map((a) => {
+    let name = `${modelName}_${(a.name || 'anim').replace(/\W+/g, '_')}`.toLowerCase()
+    while (names.has(name)) name += '_'
+    names.add(name)
+    const frames = a.frames.map((bones) => [ORIGIN, ...bones.map((m) => placeMatrix(m, place))])
+    return { name, frames, looping: loop.includes('all') || loop.includes(a.name) }
+  })
+}
+
+// A world matrix's position and X, Y, Z axes in the game's space, its scale left out.
+function placeMatrix(matrix, place) {
+  const position = new Vector3()
+  const rotation = new Quaternion()
+  new Matrix4().fromArray(matrix).decompose(position, rotation, new Vector3())
+  const rotationMatrix = new Matrix4().makeRotationFromQuaternion(rotation)
+  const axes = [0, 1, 2].map((k) => place.direction(new Vector3().setFromMatrixColumn(rotationMatrix, k).toArray()))
+  return { position: place.point(position.toArray()), axes }
 }
 
 // three.js models face +Z with +Y up; the game's face +X with +Z up. `scale` is inches per unit; `rotate`

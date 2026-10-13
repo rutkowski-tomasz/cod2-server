@@ -10,8 +10,9 @@ const fsUrl = (path) => `${ORIGIN}/fs${path.split('/').map(encodeURIComponent).j
 const PAGE = `<script type="importmap">{"imports":{"three":"${fsUrl(join(THREE, 'build/three.module.js'))}","three/addons/":"${fsUrl(join(THREE, 'examples/jsm'))}/"}}</script>
 <script type="module" src="${fsUrl(join(HERE, 'page.js'))}"></script>`
 
-// Colour maps are scaled to power-of-two sides of at most `textureSize`; `keep` is the share of triangles to keep.
-export async function loadModel(file, textureSize, keep) {
+// Colour maps are scaled to power-of-two sides of at most `textureSize`; `keep` is the share of triangles to keep;
+// animations are sampled `fps` times a second.
+export async function loadModel(file, textureSize, keep, fps) {
   const { chromium } = await import('playwright-core')
   const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
   try {
@@ -37,7 +38,7 @@ export async function loadModel(file, textureSize, keep) {
     })
     await page.goto(`${ORIGIN}/`)
     await page.waitForFunction('window.loadModel')
-    const loaded = await page.evaluate((a) => window.loadModel(...a), [fsUrl(file), `${fsUrl(join(THREE, 'examples/jsm/libs/draco/gltf'))}/`, textureSize, keep])
+    const loaded = await page.evaluate((a) => window.loadModel(...a), [fsUrl(file), `${fsUrl(join(THREE, 'examples/jsm/libs/draco/gltf'))}/`, textureSize, keep, fps])
     for (const m of loaded.materials) m.pixels.rgba = Buffer.from(m.pixels.rgba, 'base64')
     return loaded
   } finally {

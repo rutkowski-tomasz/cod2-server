@@ -11,8 +11,9 @@ import { mergeVertices, deinterleaveGeometry } from 'three/addons/utils/BufferGe
 import { bakeMaterial, loadedMap } from './bake.js'
 
 // `metresPerUnit` is 1 for glTF; an FBX file gives its unit in centimetres.
-// `keep`: the share of each mesh's triangles to keep, simplifying it; 1 keeps the mesh as it is.
-window.loadModel = async (url, dracoPath, textureSize, keep) => {
+// `keep`: the share of each mesh's triangles to keep, simplifying it; 1 keeps the mesh as it is. Each animation is
+// sampled `fps` times a second.
+window.loadModel = async (url, dracoPath, textureSize, keep, fps) => {
   const fbx = /\.fbx$/i.test(url)
   // FBXLoader returns before its textures have loaded; the manager tells when every file has.
   const manager = new THREE.LoadingManager()
@@ -30,7 +31,10 @@ window.loadModel = async (url, dracoPath, textureSize, keep) => {
     if (o.isInstancedMesh) throw new Error(`instanced mesh ${o.name} is not supported`)
     if (o.isMesh) meshes.push(readMesh(o, materials, bones, keep))
   })
-  return { meshes, bones: [...bones.keys()].map((b) => readBone(b, bones)), materials: materials.map((m) => readMaterial(m, textureSize)), metresPerUnit: fbx ? (root.userData.unitScaleFactor ?? 1) / 100 : 1 }
+  const boneList = [...bones.keys()]
+  const boneData = boneList.map((b) => readBone(b, bones))
+  const animations = (fbx ? root.animations : loaded.animations).map((clip) => sampleAnimation(root, clip, boneList, fps))
+  return { meshes, bones: boneData, animations, materials: materials.map((m) => readMaterial(m, textureSize)), metresPerUnit: fbx ? (root.userData.unitScaleFactor ?? 1) / 100 : 1 }
 }
 
 // Every bone a skinned mesh follows, to its index, parents before their children.
@@ -44,6 +48,26 @@ function skeletonBones(root) {
 // A bone's parent is its nearest ancestor among the bones, or -1; `matrix` places it in world space.
 function readBone(bone, bones) {
   return { name: bone.name, parent: boneAbove(bone.parent, bones), matrix: bone.matrixWorld.toArray() }
+}
+
+// Each frame's bone matrices in world space, evenly spaced from the clip's start to its end, about `fps` a second.
+// Stopping the mixer puts back what the clip moved, so the next clip starts from the pose the model loaded in.
+function sampleAnimation(root, clip, bones, fps) {
+  const mixer = new THREE.AnimationMixer(root)
+  // Played once and held, so the clip's end is its last frame rather than its first again.
+  const action = mixer.clipAction(clip).setLoop(THREE.LoopOnce, 1)
+  action.clampWhenFinished = true
+  action.play()
+  const count = Math.max(2, Math.round(clip.duration * fps) + 1)
+  const frames = []
+  for (let f = 0; f < count; f++) {
+    mixer.setTime((clip.duration * f) / (count - 1))
+    root.updateMatrixWorld(true)
+    frames.push(bones.map((b) => b.matrixWorld.toArray()))
+  }
+  mixer.stopAllAction()
+  root.updateMatrixWorld(true)
+  return { name: clip.name, frames }
 }
 
 // The index of `o` or its nearest ancestor among the bones, or -1.
