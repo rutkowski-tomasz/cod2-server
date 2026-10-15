@@ -19,14 +19,18 @@ const ALIGN_Y = { top: 0, middle: 0.5, bottom: 1 }
 const NARROWEST = 480
 
 export function createGameHud() {
+  // On the whole window, for fullscreen elements; the rest go inside the safe area, clear of a phone's notch and
+  // rounded corners, which `safeArea` measures.
   const canvas = document.body.appendChild(document.createElement('canvas'))
-  // Inside the safe area, clear of a phone's notch and rounded corners.
-  Object.assign(canvas.style, {
+  Object.assign(canvas.style, { position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'none' })
+  const safeArea = document.body.appendChild(document.createElement('div'))
+  Object.assign(safeArea.style, {
     position: 'absolute',
     left: 'env(safe-area-inset-left)',
     top: 'env(safe-area-inset-top)',
     width: 'calc(100% - env(safe-area-inset-left) - env(safe-area-inset-right))',
     height: 'calc(100% - env(safe-area-inset-top) - env(safe-area-inset-bottom))',
+    visibility: 'hidden',
     pointerEvents: 'none',
   })
   const ctx = canvas.getContext('2d')
@@ -75,14 +79,28 @@ export function createGameHud() {
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     ctx.imageSmoothingQuality = 'high'
-    const stretched = { sx: canvas.width / SCREEN_W, sy: canvas.height / SCREEN_H, w: SCREEN_W, h: SCREEN_H }
-    const fit = fitted(stretched)
+    const whole = stretchedOver({ left: 0, top: 0, width: canvas.width, height: canvas.height })
+    const fit = fitted(stretchedOver(safeBox()))
     for (const e of elems) {
       if ((e.alpha ?? 1) <= 0) continue
-      const frame = fullscreen(e) ? stretched : fit
-      ctx.setTransform(frame.sx, 0, 0, frame.sy, 0, 0)
+      const frame = fullscreen(e) ? whole : fit
+      ctx.setTransform(frame.sx, 0, 0, frame.sy, frame.ox, frame.oy)
       drawElement(e, frame)
     }
+  }
+
+  // The safe area in the canvas's device pixels.
+  function safeBox() {
+    const safe = safeArea.getBoundingClientRect()
+    const box = canvas.getBoundingClientRect()
+    const px = (v) => v * devicePixelRatio
+    return { left: px(safe.left - box.left), top: px(safe.top - box.top), width: px(safe.width), height: px(safe.height) }
+  }
+
+  // The game's virtual screen stretched over `box`, in device pixels: its scale each way, its origin and its size in
+  // virtual pixels.
+  function stretchedOver(box) {
+    return { sx: box.width / SCREEN_W, sy: box.height / SCREEN_H, ox: box.left, oy: box.top, w: SCREEN_W, h: SCREEN_H, box }
   }
 
   // On a screen at least 4:3 the game stretches the HUD's places to it, and its text keeps its shape: it scales with
@@ -92,8 +110,9 @@ export function createGameHud() {
   // the window.
   function fitted(stretched) {
     if (stretched.sx >= stretched.sy) return stretched
-    const s = Math.min(stretched.sy, canvas.width / NARROWEST)
-    return { sx: s, sy: s, w: canvas.width / s, h: canvas.height / s }
+    const { box } = stretched
+    const s = Math.min(stretched.sy, box.width / NARROWEST)
+    return { ...stretched, sx: s, sy: s, w: box.width / s, h: box.height / s }
   }
 
   // Text and images keep their shape, drawn `textAspect` and `imageAspect` as wide; images of `stretch` and fullscreen
@@ -176,7 +195,7 @@ export function createGameHud() {
     const box = canvas.getBoundingClientRect()
     const x = ((v.x + 1) / 2) * innerWidth - box.left
     const y = ((1 - v.y) / 2) * innerHeight - box.top
-    return [(x * devicePixelRatio) / frame.sx, (y * devicePixelRatio) / frame.sy]
+    return [(x * devicePixelRatio - frame.ox) / frame.sx, (y * devicePixelRatio - frame.oy) / frame.sy]
   }
 }
 

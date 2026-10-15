@@ -54,7 +54,7 @@ In the page: click to look around, WASD to move, Shift for speed, E and Q for up
 - `gameHud` draws the game's HUD over the page, as the game draws a player's: a 640×480 virtual screen stretched to the window.
   - Shape: text keeps its shape on a wider screen, scaled by the window's height only, as in game, and so do images, drawn in the middle of their box. `stretch: true` stretches an element's images with the screen instead, as the game draws them, for a bar whose width is a length.
   - Narrow windows: one narrower than 4:3, such as a phone held upright, gets a virtual screen of its own shape, at least 480 virtual pixels each way. What the game puts in the right or bottom half of its screen keeps its distance from that edge.
-  - Safe area: it keeps clear of a phone's notch and rounded corners, while the map fills the whole screen.
+  - Safe area: it keeps clear of a phone's notch and rounded corners, while the map and fullscreen elements fill the whole screen.
   - Fullscreen: elements with `horzAlign` or `vertAlign` `fullscreen` are placed on the whole window and stretched with it on any screen, for a scope's overlay or a fade to black.
   - `gameHud.add(assets)` loads the fonts from `buildHudFonts(search)` (the game's normal, big, small and bold) and the images from `buildHudImages(shaders, search)` (the materials in `shaders`), both in `bundle.js`.
   - `gameHud.set(elements)` draws hud elements: plain objects with the fields a script's `newHudElem` has.
