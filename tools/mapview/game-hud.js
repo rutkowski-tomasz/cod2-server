@@ -123,12 +123,12 @@ export function createGameHud() {
     const parts = (e.parts ?? [e]).map((p) => {
       // An image alone keeps the place of its box and is drawn in its middle; images in a line take their own width.
       if (p.shader) return images[p.shader] && { ...p, w: e.parts ? p.width * imageAspect : p.width, h: p.height }
-      // A text in a line can have a font and size of its own.
+      // A text in a line can have a font, size and colour of its own.
       const fontScale = p.fontScale ?? e.fontScale ?? 1
       const scale = FONT_SCALE * fontScale
       const lineHeight = LINE_HEIGHT * fontScale
       const font = fontFor(p.font ?? e.font ?? 'normal', lineHeight * frame.sy)
-      return font && p.text && { text: p.text, font, scale, w: paint.width(p.text, font, scale) * textAspect, h: lineHeight }
+      return font && p.text && { text: p.text, color: p.color, font, scale, w: paint.width(p.text, font, scale) * textAspect, h: lineHeight }
     }).filter(Boolean)
     const width = parts.reduce((sum, p) => sum + p.w, 0)
     const height = Math.max(0, ...parts.map((p) => p.h))
@@ -140,8 +140,8 @@ export function createGameHud() {
       ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a * (e.alpha ?? 1)})`
       ctx.fillRect(x, y, width, height)
     }
-    const color = [...(e.color ?? [1, 1, 1]), e.alpha ?? 1]
     for (const p of parts) {
+      const color = [...(p.color ?? e.color ?? [1, 1, 1]), e.alpha ?? 1]
       if (p.shader) drawShader(p, x, y + (height - p.h) / 2, color, imageAspect)
       else {
         ctx.save()
