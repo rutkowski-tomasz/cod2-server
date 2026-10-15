@@ -28,8 +28,9 @@ const PRONE_TORSO_UP = 0.25
 const BACK_SHARES = [['back_low', 0.2], ['back_mid', 0.3], ['back_up', 0.5]]
 const PRONE_BACK_SHARES = [['back_up', 1]]
 const HEAD_SHARES = [['neck', 0.3], ['head', 0.7]]
-// The bones run x up the spine and z to the player's left, so a pitch down turns them about +z.
-const PITCH_AXIS = new THREE.Vector3(0, 0, 1)
+// The game turns each bone about the model's +y, the player's left, after its parent's rotation (DObjCalcSkel), not
+// about the bone's own axes, which the animation may have twisted sideways; so a pitch down bends the player forward.
+const PITCH_AXIS = new THREE.Vector3(0, 1, 0)
 
 // `world` gives the floor the players stand on and the material models draw with.
 export function createPlayers(map, world) {
@@ -200,8 +201,16 @@ export function createPlayers(map, world) {
       const bone = copy.skeleton.getBoneByName(name)
       if (!bone) continue
       copy.bent.push([bone, bone.quaternion.clone()])
-      bone.quaternion.multiply(by.setFromAxisAngle(PITCH_AXIS, share * pitch * d2r))
+      const axis = PITCH_AXIS.clone().applyQuaternion(modelRotation(bone).invert())
+      bone.quaternion.multiply(by.setFromAxisAngle(axis, share * pitch * d2r))
     }
+  }
+
+  // `bone`'s rotation in the model, the frame its bone tree hangs in.
+  function modelRotation(bone) {
+    const rotation = new THREE.Quaternion()
+    for (let b = bone; b.isBone; b = b.parent) rotation.premultiply(b.quaternion)
+    return rotation
   }
 
   // A weapon drawn rigid in its bind pose, sharing geometry and materials with every other hand holding it.
