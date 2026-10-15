@@ -24,6 +24,19 @@ export function writeConverterInput(work, name, model, fps) {
   ]))
 }
 
+// Writes the converter's input for a gun: its viewmodel and world model, named after `name`, sharing materials.
+export function writeWeaponInput(work, name, view, world) {
+  for (const dir of [`model_export/${FOLDER}`, `texture/${FOLDER}`, 'source_data']) mkdirSync(join(work, dir), { recursive: true })
+  // A rigid model keeps only its root bone, so a world model with tags is `animated`.
+  const models = [[`viewmodel_${name}`, view, 'viewmodel'], [`weapon_${name}`, world, world.bones.length > 1 ? 'animated' : 'rigid']]
+  for (const [file, model] of models) writeFileSync(join(work, 'model_export', FOLDER, `${file}.XMODEL_EXPORT`), xmodelExport(model))
+  for (const m of view.materials) writeFileSync(join(work, 'texture', FOLDER, m.image), tga(m.pixels))
+  writeFileSync(join(work, 'source_data', `${name}.gdt`), gdt([
+    ...models.map(([file, , type]) => ({ name: file, gdf: 'xmodel.gdf', fields: { type, filename: `${FOLDER}\\${file}.XMODEL_EXPORT`, calculateBounds: 1, collisionLOD: 'None' } })),
+    ...view.materials.map((m) => ({ name: m.name, gdf: 'material.gdf', fields: modelMaterial(m, `texture\\${FOLDER}\\${m.image}`) })),
+  ]))
+}
+
 // Writes the converter's input for animations of another skeleton: `skeleton` gives its bones' names, parents and
 // rest poses (position, axes). The converter builds them against an XMODEL_EXPORT of it, which needs a mesh: one
 // triangle on the root bone.

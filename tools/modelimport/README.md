@@ -42,4 +42,18 @@ node tools/modelview/modelview.js render playerbody_american_normandy01 --attach
 - The player's skeleton is first posed as the source rests: its arms and legs point where the source's point, since most rigs rest in a T-pose and the player in an A-pose. Each frame, a matched bone turns from there as its source bone turns from its rest. The hips also move as the source's, scaled so they rest as high above the ankles. Every other bone follows its parent, and the player keeps its own proportions.
 - The animations are named `<name>_<animation>`, with `<name>` the file's name and `_player` by default. `--scale`, `--rotate`, `--offset`, `--simplify` and `--texture-size` do not apply.
 
+## Guns
+
+`--viewmodel <stock weapon>` makes a gun that the stock weapon's animations play:
+
+```bash
+node tools/modelimport/modelimport.js rifle.gltf --name ph_rifle --viewmodel kar98k_mp --rotate 0,-90,0 --parts bolt_a=j_bolt,bolt_b=j_bolt
+node tools/modelview/modelview.js render out/modelimport/ph_rifle/weapons/mp/ph_rifle_mp --anim rechamber
+```
+
+- It writes `xmodel/viewmodel_<name>` for first person, `xmodel/weapon_<name>` for the world and `weapons/mp/<name>_mp`, the weapon's file with these two models in it. The weapon is read as modelview reads it, nL's iwds over the stock ones; a name a stock asset has is refused.
+- The gun must face +X, the game's front: turn it with `--rotate`. It is always centred on the stock gun, and scaled to its length unless `--scale` is given: the viewmodel to the vertices on `j_gun`, the world model to the whole stock world model. `--offset` then moves it in inches.
+- The viewmodel has the stock gun's bones, such as `j_gun`, `j_bolt` and `j_clip`. `--parts mesh=bone,…` puts meshes, by their name in the file, on the bones that move. Every other mesh is on `j_gun`. A moving part is stored where the stock idle animation holds its bone, so the animations put it back in place; a bone the idle animation does not place cannot take a part. It turns about the stock part's pivot. The gun's own bones and animations, `--loop` and `--fps` do not apply.
+- The world model has the stock one's tags, such as `tag_flash` and `tag_brass`, where the stock gun has them. In first person the stock animations place them, so the muzzle flash and brass stay where the stock gun has them even after `--scale` or `--offset`.
+
 Not imported yet: normal and specular maps, LODs and collision. FBXLoader reads an FBX colour map only when it is linked as `DiffuseColor`, as Blender and most exporters write it. 3ds Max's Physical material links it as `base_color_texture`, which is lost: import such a model's glTF instead. Not supported: instanced meshes and KTX2 textures. Draco and meshopt compressed files load.
