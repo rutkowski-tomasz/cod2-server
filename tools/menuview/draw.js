@@ -63,7 +63,12 @@ export function createRenderer(canvas, bundle, images) {
     }
   }
 
-  function drawWindow(def, box, st) {
+  // With a border the game draws the window's own fill inside it, `bordersize` in from the top-left and
+  // `bordersize + 1` narrower and shorter, and a full border `bordersize` right and down from the rect at the
+  // rect's size, as players see it in game: a fill on the same rect as a bordered item pokes out above and left
+  // of its border and stops just short of its right and bottom edges.
+  function drawWindow(def, rect, st) {
+    const box = def.border ? insetForBorder(rect, def.bordersize ?? 1) : rect
     const [x, y, w, h] = box
     const style = def.style ?? 0
     if (style === STYLE.FILLED || style === STYLE.LOADBAR) {
@@ -83,13 +88,18 @@ export function createRenderer(canvas, bundle, images) {
     } else if (style === STYLE.CINEMATIC) {
       placeholder(box, 'cinematic')
     }
-    drawBorder(def, box, st.bordercolor)
+    drawBorder(def, rect, st.bordercolor)
   }
 
-  function drawBorder(def, [x, y, w, h], color) {
+  function insetForBorder([x, y, w, h], s) {
+    return [x + s, y + s, w - s - 1, h - s - 1]
+  }
+
+  function drawBorder(def, rect, color) {
     const border = def.border ?? 0
     if (!border) return
     const s = def.bordersize ?? 1
+    const [x, y, w, h] = border === BORDER.FULL ? [rect[0] + s, rect[1] + s, rect[2], rect[3]] : rect
     ctx.fillStyle = rgba(color)
     if (border === BORDER.FULL || border === BORDER.HORZ || border === BORDER.KCGRADIENT) { ctx.fillRect(x, y, w, s); ctx.fillRect(x, y + h - s, w, s) }
     if (border === BORDER.FULL || border === BORDER.VERT) { ctx.fillRect(x, y + s, s, h - 2 * s); ctx.fillRect(x + w - s, y + s, s, h - 2 * s) }
