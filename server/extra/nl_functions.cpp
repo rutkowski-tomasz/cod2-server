@@ -25,7 +25,6 @@ static scr_function_t functions[] =
 	{"graphFindClosestNode", gsc_graph_find_closest_node, 0},
 	{"graphFindClosestEdge", gsc_graph_find_closest_edge, 0},
 	{"graphGetAllEdges", gsc_graph_get_all_edges, 0},
-	{"graphAutodiscover", gsc_graph_autodiscover, 0},
 
 	{"getPlayersByViewOriginInRange", gsc_level_getplayersbyvieworigininrange, 0},
 	{"getPlayersInRange", gsc_level_getplayersinrange, 0},

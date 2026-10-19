@@ -51,7 +51,6 @@ void gsc_graph_find_closest_node(void);
 void gsc_graph_find_closest_edge(void);
 void gsc_graph_precompute_paths_to_node(void);
 void gsc_graph_get_all_edges(void);
-void gsc_graph_autodiscover(void);
 
 // Used for text debugging
 #include <iostream>
