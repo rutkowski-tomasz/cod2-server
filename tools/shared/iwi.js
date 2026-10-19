@@ -115,3 +115,102 @@ function rgb565(c, out, o) {
   out[o + 2] = (c & 31) * 255 / 31
   out[o + 3] = 255
 }
+
+// RGBA → IWI version 5 in DXT5, with every mip down to 1×1, stored smallest first.
+// The header's 4 offsets are where each of the 4 largest mips ends.
+export function encodeIwi(width, height, rgba) {
+  const mips = []
+  for (let w = width, h = height, img = rgba; ; [w, h, img] = halve(w, h, img)) {
+    mips.push(encodeDxt5(w, h, img))
+    if (w === 1 && h === 1) break
+  }
+  const header = Buffer.alloc(HEADER_SIZE)
+  header.write('IWi', 0, 'latin1')
+  header[3] = 5
+  header[4] = 13
+  header.writeUInt16LE(width, 6)
+  header.writeUInt16LE(height, 8)
+  header.writeUInt16LE(1, 10)
+  let end = HEADER_SIZE + mips.reduce((sum, m) => sum + m.length, 0)
+  for (let i = 0; i < 4; i++) {
+    header.writeUInt32LE(end, 12 + i * 4)
+    end -= mips[i]?.length ?? 0
+  }
+  return Buffer.concat([header, ...mips.reverse()])
+}
+
+function halve(w, h, rgba) {
+  const nw = Math.max(1, w >> 1)
+  const nh = Math.max(1, h >> 1)
+  const out = new Uint8Array(nw * nh * 4)
+  for (let y = 0; y < nh; y++) for (let x = 0; x < nw; x++) for (let c = 0; c < 4; c++) {
+    let sum = 0
+    for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) sum += rgba[(Math.min(2 * y + dy, h - 1) * w + Math.min(2 * x + dx, w - 1)) * 4 + c]
+    out[(y * nw + x) * 4 + c] = Math.round(sum / 4)
+  }
+  return [nw, nh, out]
+}
+
+function encodeDxt5(width, height, rgba) {
+  const bw = Math.max(1, width >> 2)
+  const bh = Math.max(1, height >> 2)
+  const out = Buffer.alloc(bw * bh * 16)
+  const block = []
+  for (let by = 0; by < bh; by++) {
+    for (let bx = 0; bx < bw; bx++) {
+      for (let i = 0; i < 16; i++) {
+        const o = (Math.min(by * 4 + (i >> 2), height - 1) * width + Math.min(bx * 4 + (i & 3), width - 1)) * 4
+        block[i] = rgba.subarray(o, o + 4)
+      }
+      encodeDxt5Block(block, out, (by * bw + bx) * 16)
+    }
+  }
+  return out
+}
+
+// Endpoints are the block's per-channel min and max; each pixel takes the nearest palette entry.
+function encodeDxt5Block(block, out, p) {
+  let a0 = 0, a1 = 255
+  const hi = [0, 0, 0], lo = [255, 255, 255]
+  for (const px of block) {
+    a0 = Math.max(a0, px[3]); a1 = Math.min(a1, px[3])
+    for (let k = 0; k < 3; k++) { hi[k] = Math.max(hi[k], px[k]); lo[k] = Math.min(lo[k], px[k]) }
+  }
+  const alphas = [a0, a1]
+  for (let k = 1; k < 7; k++) alphas.push(((7 - k) * a0 + k * a1) / 7)
+  let alphaBits = 0n
+  block.forEach((px, i) => {
+    const best = a0 === a1 ? 0 : nearest(alphas, (a) => Math.abs(a - px[3]))
+    alphaBits |= BigInt(best) << BigInt(i * 3)
+  })
+  out[p] = a0
+  out[p + 1] = a1
+  for (let k = 0; k < 6; k++) out[p + 2 + k] = Number((alphaBits >> BigInt(k * 8)) & 255n)
+
+  let c0 = to565(hi), c1 = to565(lo)
+  if (c0 < c1) [c0, c1] = [c1, c0]
+  out.writeUInt16LE(c0, p + 8)
+  out.writeUInt16LE(c1, p + 10)
+  if (c0 === c1) return
+  const colors = new Uint8Array(16)
+  rgb565(c0, colors, 0)
+  rgb565(c1, colors, 4)
+  for (let k = 0; k < 3; k++) {
+    colors[8 + k] = (2 * colors[k] + colors[4 + k] + 1) / 3
+    colors[12 + k] = (colors[k] + 2 * colors[4 + k] + 1) / 3
+  }
+  const palette = [0, 1, 2, 3].map((j) => colors.subarray(j * 4, j * 4 + 3))
+  let colorBits = 0
+  block.forEach((px, i) => {
+    colorBits |= nearest(palette, (c) => (c[0] - px[0]) ** 2 + (c[1] - px[1]) ** 2 + (c[2] - px[2]) ** 2) << (i * 2)
+  })
+  out.writeUInt32LE(colorBits >>> 0, p + 12)
+}
+
+const to565 = ([r, g, b]) => ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)
+
+function nearest(entries, distance) {
+  let best = 0
+  for (let i = 1; i < entries.length; i++) if (distance(entries[i]) < distance(entries[best])) best = i
+  return best
+}
