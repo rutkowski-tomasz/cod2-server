@@ -1,8 +1,16 @@
 diff --git a/code/declarations.hpp b/code/declarations.hpp
-index f0fe737..20d0455 100644
+index f0fe737..d04d8b3 100644
 --- a/code/declarations.hpp
 +++ b/code/declarations.hpp
-@@ -4351,6 +4351,12 @@ typedef struct
+@@ -4260,6 +4260,7 @@ typedef struct customPlayerState_s
+ 	float meleeHeightScale;
+ 	float meleeRangeScale;
+ 	float meleeWidthScale;
++	float reloadSpeedScale;
+ 	qboolean overrideBulletMask;
+ 	int bulletMask;
+ 	int fireThroughWalls;
+@@ -4351,6 +4352,12 @@ typedef struct
  	unsigned short sound_file_done;
  	unsigned short sound_file_stop;
  	#endif
@@ -59,7 +67,7 @@ index 44b8dc2..a8db34c 100644
  }
  
 diff --git a/code/libcod.cpp b/code/libcod.cpp
-index ac43214..d582e57 100644
+index ac43214..89c7601 100644
 --- a/code/libcod.cpp
 +++ b/code/libcod.cpp
 @@ -1,3 +1,5 @@
@@ -138,3 +146,32 @@ index ac43214..d582e57 100644
  	if ( cl != NULL )
  	{
  		SV_AddServerCommand(cl, type, message);
+@@ -4096,6 +4123,7 @@ void custom_SV_SendClientGameState(client_t *client)
+ 	cps->meleeHeightScale = 1.0;
+ 	cps->meleeRangeScale = 1.0;
+ 	cps->meleeWidthScale = 1.0;
++	cps->reloadSpeedScale = 1.0;
+ 	cps->fireRangeScale = 1.0;
+ 	cps->turretSpreadScale = 1.0;
+ 	cps->weaponSpreadScale = 1.0;
+@@ -8226,11 +8254,20 @@ void custom_PM_Weapon(pmove_t *pm, pml_t *pml)
+ 	}
+ 	/* New code end */
+ 
++	/* New code start: setReloadSpeedScale */
++	weaponstate_t oldWeaponState = pm->ps->weaponstate;
++	int oldWeaponTime = pm->ps->weaponTime;
++	/* New code end */
++
+ 	hook_PM_Weapon->unhook();
+ 	void (*PM_Weapon)(pmove_t *pm, pml_t *pml);
+ 	*(int *)&PM_Weapon = hook_PM_Weapon->from;
+ 	PM_Weapon(pm, pml);
+ 	hook_PM_Weapon->hook();
++
++	/* New code start: setReloadSpeedScale */
++	ScaleReloadTime(pm->ps, oldWeaponState, oldWeaponTime);
++	/* New code end */
+ }
+ 
+ void hook_Player_UpdateLookAtEntity(gentity_t *player)

@@ -18,6 +18,7 @@
 
 # Weapons
 
+- `oldScale = player setReloadSpeedScale(scale)` - Makes this player's reloads `scale` times faster (`2` takes half the time); `1` is normal speed and the default on connect. Returns the previous scale; returns `undefined` if the entity is not a player or `scale` is not above `0`. The client still plays the reload animation at normal speed, so it can be cut short.
 - `slotId = player getCurrentSlotId()` - Returns current slot ID (0=none, 1=primary, 2=primaryb); returns `undefined` if the entity is not a player.
 - `weaponId = player getCurrentWeaponId()` - Returns current weapon ID; returns `undefined` if the entity is not a player.
 - `weaponId = player getWeaponIdInSlotId(slotId)` - Returns weapon ID in slot (may be `0` if empty); returns `undefined` if the entity is not a player, the arg is wrong type, or the slot ID is invalid.

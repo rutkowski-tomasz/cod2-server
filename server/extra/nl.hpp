@@ -37,6 +37,8 @@ void gsc_player_setweaponidclipammo(scr_entref_t ref);
 void gsc_player_setweaponidinslotid(scr_entref_t ref);
 void gsc_player_getlegsanimation(scr_entref_t ref);
 void gsc_player_gettorsoanimation(scr_entref_t ref);
+void gsc_player_setreloadspeedscale(scr_entref_t ref);
+void ScaleReloadTime(playerState_t *ps, weaponstate_t oldWeaponState, int oldWeaponTime);
 
 void RecordPrintedMessage(client_t *cl, const char *command);
 void gsc_prints_takeprintedmessages();

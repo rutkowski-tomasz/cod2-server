@@ -64,6 +64,7 @@ static scr_method_t methods[] =
 	{"setWeaponIdInSlotId", gsc_player_setweaponidinslotid, 0},
 	{"getLegsAnimation", gsc_player_getlegsanimation, 0},
 	{"getTorsoAnimation", gsc_player_gettorsoanimation, 0},
+	{"setReloadSpeedScale", gsc_player_setreloadspeedscale, 0},
 
 	// Stand in for the game's own, to keep the sounds for takePlayedSounds.
 	{"playSound", gsc_sounds_playsound, 0},

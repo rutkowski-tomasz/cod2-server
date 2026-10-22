@@ -1,5 +1,7 @@
 #include "nl.hpp"
 
+extern customPlayerState_t customPlayerState[MAX_CLIENTS];
+
 // Phase 1: Simple Getters
 
 void gsc_player_getcurrentslotid(scr_entref_t ref)
@@ -578,4 +580,53 @@ void gsc_player_gettorsoanimation(scr_entref_t ref)
 	}
 
 	stackPushAnimationName(SV_GameClientNum(id)->torsoAnim);
+}
+
+void gsc_player_setreloadspeedscale(scr_entref_t ref)
+{
+	int id = ref.entnum;
+	float scale;
+
+	if ( !stackGetParams("f", &scale) )
+	{
+		stackError("gsc_player_setreloadspeedscale() argument is undefined or has a wrong type");
+		stackPushUndefined();
+		return;
+	}
+
+	if ( id >= MAX_CLIENTS )
+	{
+		stackError("gsc_player_setreloadspeedscale() entity %i is not a player", id);
+		stackPushUndefined();
+		return;
+	}
+
+	if ( scale <= 0 )
+	{
+		stackError("gsc_player_setreloadspeedscale() scale must be above zero");
+		stackPushUndefined();
+		return;
+	}
+
+	float oldScale = customPlayerState[id].reloadSpeedScale;
+	customPlayerState[id].reloadSpeedScale = scale;
+	stackPushFloat(oldScale);
+}
+
+void ScaleReloadTime(playerState_t *ps, weaponstate_t oldWeaponState, int oldWeaponTime)
+{
+	float scale = customPlayerState[ps->clientNum].reloadSpeedScale;
+
+	if ( scale == 1.0 )
+		return;
+
+	if ( ps->weaponstate != WEAPON_RELOADING && ps->weaponstate != WEAPON_RELOAD_START && ps->weaponstate != WEAPON_RELOAD_END )
+		return;
+
+	// A shotgun reloads shell by shell in WEAPON_RELOADING, so a restarted timer also starts a new stage.
+	if ( ps->weaponstate == oldWeaponState && ps->weaponTime <= oldWeaponTime )
+		return;
+
+	ps->weaponTime = (int)(ps->weaponTime / scale);
+	ps->weaponDelay = (int)(ps->weaponDelay / scale);
 }
