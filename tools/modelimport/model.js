@@ -9,8 +9,8 @@ const CLOCKWISE = [0, 2, 1]
 const MAX_BONES = 128
 
 // The converter takes at most 5450 vertices per object and material, counted after it splits vertices whose
-// tangents differ, as at mirrored UV seams: about a tenth more on a character.
-const OBJECT_VERTICES = 4000
+// tangents differ, as at mirrored UV seams: about a tenth more on a character, over half more on a mirrored vehicle.
+const OBJECT_VERTICES = 3000
 
 // `place`: from three.js axes and the file's units to the game's (see placement).
 // `loop`: the animations, by their name in the file, that loop.
