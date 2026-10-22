@@ -1,5 +1,6 @@
 // Turns loaded meshes into an XMODEL_EXPORT model: game axes and inches, the file's bones under a root bone
 // tag_origin, triangles wound as the game winds them.
+import { createHash } from 'node:crypto'
 import { Matrix3, Matrix4, Euler, Vector3, Quaternion } from 'three'
 
 const CLOCKWISE = [0, 2, 1]
@@ -13,7 +14,8 @@ const OBJECT_VERTICES = 4000
 
 // `place`: from three.js axes and the file's units to the game's (see placement).
 // `loop`: the animations, by their name in the file, that loop.
-export function buildModel({ meshes, bones, animations, materials }, { name, place, loop }) {
+export function buildModel({ meshes, bones, animations, materials: loaded }, { name, place, loop }) {
+  const materials = mergeMaterials(meshes, loaded)
   if (bones.length + 1 > MAX_BONES) throw new Error(`${bones.length} bones and tag_origin: the game takes at most ${MAX_BONES}`)
   const vertices = []
   const faces = []
@@ -54,6 +56,21 @@ export function buildModel({ meshes, bones, animations, materials }, { name, pla
     objects,
     materials: materials.map((m, i) => ({ name: materialNames[i], image: `${materialNames[i]}.tga`, pixels: m.pixels, alpha: m.alpha, doubleSided: m.doubleSided })),
   }
+}
+
+// The materials the triangles use, each once: a file often repeats one under several names. Triangles are moved to the
+// first of each.
+function mergeMaterials(meshes, materials) {
+  const used = new Set(meshes.flatMap((mesh) => mesh.triangles.filter((_, i) => i % 4 === 3)))
+  const first = new Map()
+  const index = materials.map((m, i) => {
+    if (!used.has(i)) return -1
+    const key = [m.alpha, m.doubleSided, m.pixels.width, m.pixels.height, createHash('sha1').update(m.pixels.rgba).digest('hex')].join()
+    if (!first.has(key)) first.set(key, first.size)
+    return first.get(key)
+  })
+  for (const mesh of meshes) for (let t = 3; t < mesh.triangles.length; t += 4) mesh.triangles[t] = index[mesh.triangles[t]]
+  return materials.filter((m, i) => index[i] >= 0 && index.indexOf(index[i]) === i)
 }
 
 const ORIGIN = { name: 'tag_origin', parent: -1, position: [0, 0, 0], axes: [[1, 0, 0], [0, 1, 0], [0, 0, 1]] }

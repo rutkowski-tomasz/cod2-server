@@ -8,6 +8,7 @@ import { buildModel, placement, nameAnimations } from './model.js'
 import { writeConverterInput, writeAnimationsInput } from './export.js'
 import { convert } from './convert.js'
 import { retarget, playerSkeleton } from './retarget.js'
+import { rigPlayer } from './rig.js'
 
 const OUT = join(import.meta.dirname, '..', '..', 'out', 'modelimport')
 const INCHES_PER_METRE = 39.37
@@ -25,7 +26,10 @@ options:
   --simplify <share>     keep this share of each mesh's triangles, such as 0.25 for a quarter (default 1)
   --fps <n>              frames per second to sample animations at (default 30)
   --loop <a,b | all>     animations that loop, by their name in the file (default none)
-  --retarget player      write only the animations, moved onto CoD2's multiplayer player skeleton`
+  --retarget player      write only the animations, moved onto CoD2's multiplayer player skeleton
+  --blend <blend | mask> draw the materials the file blends blended (default), or cut out at half alpha
+  --skip <a,b>           leave out the meshes of these names, such as stray parts
+  --rig player           bind the meshes to CoD2's multiplayer player skeleton, fitted to their shape, as a player body`
 
 const args = process.argv.slice(2)
 const opts = {}
@@ -56,16 +60,27 @@ const fps = Number(opts.fps ?? 30)
 if (!(Number.isInteger(fps) && fps > 0)) { console.error('--fps takes a whole number above 0, such as 30'); process.exit(1) }
 
 if (opts.retarget !== undefined && opts.retarget !== 'player') { console.error('--retarget takes player'); process.exit(1) }
+const blend = opts.blend ?? 'blend'
+if (!['blend', 'mask'].includes(blend)) { console.error('--blend takes blend or mask'); process.exit(1) }
+if (opts.rig !== undefined && opts.rig !== 'player') { console.error('--rig takes player'); process.exit(1) }
+if (opts.rig && opts.retarget) { console.error('--rig and --retarget do not go together'); process.exit(1) }
 const loop = opts.loop?.split(',').map((l) => l.trim()) ?? []
 const player = opts.retarget && playerSkeleton()
+const body = opts.rig && playerSkeleton()
 
 const loaded = await loadModel(src, textureSize, keep, fps)
+for (const m of loaded.materials) if (m.alpha === 'blend') m.alpha = blend
+const skip = opts.skip?.split(',').map((s) => s.trim()) ?? []
+const unknown = skip.filter((s) => !loaded.meshes.some((m) => m.name === s))
+if (unknown.length) { console.error(`--skip: no mesh ${unknown.join(', ')}; the file has ${loaded.meshes.map((m) => m.name).join(', ')}`); process.exit(1) }
+loaded.meshes = loaded.meshes.filter((m) => !skip.includes(m.name))
 if (player) {
   await importRetargeted()
   process.exit(0)
 }
 const scale = Number(opts.scale ?? loaded.metresPerUnit * INCHES_PER_METRE)
-const model = buildModel(loaded, { name, place: placement({ scale, rotate, offset }), loop })
+const built = buildModel(loaded, { name, place: placement({ scale, rotate, offset }), loop })
+const model = body ? rigPlayer(built, body).model : built
 const oldAnimations = previousAnimations()
 rmSync(work, { recursive: true, force: true })
 writeConverterInput(work, name, model, fps)
