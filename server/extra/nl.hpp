@@ -20,6 +20,7 @@ void Sha256Hex(const uint8_t *data, size_t len, char hex[65]);
 
 void gsc_level_getplayersbyvieworigininrange();
 void gsc_level_getplayersinrange();
+void gsc_level_getplayersinrangesorted();
 void gsc_level_getclosestplayerbyvieworigininrange();
 void gsc_level_getclosestplayerinrange();
 

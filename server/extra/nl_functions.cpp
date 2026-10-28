@@ -28,6 +28,7 @@ static scr_function_t functions[] =
 
 	{"getPlayersByViewOriginInRange", gsc_level_getplayersbyvieworigininrange, 0},
 	{"getPlayersInRange", gsc_level_getplayersinrange, 0},
+	{"getPlayersInRangeSorted", gsc_level_getplayersinrangesorted, 0},
 	{"getClosestPlayerInRange", gsc_level_getclosestplayerinrange, 0},
 	{"getClosestPlayerByViewOriginInRange", gsc_level_getclosestplayerbyvieworigininrange, 0},
 
