@@ -1,6 +1,7 @@
 services:
   db:
     image: mariadb:10.11
+    command: --innodb-buffer-pool-size=512M
     volumes:
       - type: volume
         source: db_volume
