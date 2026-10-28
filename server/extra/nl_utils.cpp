@@ -362,7 +362,7 @@ void addArrayKey(const char *key)
 }
 
 // The engine keeps every script variable in one list of 0xFFFE slots; slot 0 heads the free list.
-// The memory tree holds the stacks of waiting threads in 0xFFFF buckets of 16 bytes.
+// The memory tree holds script strings, vectors and the stacks of waiting threads in 0xFFFF buckets of 16 bytes.
 static const int SCRIPT_VARIABLE_SLOTS = 0xFFFE;
 static const unsigned int VAR_STAT_MASK = 0x60;
 static const int MEMORY_TREE_BUCKETS = 0xFFFF;
