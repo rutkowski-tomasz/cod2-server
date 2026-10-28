@@ -360,3 +360,64 @@ void addArrayKey(const char *key)
 	Scr_AddArrayStringIndexed(k);
 	SL_RemoveRefToString(k);
 }
+
+// The engine keeps every script variable in one list of 0xFFFE slots; slot 0 heads the free list.
+// The memory tree holds the stacks of waiting threads in 0xFFFF buckets of 16 bytes.
+static const int SCRIPT_VARIABLE_SLOTS = 0xFFFE;
+static const unsigned int VAR_STAT_MASK = 0x60;
+static const int MEMORY_TREE_BUCKETS = 0xFFFF;
+static const int memtreeglob_totalalloc_offset = 0x082872A4;
+static const int memtreeglob_totalallocbuckets_offset = 0x082872A8;
+
+void gsc_utils_getscriptvariableusage()
+{
+	int used = 0, objects = 0, threads = 0, structs = 0, arrays = 0, entities = 0;
+
+	for ( int id = 1; id < SCRIPT_VARIABLE_SLOTS; id++ )
+	{
+		VariableValueInternal *entry = &scrVarGlob[id];
+		if ( !( entry->w.status & VAR_STAT_MASK ) )
+			continue;
+
+		used++;
+
+		int type = entry->w.type & VAR_MASK;
+		if ( type < VAR_THREAD )
+			continue;
+
+		objects++;
+		if ( type <= VAR_CHILD_THREAD )
+			threads++;
+		else if ( type == VAR_STRUCT )
+			structs++;
+		else if ( type == VAR_ARRAY )
+			arrays++;
+		else if ( type == VAR_ENTITY || type == VAR_REMOVED_ENTITY )
+			entities++;
+	}
+
+	int memoryBuckets = *(int *)memtreeglob_totalallocbuckets_offset;
+	int memoryAllocations = *(int *)memtreeglob_totalalloc_offset;
+
+	stackPushArray();
+	stackPushInt(used);
+	addArrayKey("used");
+	stackPushInt(SCRIPT_VARIABLE_SLOTS - 1);
+	addArrayKey("total");
+	stackPushInt(objects);
+	addArrayKey("objects");
+	stackPushInt(threads);
+	addArrayKey("threads");
+	stackPushInt(structs);
+	addArrayKey("structs");
+	stackPushInt(arrays);
+	addArrayKey("arrays");
+	stackPushInt(entities);
+	addArrayKey("entities");
+	stackPushInt(memoryBuckets);
+	addArrayKey("memoryBuckets");
+	stackPushInt(MEMORY_TREE_BUCKETS);
+	addArrayKey("memoryBucketsTotal");
+	stackPushInt(memoryAllocations);
+	addArrayKey("memoryAllocations");
+}

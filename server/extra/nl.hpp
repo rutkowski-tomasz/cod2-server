@@ -54,6 +54,7 @@ void gsc_sounds_getambientsound();
 void gsc_utils_collapsecolors();
 void gsc_utils_stripcolors();
 void gsc_utils_sha256();
+void gsc_utils_getscriptvariableusage();
 
 void gsc_weapons_getweaponidclipammosize();
 void gsc_weapons_getweaponidammosize();

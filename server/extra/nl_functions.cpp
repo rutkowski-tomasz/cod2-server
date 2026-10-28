@@ -41,6 +41,7 @@ static scr_function_t functions[] =
 	{"collapseColors", gsc_utils_collapsecolors, 0},
 	{"stripColors", gsc_utils_stripcolors, 0},
 	{"sha256", gsc_utils_sha256, 0},
+	{"getScriptVariableUsage", gsc_utils_getscriptvariableusage, 0},
 
 	{"getWeaponIdClipAmmoSize", gsc_weapons_getweaponidclipammosize, 0},
 	{"getWeaponIdAmmoSize", gsc_weapons_getweaponidammosize, 0},
