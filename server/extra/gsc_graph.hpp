@@ -151,6 +151,7 @@ public:
 #else
 	std::vector<AStarGraphEdge>edges;
 #endif
+	std::vector<AStarGraphNode*> incoming;
 
 	AStarGraphNode()
 	{}

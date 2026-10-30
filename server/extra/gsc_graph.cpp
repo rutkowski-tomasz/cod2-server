@@ -185,6 +185,11 @@ struct IncomingEdge
 	int type;
 };
 
+static void RemoveIncoming(AStarGraphNode* toNode, AStarGraphNode* fromNode)
+{
+	toNode->incoming.erase(std::find(toNode->incoming.begin(), toNode->incoming.end(), fromNode));
+}
+
 static void InvalidatePrecompute(AStarGraph& graph)
 {
 	graph.precomputedPaths.clear();
@@ -772,28 +777,12 @@ void gsc_graph_get_node_ids_accessible_to(void)
 		return;
 	}
 
-	const size_t nodeCount = graph.nodes.size();
+	AStarGraphNode* toNode = graph.nodes[itGoal->second].get();
 	Scr_MakeArray();
-	std::unordered_set<unsigned int> seen;
-	for ( size_t fromIndex = 0; fromIndex < nodeCount; ++fromIndex )
+	for ( AStarGraphNode* fromNode : toNode->incoming )
 	{
-		AStarGraphNode* fromNode = graph.nodes[fromIndex].get();
-#if USE_FSA_MEMORY
-		unsigned int i = 0;
-		for ( auto edge = begin(fromNode->edges); i < fromNode->numEdges; ++edge, ++i )
-#else
-		for ( auto edge = begin(fromNode->edges); edge != end(fromNode->edges); ++edge )
-#endif
-		{
-			if ( edge->end->id != nodeId )
-				continue;
-
-			if ( seen.insert(fromNode->id).second )
-			{
-				stackPushInt(static_cast<int>(fromNode->id));
-				stackPushArrayLast();
-			}
-		}
+		stackPushInt(static_cast<int>(fromNode->id));
+		stackPushArrayLast();
 	}
 }
 
@@ -860,6 +849,14 @@ void gsc_graph_remove_node(void)
 		if ( itIndex != graph.nodeIndexById.end() )
 		{
 			InvalidatePrecompute(graph);
+
+#if USE_FSA_MEMORY
+			unsigned int i = 0;
+			for ( auto edge = begin(searchNode->edges); i < searchNode->numEdges; ++edge, ++i )
+#else
+			for ( auto edge = begin(searchNode->edges); edge != end(searchNode->edges); ++edge )
+#endif
+				RemoveIncoming(edge->end, searchNode);
 
 			// Remove edges to node
 			for ( auto node = begin(graph.nodes); node != end(graph.nodes); ++node )
@@ -1003,6 +1000,7 @@ void gsc_graph_add_edge(void)
 #else
 	fromNode->edges.emplace_back(fromNode, toNode, type, cost);
 #endif
+	toNode->incoming.push_back(fromNode);
 
 	stackPushBool(qtrue);
 }
@@ -1219,6 +1217,7 @@ void gsc_graph_remove_edge(void)
 				}
 			}
 			fromNode->numEdges--;
+			RemoveIncoming(toNode, fromNode);
 
 			InvalidatePrecompute(graph);
 			stackPushBool(qtrue);
@@ -1231,6 +1230,7 @@ void gsc_graph_remove_edge(void)
 		if ( edge->end == toNode )
 		{
 			fromNode->edges.erase(edge);
+			RemoveIncoming(toNode, fromNode);
 
 			InvalidatePrecompute(graph);
 			stackPushBool(qtrue);
